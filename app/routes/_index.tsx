@@ -5,6 +5,10 @@ import { getMenus, getOrders } from "~/lib/database";
 import Header from "~/components/Header";
 
 export async function loader({ request }: LoaderFunctionArgs) {
+  const url = new URL(request.url);
+  const error = url.searchParams.get('error');
+  const success = url.searchParams.get('success');
+
   try {
     const [menus, orders] = await Promise.all([
       getMenus(),
@@ -30,6 +34,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
       totalMenus: menus.length,
       totalOrders: orders.length,
       menus: menus.slice(0, 8), // 홈페이지에 표시할 메뉴 8개
+      error,
+      success,
     });
   } catch (error) {
     console.error('Dashboard loader error:', error);
@@ -40,16 +46,45 @@ export async function loader({ request }: LoaderFunctionArgs) {
       totalMenus: 0,
       totalOrders: 0,
       menus: [],
+      error,
+      success,
     });
   }
 }
 
 export default function Index() {
-  const { menuStats, orderStats, recentOrders, totalMenus, totalOrders, menus } = useLoaderData<typeof loader>();
+  const { menuStats, orderStats, recentOrders, totalMenus, totalOrders, menus, error, success } = useLoaderData<typeof loader>();
+  
+  // 타입 안전성을 위한 문자열 변환
+  const errorMessage = error ? String(error) : null;
+  const successMessage = success ? String(success) : null;
 
   return (
     <div className="min-h-screen bg-gradient-warm">
       <Header />
+      
+      {/* OAuth 결과 메시지 */}
+      {errorMessage && (
+        <div className="fixed top-4 right-4 z-50 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg shadow-large animate-slide-in">
+          <div className="flex items-center">
+            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+            </svg>
+            {errorMessage}
+          </div>
+        </div>
+      )}
+      
+      {successMessage && (
+        <div className="fixed top-4 right-4 z-50 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg shadow-large animate-slide-in">
+          <div className="flex items-center">
+            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            </svg>
+            {successMessage}
+          </div>
+        </div>
+      )}
       
       {/* 히어로 섹션 */}
       <section className="relative bg-gradient-ivory min-h-[600px] flex items-center">
@@ -193,18 +228,16 @@ export default function Index() {
                     )}
                     <div className="flex justify-between items-center">
                       <span className={`text-xs px-3 py-1 rounded-full font-medium ${
-                        menu.category === 'coffee' ? 'bg-wine-100 text-wine-800' :
+                        menu.category === 'hot coffee' ? 'bg-red-100 text-red-800' :
+                        menu.category === 'ice coffee' ? 'bg-blue-100 text-blue-800' :
                         menu.category === 'tea' ? 'bg-orange-100 text-orange-800' :
-                        menu.category === 'beverage' ? 'bg-blue-100 text-blue-800' :
-                        menu.category === 'juice' ? 'bg-green-100 text-green-800' :
-                        menu.category === 'smoothie' ? 'bg-purple-100 text-purple-800' :
+                        menu.category === 'beverage' ? 'bg-green-100 text-green-800' :
                         'bg-gray-100 text-gray-600'
                       }`}>
-                        {menu.category === 'coffee' ? '커피' :
+                        {menu.category === 'hot coffee' ? 'Hot 커피' :
+                         menu.category === 'ice coffee' ? 'Ice 커피' :
                          menu.category === 'tea' ? '차' :
-                         menu.category === 'beverage' ? '음료' :
-                         menu.category === 'juice' ? '주스' :
-                         menu.category === 'smoothie' ? '스무디' : menu.category}
+                         menu.category === 'beverage' ? '음료' : menu.category}
                       </span>
                       <a 
                         href="/orders/new" 

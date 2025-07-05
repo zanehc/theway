@@ -81,11 +81,10 @@ export default function NewOrder() {
   // 카테고리 목록
   const categories = [
     { id: 'all', name: '전체' },
-    { id: 'coffee', name: '커피' },
+    { id: 'hot coffee', name: 'Hot 커피' },
+    { id: 'ice coffee', name: 'Ice 커피' },
     { id: 'tea', name: '차' },
-    { id: 'beverage', name: '음료' },
-    { id: 'juice', name: '주스' },
-    { id: 'smoothie', name: '스무디' }
+    { id: 'beverage', name: '음료' }
   ];
 
   // 선택된 카테고리에 따른 메뉴 필터링
@@ -237,18 +236,16 @@ export default function NewOrder() {
                       )}
                       <div className="flex justify-between items-center mb-4">
                         <span className={`text-xs px-3 py-1 rounded-full font-medium ${
-                          menu.category === 'coffee' ? 'bg-wine-100 text-wine-800' :
+                          menu.category === 'hot coffee' ? 'bg-red-100 text-red-800' :
+                          menu.category === 'ice coffee' ? 'bg-blue-100 text-blue-800' :
                           menu.category === 'tea' ? 'bg-orange-100 text-orange-800' :
-                          menu.category === 'beverage' ? 'bg-blue-100 text-blue-800' :
-                          menu.category === 'juice' ? 'bg-green-100 text-green-800' :
-                          menu.category === 'smoothie' ? 'bg-purple-100 text-purple-800' :
+                          menu.category === 'beverage' ? 'bg-green-100 text-green-800' :
                           'bg-gray-100 text-gray-600'
                         }`}>
-                          {menu.category === 'coffee' ? '커피' :
+                          {menu.category === 'hot coffee' ? 'Hot 커피' :
+                           menu.category === 'ice coffee' ? 'Ice 커피' :
                            menu.category === 'tea' ? '차' :
-                           menu.category === 'beverage' ? '음료' :
-                           menu.category === 'juice' ? '주스' :
-                           menu.category === 'smoothie' ? '스무디' : menu.category}
+                           menu.category === 'beverage' ? '음료' : menu.category}
                         </span>
                       </div>
                       

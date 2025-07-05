@@ -90,11 +90,10 @@ export async function action({ request }: ActionFunctionArgs) {
 }
 
 const categories = [
-  { value: 'coffee', label: '커피' },
+  { value: 'hot coffee', label: 'Hot 커피' },
+  { value: 'ice coffee', label: 'Ice 커피' },
   { value: 'tea', label: '차' },
-  { value: 'beverage', label: '음료' },
-  { value: 'juice', label: '주스' },
-  { value: 'smoothie', label: '스무디' },
+  { value: 'beverage', label: '음료' }
 ];
 
 export default function Menus() {
