@@ -1,25 +1,16 @@
 import { useState } from 'react';
 import { supabase } from '~/lib/supabase';
-import { KakaoLoginButton } from './KakaoLoginButton';
 
 interface LoginFormProps {
   onSwitchToSignup: () => void;
+  onLoginSuccess?: () => void;
 }
 
-export function LoginForm({ onSwitchToSignup }: LoginFormProps) {
+export function LoginForm({ onSwitchToSignup, onLoginSuccess }: LoginFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  const handleKakaoError = (errorMessage: string) => {
-    setError(errorMessage);
-  };
-
-  const handleKakaoSuccess = () => {
-    // 카카오 로그인 성공 시 페이지 새로고침
-    window.location.reload();
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,10 +30,14 @@ export function LoginForm({ onSwitchToSignup }: LoginFormProps) {
       });
 
       if (error) {
-        setError(error.message);
+        if (error.message.includes('Invalid login credentials')) {
+          setError('아이디 또는 비밀번호를 확인해주세요.');
+        } else {
+          setError(error.message);
+        }
       } else {
-        // 로그인 성공 시 페이지 새로고침
-        window.location.reload();
+        // 로그인 성공 시
+        if (onLoginSuccess) onLoginSuccess();
       }
     } catch (err) {
       setError('로그인 중 오류가 발생했습니다.');
@@ -104,22 +99,6 @@ export function LoginForm({ onSwitchToSignup }: LoginFormProps) {
           회원가입
         </button>
       </div>
-
-      {/* 구분선 */}
-      <div className="relative my-6">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-gray-300"></div>
-        </div>
-        <div className="relative flex justify-center text-sm">
-          <span className="px-2 bg-white text-gray-500">또는</span>
-        </div>
-      </div>
-
-      {/* 카카오 로그인 버튼 */}
-      <KakaoLoginButton 
-        onSuccess={handleKakaoSuccess}
-        onError={handleKakaoError}
-      />
     </form>
   );
 } 

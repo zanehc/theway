@@ -3,6 +3,15 @@ import { json } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
 import { getMenus, getOrders } from "~/lib/database";
 import Header from "~/components/Header";
+import { useEffect, useState } from 'react';
+import { supabase } from '~/lib/supabase';
+
+// Leaflet 타입 선언
+declare global {
+  interface Window {
+    L: any;
+  }
+}
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
@@ -55,6 +64,128 @@ export async function loader({ request }: LoaderFunctionArgs) {
 export default function Index() {
   const { menuStats, orderStats, recentOrders, totalMenus, totalOrders, menus, error, success } = useLoaderData<typeof loader>();
   
+  // 로그인 상태 확인
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+      setLoading(false);
+    };
+    getUser();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Leaflet 지도 초기화
+  useEffect(() => {
+    const initMap = async () => {
+      // Leaflet CSS와 JS를 동적으로 로드
+      if (!document.querySelector('link[href*="leaflet.css"]')) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        link.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
+        link.crossOrigin = '';
+        document.head.appendChild(link);
+      }
+
+      if (!window.L) {
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+        script.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
+        script.crossOrigin = '';
+        script.onload = () => {
+          createMap();
+        };
+        document.head.appendChild(script);
+      } else {
+        createMap();
+      }
+    };
+
+    const createMap = () => {
+      if (typeof window.L === 'undefined') return;
+      
+      const map = window.L.map('map').setView([35.009761, 126.800326], 15); // 나주시 좌표
+      
+      window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map);
+
+      // 커스텀 십자가 + 라벨 아이콘 생성
+      const crossLabelIcon = window.L.divIcon({
+        html: `
+          <div style="display: flex; flex-direction: column; align-items: center;">
+            <span style="
+              background: #7c2d12;
+              color: #fff;
+              font-weight: bold;
+              font-size: 14px;
+              padding: 2px 10px;
+              border-radius: 12px 12px 12px 12px;
+              margin-bottom: 2px;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.10);
+              white-space: nowrap;
+            ">길을여는교회</span>
+            <div style="
+              width: 30px; 
+              height: 30px; 
+              background-color: #7c2d12; 
+              border: 3px solid white; 
+              border-radius: 50%; 
+              display: flex; 
+              align-items: center; 
+              justify-content: center; 
+              box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+              position: relative;
+            ">
+              <div style="
+                width: 2px; 
+                height: 16px; 
+                background-color: white; 
+                position: absolute;
+              "></div>
+              <div style="
+                width: 16px; 
+                height: 2px; 
+                background-color: white; 
+                position: absolute;
+              "></div>
+            </div>
+          </div>
+        `,
+        className: 'custom-marker-label',
+        iconSize: [40, 50],
+        iconAnchor: [20, 40]
+      });
+
+      // 길을여는교회 위치 (전남 나주시 혁신로 135)
+      const churchMarker = window.L.marker([35.009761, 126.800326], { icon: crossLabelIcon }).addTo(map);
+      
+      // 커스텀 팝업 스타일
+      const popupContent = `
+        <div style="text-align: center; font-family: Arial, sans-serif;">
+          <h3 style="color: #7c2d12; font-weight: bold; margin: 0 0 8px 0;">길을여는교회</h3>
+          <p style="color: #7c2d12; margin: 0; font-size: 14px;">전남 나주시 혁신로 135</p>
+          <p style="color: #7c2d12; margin: 4px 0 0 0; font-size: 14px;">이음카페</p>
+        </div>
+      `;
+      
+      churchMarker.bindPopup(popupContent);
+    };
+
+    // 지도 컨테이너가 존재할 때만 초기화
+    if (document.getElementById('map')) {
+      initMap();
+    }
+  }, []);
+
   // 타입 안전성을 위한 문자열 변환
   const errorMessage = error ? String(error) : null;
   const successMessage = success ? String(success) : null;
@@ -102,26 +233,34 @@ export default function Index() {
               </p>
               
               {/* 주요 기능 버튼 */}
-              <div className="flex flex-col sm:flex-row gap-4 mb-12">
-                <a 
-                  href="/orders/new" 
-                  className="bg-gradient-wine hover:bg-wine-800 text-ivory-50 px-8 py-4 rounded-xl font-bold transition-all duration-300 shadow-medium hover:shadow-large transform hover:-translate-y-1 text-lg text-center"
-                >
-                  새 주문하기
-                </a>
-                <a 
-                  href="/orders" 
-                  className="bg-ivory-200/80 hover:bg-wine-100 text-wine-700 border border-wine-300 px-8 py-4 rounded-xl font-bold transition-all duration-300 shadow-soft hover:shadow-medium transform hover:-translate-y-1 text-lg text-center"
-                >
-                  주문 현황 보기
-                </a>
-              </div>
+              {loading ? null : user ? (
+                <div className="flex flex-col sm:flex-row gap-4 mb-12">
+                  <a 
+                    href="/orders/new" 
+                    className="bg-gradient-wine hover:bg-wine-800 text-ivory-50 px-8 py-4 rounded-xl font-bold transition-all duration-300 shadow-medium hover:shadow-large transform hover:-translate-y-1 text-lg text-center"
+                  >
+                    새 주문하기
+                  </a>
+                  <a 
+                    href="/orders" 
+                    className="bg-ivory-200/80 hover:bg-wine-100 text-wine-700 border border-wine-300 px-8 py-4 rounded-xl font-bold transition-all duration-300 shadow-soft hover:shadow-medium transform hover:-translate-y-1 text-lg text-center"
+                  >
+                    주문 현황 보기
+                  </a>
+                </div>
+              ) : (
+                <div className="mb-12">
+                  <div className="bg-wine-50 border border-wine-200 text-wine-700 rounded-xl px-6 py-5 text-lg font-medium text-center shadow-soft">
+                    주문을 하시려면 먼저 로그인을 해주세요.
+                  </div>
+                </div>
+              )}
 
               {/* 운영 정보 */}
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 mb-8">
                 <div className="flex items-center">
                   <div className="w-4 h-4 bg-wine-600 mr-3 rounded-full"></div>
-                  <span className="text-wine-600 font-medium">평일 09:00 - 21:00</span>
+                  <span className="text-wine-600 font-medium">일요일 13:00 - 14:00</span>
                 </div>
                 <div className="flex items-center">
                   <div className="w-4 h-4 bg-wine-600 mr-3 rounded-full"></div>
@@ -153,11 +292,7 @@ export default function Index() {
             <div className="relative animate-slide-up">
               <div className="bg-gradient-wine rounded-3xl p-8 shadow-large">
                 <h3 className="text-2xl font-black text-ivory-50 mb-6">오늘의 현황</h3>
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="text-center">
-                    <div className="text-4xl font-black text-ivory-50 mb-2">{totalMenus}</div>
-                    <div className="text-ivory-200 font-medium">총 메뉴</div>
-                  </div>
+                <div className="grid grid-cols-3 gap-6">
                   <div className="text-center">
                     <div className="text-4xl font-black text-ivory-50 mb-2">{totalOrders}</div>
                     <div className="text-ivory-200 font-medium">총 주문</div>
@@ -172,98 +307,12 @@ export default function Index() {
                   </div>
                 </div>
               </div>
+              
+              {/* 작은 지도 */}
+              <div className="mt-6 bg-gradient-ivory rounded-2xl shadow-soft border border-ivory-200/50 overflow-hidden">
+                <div id="map" className="w-full h-48 border-4 border-wine-600 rounded-2xl"></div>
+              </div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 하단 배너 */}
-      <div className="bg-wine-50 py-6 px-4 sm:px-8 lg:px-12">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col sm:flex-row items-center justify-between">
-            <p className="text-wine-800 font-medium text-center sm:text-left mb-4 sm:mb-0">
-              이번 주 특별 이벤트: 성경 공부 모임 - 화요일 저녁 7시
-            </p>
-            <a href="#" className="text-wine-700 hover:text-wine-900 font-bold transition-colors">
-              자세히 보기 →
-            </a>
-          </div>
-        </div>
-      </div>
-
-      {/* 인기 메뉴 섹션 */}
-      <section className="py-16 bg-gradient-warm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl font-black text-wine-800 mb-4">인기 메뉴</h2>
-            <p className="text-xl text-wine-600">고객들이 가장 많이 찾는 메뉴들을 만나보세요</p>
-          </div>
-          
-          {menus.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {menus.map((menu, index) => menu && (
-                <div key={menu.id} className="bg-white rounded-2xl shadow-medium hover:shadow-large transition-all duration-300 transform hover:-translate-y-2 animate-fade-in" style={{animationDelay: `${index * 0.1}s`}}>
-                  <div className="h-48 overflow-hidden bg-gradient-to-br from-ivory-100 to-ivory-200 rounded-t-2xl flex items-center justify-center">
-                    {menu.image_url ? (
-                      <img 
-                        src={menu.image_url} 
-                        alt={menu.name} 
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <svg className="w-16 h-16 text-wine-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                        </svg>
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-6">
-                    <div className="flex justify-between items-center mb-3">
-                      <h3 className="text-lg font-bold text-wine-800">{menu.name}</h3>
-                      <span className="text-wine-700 font-bold">₩{menu.price.toLocaleString()}</span>
-                    </div>
-                    {menu.description && (
-                      <p className="text-gray-600 text-sm mb-4 line-clamp-2">{menu.description}</p>
-                    )}
-                    <div className="flex justify-between items-center">
-                      <span className={`text-xs px-3 py-1 rounded-full font-medium ${
-                        menu.category === 'hot coffee' ? 'bg-red-100 text-red-800' :
-                        menu.category === 'ice coffee' ? 'bg-blue-100 text-blue-800' :
-                        menu.category === 'tea' ? 'bg-orange-100 text-orange-800' :
-                        menu.category === 'beverage' ? 'bg-green-100 text-green-800' :
-                        'bg-gray-100 text-gray-600'
-                      }`}>
-                        {menu.category === 'hot coffee' ? 'Hot 커피' :
-                         menu.category === 'ice coffee' ? 'Ice 커피' :
-                         menu.category === 'tea' ? '차' :
-                         menu.category === 'beverage' ? '음료' : menu.category}
-                      </span>
-                      <a 
-                        href="/orders/new" 
-                        className="text-wine-600 hover:text-wine-800 transition-colors text-sm font-bold"
-                      >
-                        주문하기 →
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-wine-600 mx-auto mb-4"></div>
-              <p className="text-lg text-wine-400 font-medium">메뉴를 불러오는 중...</p>
-            </div>
-          )}
-          
-          <div className="text-center mt-8">
-            <a 
-              href="/orders/new" 
-              className="bg-gradient-wine text-ivory-50 px-8 py-4 rounded-xl font-bold transition-all duration-300 shadow-medium hover:shadow-large transform hover:-translate-y-1 text-lg inline-block"
-            >
-              전체 메뉴 보기
-            </a>
           </div>
         </div>
       </section>

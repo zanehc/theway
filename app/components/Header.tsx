@@ -3,16 +3,15 @@ import { useState, useEffect } from "react";
 import { supabase } from "~/lib/supabase";
 import { LoginForm } from "./LoginForm";
 import { SignupForm } from "./SignupForm";
-import { AdminLoginForm } from "./AdminLoginForm";
 import { MyPageModal } from "./MyPageModal";
 
 export default function Header() {
   const [user, setUser] = useState<any>(null);
   const [showLogin, setShowLogin] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
-  const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [showMyPage, setShowMyPage] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loginSuccess, setLoginSuccess] = useState(false);
 
   useEffect(() => {
     // 현재 사용자 상태 확인
@@ -54,6 +53,13 @@ export default function Header() {
   const handleLoginClick = () => {
     console.log('Login button clicked, setting showLogin to true');
     setShowLogin(true);
+  };
+
+  const handleLoginSuccess = () => {
+    setShowLogin(false);
+    setLoginSuccess(true);
+    setTimeout(() => setLoginSuccess(false), 2000);
+    window.location.reload();
   };
 
   const isLoggedIn = !!user;
@@ -116,16 +122,15 @@ export default function Header() {
 
           {/* 우측 버튼들 */}
           <div className="flex items-center space-x-4 animate-slide-up">
-            <div className="hidden lg:flex items-center space-x-3 text-sm text-wine-500 font-medium">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse-soft shadow-sm"></div>
-              <span>시스템 정상</span>
-            </div>
-            <Link 
-              to="/orders/new" 
-              className="px-6 py-3 rounded-xl text-ivory-50 font-bold bg-gradient-wine hover:shadow-wine transition-all duration-300 shadow-medium hover:shadow-large transform hover:-translate-y-1 text-sm"
-            >
-              새 주문
-            </Link>
+            {/* 시스템 정상 표시 삭제됨 */}
+            {isLoggedIn && (
+              <Link 
+                to="/orders/new" 
+                className="px-6 py-3 rounded-xl text-ivory-50 font-bold bg-gradient-wine hover:shadow-wine transition-all duration-300 shadow-medium hover:shadow-large transform hover:-translate-y-1 text-sm"
+              >
+                새 주문
+              </Link>
+            )}
             {isLoggedIn ? (
               <div className="flex items-center space-x-3">
                 <button
@@ -155,7 +160,7 @@ export default function Header() {
       
       {/* 로그인 모달 */}
       {showLogin && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowLogin(false)}>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40" onClick={() => setShowLogin(false)}>
           <div className="bg-white rounded-2xl p-8 shadow-large min-w-[400px] animate-scale-in relative" onClick={(e) => e.stopPropagation()}>
             <button
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl font-bold"
@@ -166,45 +171,23 @@ export default function Header() {
             </button>
             <h2 className="text-2xl font-black text-wine-800 mb-6 text-center">로그인</h2>
             
-            {/* 탭 버튼 */}
-            <div className="flex mb-6 border-b border-gray-200">
-              <button
-                className={`flex-1 py-3 text-center font-bold transition-colors ${
-                  !showAdminLogin 
-                    ? 'text-wine-700 border-b-2 border-wine-700' 
-                    : 'text-gray-500 hover:text-wine-700'
-                }`}
-                onClick={() => setShowAdminLogin(false)}
-              >
-                일반 로그인
-              </button>
-              <button
-                className={`flex-1 py-3 text-center font-bold transition-colors ${
-                  showAdminLogin 
-                    ? 'text-wine-700 border-b-2 border-wine-700' 
-                    : 'text-gray-500 hover:text-wine-700'
-                }`}
-                onClick={() => setShowAdminLogin(true)}
-              >
-                관리자 로그인
-              </button>
-            </div>
-
-            {showAdminLogin ? (
-              <AdminLoginForm />
-            ) : (
-              <LoginForm onSwitchToSignup={() => {
-                setShowLogin(false);
-                setShowSignup(true);
-              }} />
-            )}
+            <LoginForm onSwitchToSignup={() => {
+              setShowLogin(false);
+              setShowSignup(true);
+            }} onLoginSuccess={handleLoginSuccess} />
           </div>
+        </div>
+      )}
+
+      {loginSuccess && (
+        <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[9999] bg-green-100 border border-green-400 text-green-700 px-6 py-4 rounded-lg shadow-large animate-fade-in font-bold text-lg">
+          로그인 되었습니다
         </div>
       )}
 
       {/* 회원가입 모달 */}
       {showSignup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowSignup(false)}>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40" onClick={() => setShowSignup(false)}>
           <div className="bg-white rounded-2xl p-8 shadow-large min-w-[500px] max-h-[90vh] overflow-y-auto animate-scale-in relative" onClick={(e) => e.stopPropagation()}>
             <button
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl font-bold"
