@@ -73,6 +73,9 @@ export function SignupForm({ onSwitchToLogin }: SignupFormProps) {
 
     setLoading(true);
     try {
+      console.log('회원가입 시작:', email.trim());
+      
+      // 1. Supabase Auth에 사용자 생성 (이메일 확인 비활성화)
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
@@ -86,46 +89,93 @@ export function SignupForm({ onSwitchToLogin }: SignupFormProps) {
             terms_promo: terms.promo,
             role: 'customer',
           },
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
+
+      console.log('Auth signup 결과:', { data, error });
+
       if (error) {
+        console.error('Auth signup 에러:', error);
         if (error.message.includes('User already registered') || error.message.includes('already registered')) {
           setError('아이디가 중복입니다.');
         } else {
-          setError(error.message);
+          setError(`회원가입 실패: ${error.message}`);
+        }
+        return;
+      }
+
+      // 2. users 테이블에 사용자 정보 저장
+      const userId = data.user?.id;
+      if (userId) {
+        console.log('users 테이블에 저장 시작:', userId);
+        
+        const { error: insertError } = await supabase.from('users').insert({
+          id: userId,
+          email: email.trim(),
+          name: name.trim(),
+          church_group: churchGroup.trim(),
+          terms_service: terms.service,
+          terms_privacy: terms.privacy,
+          terms_location: terms.location,
+          terms_promo: terms.promo,
+          role: 'customer',
+          created_at: new Date().toISOString(),
+        });
+
+        if (insertError) {
+          console.error('users 테이블 저장 에러:', insertError);
+          if (insertError.code === '23505' || (insertError.message && insertError.message.includes('duplicate key'))) {
+            setError('이미 등록된 정보가 있습니다.');
+          } else if (insertError.code === '23502' || (insertError.message && insertError.message.includes('null value'))) {
+            setError('필수 정보를 모두 입력해 주세요.');
+          } else if (insertError.code === '23503' || (insertError.message && insertError.message.includes('foreign key'))) {
+            setError('시스템 오류가 발생했습니다. 관리자에게 문의해 주세요.');
+          } else {
+            setError('회원 정보 저장 중 오류가 발생했습니다: ' + (insertError.message || '알 수 없는 오류'));
+          }
+          return;
+        }
+
+        console.log('회원가입 완료:', { userId, email: email.trim() });
+        
+        // 3. 회원가입 완료 후 자동 로그인
+        console.log('자동 로그인 시도:', email.trim());
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password: password,
+        });
+
+        if (signInError) {
+          console.error('자동 로그인 에러:', signInError);
+          setSuccess('회원가입이 완료되었습니다! 로그인 버튼을 클릭하여 로그인하세요.');
+        } else {
+          console.log('자동 로그인 성공:', signInData);
+          setSuccess('회원가입이 완료되었습니다! 자동으로 로그인되었습니다.');
+          
+          // 성공 시 폼 초기화
+          setEmail('');
+          setName('');
+          setPassword('');
+          setPasswordConfirm('');
+          setChurchGroup('');
+          setTerms({
+            service: false,
+            privacy: false,
+            location: false,
+            promo: false,
+          });
+
+          // 2초 후 페이지 새로고침
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
         }
       } else {
-        // users 테이블에 insert
-        const userId = data.user?.id;
-        if (userId) {
-          const { error: insertError } = await supabase.from('users').insert({
-            id: userId,
-            email: email.trim(),
-            name: name.trim(),
-            church_group: churchGroup.trim(),
-            terms_service: terms.service,
-            terms_privacy: terms.privacy,
-            terms_location: terms.location,
-            terms_promo: terms.promo,
-            role: 'customer',
-            created_at: new Date().toISOString(),
-          });
-          if (insertError) {
-            if (insertError.code === '23505' || (insertError.message && insertError.message.includes('duplicate key'))) {
-              setError('이미 등록된 정보가 있습니다.');
-            } else if (insertError.code === '23502' || (insertError.message && insertError.message.includes('null value'))) {
-              setError('필수 정보를 모두 입력해 주세요.');
-            } else if (insertError.code === '23503' || (insertError.message && insertError.message.includes('foreign key'))) {
-              setError('시스템 오류가 발생했습니다. 관리자에게 문의해 주세요.');
-            } else {
-              setError('회원 정보 저장 중 오류가 발생했습니다: ' + (insertError.message || '알 수 없는 오류'));
-            }
-            return;
-          }
-        }
-        setSuccess('회원가입이 완료되었습니다!');
+        setError('사용자 ID를 생성할 수 없습니다.');
       }
     } catch (err) {
+      console.error('회원가입 예외:', err);
       setError('회원가입 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
