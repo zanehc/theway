@@ -20,9 +20,9 @@ INSERT INTO menus (name, description, price, category, is_available) VALUES
 ('따뜻한 화이트 모카', '화이트 초콜릿과 에스프레소', 3500, 'coffee', true),
 
 -- 음료 카테고리
-('레몬에이드', '상큼한 레몬과 탄산수', 3000, 'ade', true),
-('유자에이드', '상큼한 유자와 탄산수', 3000, 'ade', true),
-('오렌지에이드', '상큼한 오렌지와 탄산수', 3000, 'ade', true),
+('레몬에이드', '상큼한 레몬과 탄산수', 3000, 'beverage', true),
+('유자에이드', '상큼한 유자와 탄산수', 3000, 'beverage', true),
+('오렌지에이드', '상큼한 오렌지와 탄산수', 3000, 'beverage', true),
 ('라임에이드', '상큼한 라임과 탄산수', 3000, 'beverage', true),
 ('자몽에이드', '새콤달콤한 자몽에이드', 3500, 'beverage', true),
 ('청포도에이드', '상큼한 청포도에이드', 3500, 'beverage', true),
