@@ -194,12 +194,14 @@ export default function Index() {
                     <div className="flex justify-between items-center">
                       <span className={`text-xs px-3 py-1 rounded-full font-medium ${
                         menu.category === 'coffee' ? 'bg-wine-100 text-wine-800' :
+                        menu.category === 'tea' ? 'bg-orange-100 text-orange-800' :
                         menu.category === 'beverage' ? 'bg-blue-100 text-blue-800' :
                         menu.category === 'juice' ? 'bg-green-100 text-green-800' :
                         menu.category === 'smoothie' ? 'bg-purple-100 text-purple-800' :
                         'bg-gray-100 text-gray-600'
                       }`}>
                         {menu.category === 'coffee' ? '커피' :
+                         menu.category === 'tea' ? '차' :
                          menu.category === 'beverage' ? '음료' :
                          menu.category === 'juice' ? '주스' :
                          menu.category === 'smoothie' ? '스무디' : menu.category}

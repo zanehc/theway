@@ -91,6 +91,7 @@ export async function action({ request }: ActionFunctionArgs) {
 
 const categories = [
   { value: 'coffee', label: '커피' },
+  { value: 'tea', label: '차' },
   { value: 'beverage', label: '음료' },
   { value: 'juice', label: '주스' },
   { value: 'smoothie', label: '스무디' },

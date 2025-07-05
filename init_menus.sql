@@ -18,6 +18,11 @@ INSERT INTO menus (name, description, price, category, is_available) VALUES
 ('따뜻한 모카', '진한 초콜릿과 에스프레소', 3500, 'coffee', true),
 ('아이스 화이트 모카', '화이트 초콜릿과 에스프레소', 3500, 'coffee', true),
 ('따뜻한 화이트 모카', '화이트 초콜릿과 에스프레소', 3500, 'coffee', true),
+('아샷추', '에스프레소와 달콤한 연유의 완벽한 조화', 2500, 'coffee', true),
+
+-- 차 카테고리
+('유자차', '상큼하고 달콤한 유자차, 비타민C가 풍부', 2000, 'tea', true),
+('레몬차', '신선한 레몬과 꿀의 조화, 상쾌한 맛', 2000, 'tea', true),
 
 -- 음료 카테고리
 ('레몬에이드', '상큼한 레몬과 탄산수', 3000, 'beverage', true),
