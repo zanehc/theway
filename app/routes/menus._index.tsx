@@ -163,14 +163,14 @@ export default function Menus() {
   };
 
   return (
-    <div className="min-h-screen bg-ivory-50">
+    <div className="min-h-screen bg-gradient-warm">
       <Header />
       
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8 flex justify-between items-center">
+      <main className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-12">
+        <div className="mb-12 flex justify-between items-center animate-fade-in">
           <div>
-            <h1 className="text-3xl font-bold text-wine-800 mb-2">메뉴 관리</h1>
-            <p className="text-wine-600">카페 메뉴를 관리하세요</p>
+            <h1 className="text-5xl font-black text-wine-800 mb-4 tracking-tight">메뉴 관리</h1>
+            <p className="text-2xl text-wine-600 font-medium">카페 메뉴를 관리하세요</p>
           </div>
           <button
             onClick={() => {
@@ -184,7 +184,7 @@ export default function Menus() {
                 is_available: true,
               });
             }}
-            className="bg-wine-600 text-white px-6 py-3 rounded-md hover:bg-wine-700 transition-colors"
+            className="bg-gradient-wine text-ivory-50 px-8 py-4 rounded-2xl text-lg font-bold hover:shadow-wine transition-all duration-300 transform hover:-translate-y-1 shadow-medium"
           >
             새 메뉴 추가
           </button>
@@ -192,104 +192,109 @@ export default function Menus() {
 
         {/* 메뉴 추가/수정 폼 */}
         {isAdding && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-            <h2 className="text-xl font-semibold text-wine-800 mb-6">
+          <div className="bg-gradient-ivory rounded-3xl shadow-soft p-8 mb-12 border border-ivory-200/50 animate-slide-up">
+            <h2 className="text-3xl font-black text-wine-800 mb-8">
               {editingMenu ? '메뉴 수정' : '새 메뉴 추가'}
             </h2>
             
-            <fetcher.Form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <fetcher.Form onSubmit={handleSubmit} className="space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-xl font-bold text-wine-700 mb-4">
                     메뉴명 *
                   </label>
                   <input
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-wine-500"
+                    className="w-full px-6 py-4 border border-ivory-300 rounded-2xl text-lg font-medium bg-ivory-50/50 focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300"
+                    placeholder="메뉴명을 입력하세요"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-xl font-bold text-wine-700 mb-4">
                     가격 *
                   </label>
                   <input
                     type="number"
                     value={formData.price}
                     onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-wine-500"
-                    min="0"
-                    step="100"
+                    className="w-full px-6 py-4 border border-ivory-300 rounded-2xl text-lg font-medium bg-ivory-50/50 focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300"
+                    placeholder="가격을 입력하세요"
                     required
                   />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    카테고리 *
-                  </label>
-                  <select
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-wine-500"
-                    required
-                  >
-                    {categories.map((category) => (
-                      <option key={category.value} value={category.value}>
-                        {category.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    상태
-                  </label>
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={formData.is_available}
-                      onChange={(e) => setFormData({ ...formData, is_available: e.target.checked })}
-                      className="mr-2"
-                    />
-                    <span className="text-sm text-gray-700">판매 가능</span>
-                  </div>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xl font-bold text-wine-700 mb-4">
+                  카테고리 *
+                </label>
+                <select
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  className="w-full px-6 py-4 border border-ivory-300 rounded-2xl text-lg font-medium bg-ivory-50/50 focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300"
+                  required
+                >
+                  {categories.map((category) => (
+                    <option key={category.value} value={category.value}>
+                      {category.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xl font-bold text-wine-700 mb-4">
                   설명
                 </label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-wine-500"
-                  placeholder="메뉴에 대한 설명을 입력하세요"
+                  rows={4}
+                  className="w-full px-6 py-4 border border-ivory-300 rounded-2xl text-lg font-medium bg-ivory-50/50 focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300 resize-none"
+                  placeholder="메뉴 설명을 입력하세요"
                 />
               </div>
 
-              <div className="flex justify-end space-x-4">
+              <div className="flex items-center space-x-4">
+                <input
+                  type="checkbox"
+                  id="is_available"
+                  checked={formData.is_available}
+                  onChange={(e) => setFormData({ ...formData, is_available: e.target.checked })}
+                  className="w-5 h-5 text-wine-600 focus:ring-wine-500"
+                />
+                <label htmlFor="is_available" className="text-lg font-bold text-wine-700">
+                  판매 가능
+                </label>
+              </div>
+
+              <div className="flex space-x-4">
+                <button
+                  type="submit"
+                  className="bg-gradient-wine text-ivory-50 px-8 py-4 rounded-2xl text-lg font-bold hover:shadow-wine transition-all duration-300 transform hover:-translate-y-1 shadow-medium"
+                >
+                  {editingMenu ? '수정 완료' : '추가 완료'}
+                </button>
                 <button
                   type="button"
                   onClick={() => {
                     setIsAdding(false);
                     setEditingMenu(null);
+                    setFormData({
+                      name: '',
+                      description: '',
+                      price: '',
+                      category: 'coffee',
+                      is_available: true,
+                    });
                   }}
-                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+                  className="bg-ivory-200 text-wine-700 px-8 py-4 rounded-2xl text-lg font-bold hover:bg-ivory-300 transition-all duration-300 transform hover:-translate-y-1 shadow-soft"
                 >
                   취소
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2 bg-wine-600 text-white rounded-md hover:bg-wine-700 transition-colors"
-                >
-                  {editingMenu ? '수정' : '추가'}
                 </button>
               </div>
             </fetcher.Form>
@@ -297,25 +302,25 @@ export default function Menus() {
         )}
 
         {/* 메뉴 목록 */}
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-wine-800">
+        <div className="bg-gradient-ivory rounded-3xl shadow-soft border border-ivory-200/50 overflow-hidden animate-slide-up">
+          <div className="px-12 py-8 border-b border-ivory-200/50 bg-ivory-100/30">
+            <h2 className="text-3xl font-black text-wine-800">
               메뉴 목록 ({menus.length}개)
             </h2>
           </div>
           
           {menus.length > 0 ? (
-            <div className="divide-y divide-gray-200">
-              {menus.map((menu) => (
-                <div key={menu.id} className="p-6 hover:bg-gray-50 transition-colors">
+            <div className="divide-y divide-ivory-200/50">
+              {menus.map((menu, index) => (
+                <div key={menu.id} className="p-8 hover:bg-ivory-100/50 transition-all duration-300 animate-fade-in" style={{animationDelay: `${index * 0.1}s`}}>
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center space-x-4 mb-2">
-                        <h3 className="text-lg font-semibold text-gray-900">{menu.name}</h3>
-                        <span className="px-3 py-1 bg-ivory-200 text-ivory-800 rounded-full text-sm font-medium">
+                      <div className="flex items-center space-x-6 mb-4">
+                        <h3 className="text-2xl font-black text-wine-800">{menu.name}</h3>
+                        <span className="px-6 py-2 bg-ivory-200 text-wine-700 rounded-2xl text-lg font-bold shadow-sm">
                           {getCategoryLabel(menu.category)}
                         </span>
-                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                        <span className={`px-6 py-2 rounded-2xl text-lg font-bold shadow-sm ${
                           menu.is_available 
                             ? 'bg-green-100 text-green-800' 
                             : 'bg-red-100 text-red-800'
@@ -325,24 +330,24 @@ export default function Menus() {
                       </div>
                       
                       {menu.description && (
-                        <p className="text-gray-600 mb-2">{menu.description}</p>
+                        <p className="text-lg text-wine-600 mb-4 font-medium">{menu.description}</p>
                       )}
                       
-                      <p className="text-lg font-bold text-wine-600">
+                      <p className="text-3xl font-black text-wine-600">
                         ₩{menu.price.toLocaleString()}
                       </p>
                     </div>
 
-                    <div className="flex items-center space-x-2">
+                    <div className="flex space-x-4">
                       <button
                         onClick={() => handleEdit(menu)}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition-colors"
+                        className="px-6 py-3 bg-blue-100 text-blue-800 rounded-2xl text-lg font-bold hover:bg-blue-200 transition-all duration-300 transform hover:-translate-y-1 shadow-soft"
                       >
                         수정
                       </button>
                       <button
                         onClick={() => handleDelete(menu.id)}
-                        className="px-4 py-2 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700 transition-colors"
+                        className="px-6 py-3 bg-red-100 text-red-800 rounded-2xl text-lg font-bold hover:bg-red-200 transition-all duration-300 transform hover:-translate-y-1 shadow-soft"
                       >
                         삭제
                       </button>
@@ -352,8 +357,8 @@ export default function Menus() {
               ))}
             </div>
           ) : (
-            <div className="p-12 text-center">
-              <p className="text-gray-500 text-lg">등록된 메뉴가 없습니다.</p>
+            <div className="p-20 text-center">
+              <p className="text-wine-400 text-2xl font-medium">등록된 메뉴가 없습니다.</p>
             </div>
           )}
         </div>

@@ -7,19 +7,20 @@ import {
   Scripts,
   ScrollRestoration,
 } from "@remix-run/react";
-import styles from "./tailwind.css";
+import tailwindHref from "./tailwind.css?url";
 
 export const links: LinksFunction = () => [
-  { rel: "stylesheet", href: styles },
+  { rel: "stylesheet", href: tailwindHref },
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
   { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-  { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" },
+  { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" },
+  { rel: "stylesheet", href: "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" },
 ];
 
 export const meta: MetaFunction = () => {
   return [
-    { title: "교회 카페 주문 시스템" },
-    { name: "description", content: "교회 카페를 위한 주문 및 관리 시스템" },
+    { title: "길을여는교회 이음카페" },
+    { name: "description", content: "길을여는교회 이음카페 주문 및 관리 시스템" },
   ];
 };
 
@@ -32,7 +33,7 @@ export default function App() {
         <Meta />
         <Links />
       </head>
-      <body className="h-full bg-ivory-50 font-sans">
+      <body className="h-full bg-gradient-warm font-sans antialiased">
         <div className="min-h-full">
           <Outlet />
         </div>
