@@ -1,4 +1,5 @@
-import type { LinksFunction, MetaFunction } from "@remix-run/node";
+import type { LinksFunction, MetaFunction, LoaderFunctionArgs } from "@remix-run/node";
+import { json } from "@remix-run/node";
 import {
   Links,
   LiveReload,
@@ -6,6 +7,7 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useLoaderData,
 } from "@remix-run/react";
 import tailwindHref from "./tailwind.css?url";
 
@@ -24,7 +26,18 @@ export const meta: MetaFunction = () => {
   ];
 };
 
+export async function loader({ request }: LoaderFunctionArgs) {
+  return json({
+    ENV: {
+      SUPABASE_URL: process.env.SUPABASE_URL,
+      SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY,
+    },
+  });
+}
+
 export default function App() {
+  const { ENV } = useLoaderData<typeof loader>();
+
   return (
     <html lang="ko" className="h-full">
       <head>
@@ -39,7 +52,11 @@ export default function App() {
         </div>
         <ScrollRestoration />
         <Scripts />
-        <LiveReload />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.__ENV = ${JSON.stringify(ENV)};`,
+          }}
+        />
       </body>
     </html>
   );

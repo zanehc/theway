@@ -29,6 +29,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       recentOrders: orders.slice(0, 5), // 최근 5개 주문
       totalMenus: menus.length,
       totalOrders: orders.length,
+      menus: menus.slice(0, 8), // 홈페이지에 표시할 메뉴 8개
     });
   } catch (error) {
     console.error('Dashboard loader error:', error);
@@ -38,12 +39,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
       recentOrders: [],
       totalMenus: 0,
       totalOrders: 0,
+      menus: [],
     });
   }
 }
 
 export default function Index() {
-  const { menuStats, orderStats, recentOrders, totalMenus, totalOrders } = useLoaderData<typeof loader>();
+  const { menuStats, orderStats, recentOrders, totalMenus, totalOrders, menus } = useLoaderData<typeof loader>();
 
   return (
     <div className="min-h-screen bg-gradient-warm">
@@ -153,6 +155,85 @@ export default function Index() {
           </div>
         </div>
       </div>
+
+      {/* 인기 메뉴 섹션 */}
+      <section className="py-16 bg-gradient-warm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12">
+          <div className="text-center mb-12">
+            <h2 className="text-4xl font-black text-wine-800 mb-4">인기 메뉴</h2>
+            <p className="text-xl text-wine-600">고객들이 가장 많이 찾는 메뉴들을 만나보세요</p>
+          </div>
+          
+          {menus.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {menus.map((menu, index) => menu && (
+                <div key={menu.id} className="bg-white rounded-2xl shadow-medium hover:shadow-large transition-all duration-300 transform hover:-translate-y-2 animate-fade-in" style={{animationDelay: `${index * 0.1}s`}}>
+                  <div className="h-48 overflow-hidden bg-gradient-to-br from-ivory-100 to-ivory-200 rounded-t-2xl flex items-center justify-center">
+                    {menu.image_url ? (
+                      <img 
+                        src={menu.image_url} 
+                        alt={menu.name} 
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <svg className="w-16 h-16 text-wine-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-6">
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="text-lg font-bold text-wine-800">{menu.name}</h3>
+                      <span className="text-wine-700 font-bold">₩{menu.price.toLocaleString()}</span>
+                    </div>
+                    {menu.description && (
+                      <p className="text-gray-600 text-sm mb-4 line-clamp-2">{menu.description}</p>
+                    )}
+                    <div className="flex justify-between items-center">
+                      <span className={`text-xs px-3 py-1 rounded-full font-medium ${
+                        menu.category === 'coffee' ? 'bg-wine-100 text-wine-800' :
+                        menu.category === 'ade' ? 'bg-yellow-100 text-yellow-800' :
+                        menu.category === 'beverage' ? 'bg-blue-100 text-blue-800' :
+                        menu.category === 'juice' ? 'bg-green-100 text-green-800' :
+                        menu.category === 'smoothie' ? 'bg-purple-100 text-purple-800' :
+                        'bg-gray-100 text-gray-600'
+                      }`}>
+                        {menu.category === 'coffee' ? '커피' :
+                         menu.category === 'ade' ? '에이드' :
+                         menu.category === 'beverage' ? '음료' :
+                         menu.category === 'juice' ? '주스' :
+                         menu.category === 'smoothie' ? '스무디' : menu.category}
+                      </span>
+                      <a 
+                        href="/orders/new" 
+                        className="text-wine-600 hover:text-wine-800 transition-colors text-sm font-bold"
+                      >
+                        주문하기 →
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-wine-600 mx-auto mb-4"></div>
+              <p className="text-lg text-wine-400 font-medium">메뉴를 불러오는 중...</p>
+            </div>
+          )}
+          
+          <div className="text-center mt-8">
+            <a 
+              href="/orders/new" 
+              className="bg-gradient-wine text-ivory-50 px-8 py-4 rounded-xl font-bold transition-all duration-300 shadow-medium hover:shadow-large transform hover:-translate-y-1 text-lg inline-block"
+            >
+              전체 메뉴 보기
+            </a>
+          </div>
+        </div>
+      </section>
 
       {/* 최근 주문 섹션 */}
       <section className="py-16 bg-gradient-warm">

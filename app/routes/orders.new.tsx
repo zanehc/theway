@@ -82,10 +82,10 @@ export default function NewOrder() {
   const categories = [
     { id: 'all', name: '전체' },
     { id: 'coffee', name: '커피' },
-    { id: 'tea', name: '차(TEA)' },
+    { id: 'ade', name: '에이드' },
     { id: 'beverage', name: '음료' },
-    { id: 'dessert', name: '디저트' },
-    { id: 'brunch', name: '브런치' }
+    { id: 'juice', name: '주스' },
+    { id: 'smoothie', name: '스무디' }
   ];
 
   // 선택된 카테고리에 따른 메뉴 필터링
@@ -111,11 +111,23 @@ export default function NewOrder() {
     if (quantity <= 0) {
       setCart(prev => prev.filter(item => item.menu.id !== menuId));
     } else {
-      setCart(prev => prev.map(item =>
-        item.menu.id === menuId
-          ? { ...item, quantity, total_price: quantity * item.menu.price }
-          : item
-      ));
+      setCart(prev => {
+        const existingItem = prev.find(item => item.menu.id === menuId);
+        if (existingItem) {
+          return prev.map(item =>
+            item.menu.id === menuId
+              ? { ...item, quantity, total_price: quantity * item.menu.price }
+              : item
+          );
+        } else {
+          // 아이템이 없으면 새로 추가
+          const menu = menus.find(m => m.id === menuId);
+          if (menu) {
+            return [...prev, { menu, quantity, total_price: quantity * menu.price }];
+          }
+        }
+        return prev;
+      });
     }
   };
 
@@ -191,7 +203,13 @@ export default function NewOrder() {
 
               {/* 메뉴 카드 그리드 */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredMenus.map((menu) => (
+                {filteredMenus.length === 0 ? (
+                  <div className="col-span-full text-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-wine-600 mx-auto mb-4"></div>
+                    <p className="text-lg text-wine-400 font-medium">메뉴를 불러오는 중...</p>
+                  </div>
+                ) : (
+                  filteredMenus.map((menu) => (
                   <div key={menu.id} className="menu-card bg-white rounded-xl overflow-hidden shadow-medium hover:shadow-large transition-all duration-300 transform hover:-translate-y-2">
                     <div className="h-48 overflow-hidden bg-gradient-to-br from-ivory-100 to-ivory-200 flex items-center justify-center">
                       {menu.image_url ? (
@@ -199,6 +217,7 @@ export default function NewOrder() {
                           src={menu.image_url} 
                           alt={menu.name} 
                           className="w-full h-full object-cover"
+                          loading="lazy"
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
@@ -219,39 +238,79 @@ export default function NewOrder() {
                       <div className="flex justify-between items-center mb-4">
                         <span className={`text-xs px-3 py-1 rounded-full font-medium ${
                           menu.category === 'coffee' ? 'bg-wine-100 text-wine-800' :
-                          menu.category === 'tea' ? 'bg-green-100 text-green-800' :
+                          menu.category === 'ade' ? 'bg-yellow-100 text-yellow-800' :
                           menu.category === 'beverage' ? 'bg-blue-100 text-blue-800' :
-                          menu.category === 'dessert' ? 'bg-red-100 text-red-800' :
-                          menu.category === 'brunch' ? 'bg-yellow-100 text-yellow-800' :
+                          menu.category === 'juice' ? 'bg-green-100 text-green-800' :
+                          menu.category === 'smoothie' ? 'bg-purple-100 text-purple-800' :
                           'bg-gray-100 text-gray-600'
                         }`}>
                           {menu.category === 'coffee' ? '커피' :
-                           menu.category === 'tea' ? '차(TEA)' :
+                           menu.category === 'ade' ? '에이드' :
                            menu.category === 'beverage' ? '음료' :
-                           menu.category === 'dessert' ? '디저트' :
-                           menu.category === 'brunch' ? '브런치' : menu.category}
+                           menu.category === 'juice' ? '주스' :
+                           menu.category === 'smoothie' ? '스무디' : menu.category}
                         </span>
-                        <button 
-                          onClick={() => addToCart(menu)}
-                          className="text-wine-600 hover:text-wine-800 transition-colors"
-                        >
-                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                          </svg>
-                        </button>
                       </div>
+                      
+                      {/* 수량 조절 */}
+                      <div className="flex items-center justify-between mb-4">
+                        <span className="text-sm font-medium text-wine-700">수량</span>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => {
+                              const currentItem = cart.find(item => item.menu.id === menu.id);
+                              const currentQuantity = currentItem ? currentItem.quantity : 0;
+                              if (currentQuantity > 0) {
+                                updateQuantity(menu.id, currentQuantity - 1);
+                              }
+                            }}
+                            className="w-8 h-8 bg-wine-100 text-wine-700 rounded-full flex items-center justify-center font-bold hover:bg-wine-200 transition-colors disabled:opacity-50"
+                            disabled={!cart.find(item => item.menu.id === menu.id) || (cart.find(item => item.menu.id === menu.id)?.quantity || 0) <= 0}
+                          >
+                            -
+                          </button>
+                          <input
+                            type="number"
+                            min="0"
+                            max="99"
+                            value={cart.find(item => item.menu.id === menu.id)?.quantity || 0}
+                            onChange={(e) => {
+                              const value = parseInt(e.target.value) || 0;
+                              const clampedValue = Math.min(Math.max(value, 0), 99);
+                              updateQuantity(menu.id, clampedValue);
+                            }}
+                            className="w-12 h-8 text-center border border-ivory-300 rounded-lg text-sm font-bold bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500"
+                          />
+                          <button
+                            onClick={() => {
+                              const currentItem = cart.find(item => item.menu.id === menu.id);
+                              const currentQuantity = currentItem ? currentItem.quantity : 0;
+                              updateQuantity(menu.id, currentQuantity + 1);
+                            }}
+                            className="w-8 h-8 bg-wine-100 text-wine-700 rounded-full flex items-center justify-center font-bold hover:bg-wine-200 transition-colors"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                      
                       <button
-                        onClick={() => addToCart(menu)}
+                        onClick={() => {
+                          const currentItem = cart.find(item => item.menu.id === menu.id);
+                          const currentQuantity = currentItem ? currentItem.quantity : 0;
+                          updateQuantity(menu.id, currentQuantity + 1);
+                        }}
                         className="w-full bg-gradient-wine text-ivory-50 py-3 px-4 rounded-lg font-bold hover:shadow-wine transition-all duration-300 transform hover:-translate-y-1 shadow-medium"
                       >
-                        장바구니에 추가
+                        {cart.find(item => item.menu.id === menu.id) ? '수량 추가' : '장바구니에 추가'}
                       </button>
                     </div>
                   </div>
-                ))}
-              </div>
+                ))
+              )}
+            </div>
 
-              {filteredMenus.length === 0 && (
+            {filteredMenus.length === 0 && (
                 <div className="text-center py-12">
                   <p className="text-lg text-wine-400 font-medium">선택한 카테고리에 메뉴가 없습니다.</p>
                 </div>
@@ -358,11 +417,23 @@ export default function NewOrder() {
                               <button
                                 type="button"
                                 onClick={() => updateQuantity(item.menu.id, item.quantity - 1)}
-                                className="w-8 h-8 bg-wine-100 text-wine-700 rounded-full flex items-center justify-center font-bold hover:bg-wine-200 transition-colors"
+                                className="w-8 h-8 bg-wine-100 text-wine-700 rounded-full flex items-center justify-center font-bold hover:bg-wine-200 transition-colors disabled:opacity-50"
+                                disabled={item.quantity <= 0}
                               >
                                 -
                               </button>
-                              <span className="text-lg font-bold text-wine-700 w-8 text-center">{item.quantity}</span>
+                              <input
+                                type="number"
+                                min="0"
+                                max="99"
+                                value={item.quantity}
+                                onChange={(e) => {
+                                  const value = parseInt(e.target.value) || 0;
+                                  const clampedValue = Math.min(Math.max(value, 0), 99);
+                                  updateQuantity(item.menu.id, clampedValue);
+                                }}
+                                className="w-12 h-8 text-center border border-ivory-300 rounded-lg text-sm font-bold bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500"
+                              />
                               <button
                                 type="button"
                                 onClick={() => updateQuantity(item.menu.id, item.quantity + 1)}

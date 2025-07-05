@@ -1,21 +1,31 @@
 import { Link } from "@remix-run/react";
 import { useState, useEffect } from "react";
 import { supabase } from "~/lib/supabase";
-import { SocialLoginButtons } from "./SocialLoginButtons";
+import { LoginForm } from "./LoginForm";
+import { SignupForm } from "./SignupForm";
 import { AdminLoginForm } from "./AdminLoginForm";
+import { MyPageModal } from "./MyPageModal";
 
 export default function Header() {
   const [user, setUser] = useState<any>(null);
   const [showLogin, setShowLogin] = useState(false);
+  const [showSignup, setShowSignup] = useState(false);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [showMyPage, setShowMyPage] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // 현재 사용자 상태 확인
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-      setLoading(false);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        console.log('Current user:', user);
+        setUser(user);
+      } catch (error) {
+        console.error('Error getting user:', error);
+      } finally {
+        setLoading(false);
+      }
     };
 
     getUser();
@@ -23,6 +33,7 @@ export default function Header() {
     // 인증 상태 변경 리스너
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('Auth state changed:', event, session?.user);
         setUser(session?.user ?? null);
         setLoading(false);
       }
@@ -32,8 +43,17 @@ export default function Header() {
   }, []);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    window.location.reload();
+    try {
+      await supabase.auth.signOut();
+      window.location.reload();
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
+  const handleLoginClick = () => {
+    console.log('Login button clicked, setting showLogin to true');
+    setShowLogin(true);
   };
 
   const isLoggedIn = !!user;
@@ -108,9 +128,12 @@ export default function Header() {
             </Link>
             {isLoggedIn ? (
               <div className="flex items-center space-x-3">
-                <span className="text-sm font-medium text-wine-700">
-                  {user.email}
-                </span>
+                <button
+                  className="bg-wine-100 hover:bg-wine-200 text-wine-700 px-4 py-2 rounded-lg font-medium transition-all duration-300 shadow-soft hover:shadow-medium text-sm"
+                  onClick={() => setShowMyPage(true)}
+                >
+                  마이페이지
+                </button>
                 <button
                   className="bg-wine-100 hover:bg-wine-200 text-wine-700 px-6 py-3 rounded-xl font-bold transition-all duration-300 shadow-soft hover:shadow-medium transform hover:-translate-y-1 text-sm"
                   onClick={handleLogout}
@@ -121,7 +144,7 @@ export default function Header() {
             ) : (
               <button
                 className="bg-wine-100 hover:bg-wine-200 text-wine-700 px-6 py-3 rounded-xl font-bold transition-all duration-300 shadow-soft hover:shadow-medium transform hover:-translate-y-1 text-sm"
-                onClick={() => setShowLogin(true)}
+                onClick={handleLoginClick}
               >
                 로그인
               </button>
@@ -132,8 +155,8 @@ export default function Header() {
       
       {/* 로그인 모달 */}
       {showLogin && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl p-8 shadow-large min-w-[400px] animate-scale-in relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowLogin(false)}>
+          <div className="bg-white rounded-2xl p-8 shadow-large min-w-[400px] animate-scale-in relative" onClick={(e) => e.stopPropagation()}>
             <button
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl font-bold"
               onClick={() => setShowLogin(false)}
@@ -153,7 +176,7 @@ export default function Header() {
                 }`}
                 onClick={() => setShowAdminLogin(false)}
               >
-                소셜 로그인
+                일반 로그인
               </button>
               <button
                 className={`flex-1 py-3 text-center font-bold transition-colors ${
@@ -170,11 +193,41 @@ export default function Header() {
             {showAdminLogin ? (
               <AdminLoginForm />
             ) : (
-              <SocialLoginButtons />
+              <LoginForm onSwitchToSignup={() => {
+                setShowLogin(false);
+                setShowSignup(true);
+              }} />
             )}
           </div>
         </div>
       )}
+
+      {/* 회원가입 모달 */}
+      {showSignup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowSignup(false)}>
+          <div className="bg-white rounded-2xl p-8 shadow-large min-w-[500px] max-h-[90vh] overflow-y-auto animate-scale-in relative" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl font-bold"
+              onClick={() => setShowSignup(false)}
+              aria-label="닫기"
+            >
+              ×
+            </button>
+            <h2 className="text-2xl font-black text-wine-800 mb-6 text-center">회원가입</h2>
+            
+            <SignupForm onSwitchToLogin={() => {
+              setShowSignup(false);
+              setShowLogin(true);
+            }} />
+          </div>
+        </div>
+      )}
+
+      {/* 마이페이지 모달 */}
+      <MyPageModal 
+        isOpen={showMyPage} 
+        onClose={() => setShowMyPage(false)} 
+      />
     </header>
   );
 } 

@@ -84,6 +84,8 @@ NODE_ENV=development
 1. Supabase에서 새 프로젝트 생성
 2. 다음 SQL 스키마를 Supabase SQL 편집기에서 실행:
 
+#### 4.1. 기본 스키마 설정
+
 ```sql
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -139,25 +141,89 @@ CREATE TABLE order_items (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Sample menu data
-INSERT INTO menus (name, description, price, category, is_available) VALUES
-('아이스 아메리카노', '깔끔한 에스프레소와 물의 조화', 2000, 'coffee', true),
-('따뜻한 아메리카노', '깔끔한 에스프레소와 물의 조화', 2000, 'coffee', true),
-('아이스 카페라떼', '부드러운 우유와 에스프레소', 2500, 'coffee', true),
-('따뜻한 카페라떼', '부드러운 우유와 에스프레소', 2500, 'coffee', true),
-('아이스 카푸치노', '에스프레소와 스팀밀크, 우유거품', 2500, 'coffee', true),
-('따뜻한 카푸치노', '에스프레소와 스팀밀크, 우유거품', 2500, 'coffee', true),
-('아이스 카라멜 마끼아또', '달콤한 카라멜과 에스프레소', 3000, 'coffee', true),
-('따뜻한 카라멜 마끼아또', '달콤한 카라멜과 에스프레소', 3000, 'coffee', true),
-('아이스 바닐라 라떼', '바닐라 시럽이 들어간 부드러운 라떼', 3000, 'coffee', true),
-('따뜻한 바닐라 라떼', '바닐라 시럽이 들어간 부드러운 라떼', 3000, 'coffee', true),
-('레몬에이드', '상큼한 레몬과 탄산수', 3000, 'beverage', true),
-('오렌지에이드', '신선한 오렌지 주스', 3000, 'juice', true),
-('유자에이드', '신선한 딸기와 우유', 3000, 'smoothie', true),
-('초코라떼', '진한 초콜릿과 우유', 3000, 'coffee', true);
+-- 기본 메뉴 데이터 추가 (선택사항)
+-- init_menus.sql 파일을 참조하여 기본 메뉴 데이터를 추가할 수 있습니다.
 ```
 
-3. 환경 변수에 프로젝트 URL과 API 키 설정
+#### 4.2. OAuth 설정 (구글 로그인)
+
+1. **Supabase 대시보드** → **Authentication** → **Providers** → **Google** 활성화
+2. **Google Cloud Console**에서 OAuth 2.0 클라이언트 ID 생성:
+   - https://console.cloud.google.com/apis/credentials 접속
+   - "사용자 인증 정보 만들기" → "OAuth 2.0 클라이언트 ID"
+   - 애플리케이션 유형: "웹 애플리케이션"
+   - 승인된 리디렉션 URI: `https://your-project.supabase.co/auth/v1/callback`
+3. 생성된 **Client ID**와 **Client Secret**을 Supabase Google Provider에 입력
+4. **Redirect URL**을 `https://your-project.supabase.co/auth/v1/callback`로 설정
+
+#### 4.3. Row Level Security (RLS) 설정
+
+다음 SQL을 실행하여 사용자 테이블에 RLS 정책을 설정하세요:
+
+```sql
+-- Add church_group column to users table if it doesn't exist
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_name = 'users' 
+        AND column_name = 'church_group'
+    ) THEN
+        ALTER TABLE users ADD COLUMN church_group TEXT;
+    END IF;
+END $$;
+
+-- Update RLS policies for users table
+DROP POLICY IF EXISTS "Users can view own profile" ON users;
+DROP POLICY IF EXISTS "Admins can view all users" ON users;
+DROP POLICY IF EXISTS "Users can update own profile" ON users;
+DROP POLICY IF EXISTS "Admins can update all users" ON users;
+
+-- Users can view their own profile
+CREATE POLICY "Users can view own profile" ON users
+    FOR SELECT USING (auth.uid() = id);
+
+-- Admins can view all users
+CREATE POLICY "Admins can view all users" ON users
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM users 
+            WHERE id = auth.uid() AND role = 'admin'
+        )
+    );
+
+-- Users can update their own profile
+CREATE POLICY "Users can update own profile" ON users
+    FOR UPDATE USING (auth.uid() = id);
+
+-- Admins can update all users
+CREATE POLICY "Admins can update all users" ON users
+    FOR UPDATE USING (
+        EXISTS (
+            SELECT 1 FROM users 
+            WHERE id = auth.uid() AND role = 'admin'
+        )
+    );
+
+-- Users can insert their own profile (for new registrations)
+CREATE POLICY "Users can insert own profile" ON users
+    FOR INSERT WITH CHECK (auth.uid() = id);
+
+-- Enable RLS on users table
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+```
+
+5. 환경 변수에 프로젝트 URL과 API 키 설정
+
+#### 4.4. 기본 메뉴 데이터 추가 (선택사항)
+
+기본 메뉴 데이터를 추가하려면 `init_menus_with_images.sql` 파일의 내용을 Supabase SQL 편집기에서 실행하세요:
+
+```sql
+-- init_menus_with_images.sql 파일의 내용을 복사하여 실행
+-- 이 파일에는 이미지 URL이 포함된 메뉴 데이터가 있습니다
+```
 
 ### 5. 개발 서버 실행
 ```bash

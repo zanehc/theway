@@ -1,5 +1,7 @@
-const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config();
+import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -17,7 +19,7 @@ async function createAdminUser() {
 
     // 1. 사용자 계정 생성
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email: 'admin@example.com',
+      email: 'admin@naver.com',
       password: 'adminadmin',
       email_confirm: true,
       user_metadata: {
@@ -38,7 +40,7 @@ async function createAdminUser() {
       .from('users')
       .insert({
         id: authData.user.id,
-        email: 'admin@example.com',
+        email: 'admin@naver.com',
         name: '관리자',
         role: 'admin',
         church_group: '관리자'
@@ -54,7 +56,7 @@ async function createAdminUser() {
     console.log('관리자 정보 저장 완료:', userData);
 
     console.log('\n✅ 관리자 계정 생성 완료!');
-    console.log('이메일: admin@example.com');
+    console.log('이메일: admin@naver.com');
     console.log('비밀번호: adminadmin');
     console.log('역할: admin');
 
