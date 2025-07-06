@@ -28,6 +28,7 @@ export async function action({ request }: ActionFunctionArgs) {
       const paymentMethod = formData.get('paymentMethod') as 'cash' | 'transfer';
       const notes = formData.get('notes') as string;
       const items = JSON.parse(formData.get('items') as string);
+      const userId = formData.get('userId') as string; // 클라이언트에서 전송한 사용자 ID
 
       if (!customerName || !items || items.length === 0) {
         return json({ error: '고객명과 주문 항목을 입력해주세요.' }, { status: 400 });
@@ -35,12 +36,22 @@ export async function action({ request }: ActionFunctionArgs) {
 
       const totalAmount = items.reduce((sum: number, item: any) => sum + item.total_price, 0);
 
-      // 현재 로그인한 사용자 ID 가져오기
-      const { data: { user } } = await supabase.auth.getUser();
-      const userId = user?.id || undefined;
+      // 서버 사이드에서도 사용자 확인 (백업)
+      let finalUserId: string | undefined = userId || undefined;
+      if (!finalUserId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        finalUserId = user?.id || undefined;
+      }
+      
+      console.log('🔍 Creating order with user info:', {
+        clientUserId: userId,
+        finalUserId,
+        customerName,
+        userExists: !!finalUserId
+      });
 
       const result = await createOrder({
-        user_id: userId,
+        user_id: finalUserId || undefined,
         customer_name: customerName,
         church_group: churchGroup || undefined,
         payment_method: paymentMethod,
@@ -50,6 +61,7 @@ export async function action({ request }: ActionFunctionArgs) {
       });
 
       console.log('📝 Order created successfully:', result);
+      console.log('📝 Order user_id check:', { orderUserId: result.user_id, finalUserId });
       return json({ success: true, orderId: result.id });
     } catch (error) {
       console.error('Create order error:', error);
@@ -214,20 +226,29 @@ export default function NewOrder() {
       return;
     }
 
-    const formData = new FormData();
-    formData.append('intent', 'createOrder');
-    formData.append('customerName', customerName);
-    formData.append('churchGroup', churchGroup);
-    formData.append('paymentMethod', paymentMethod);
-    formData.append('notes', notes);
-    formData.append('items', JSON.stringify(cart.map(item => ({
-      menu_id: item.menu.id,
-      quantity: item.quantity,
-      unit_price: item.menu.price,
-      total_price: item.total_price,
-    }))));
+    // 클라이언트에서 사용자 ID 가져오기
+    const getCurrentUserId = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      return user?.id;
+    };
 
-    fetcher.submit(formData, { method: 'post' });
+    getCurrentUserId().then(userId => {
+      const formData = new FormData();
+      formData.append('intent', 'createOrder');
+      formData.append('customerName', customerName);
+      formData.append('churchGroup', churchGroup);
+      formData.append('paymentMethod', paymentMethod);
+      formData.append('notes', notes);
+      formData.append('userId', userId || ''); // 사용자 ID 추가
+      formData.append('items', JSON.stringify(cart.map(item => ({
+        menu_id: item.menu.id,
+        quantity: item.quantity,
+        unit_price: item.menu.price,
+        total_price: item.total_price,
+      }))));
+
+      fetcher.submit(formData, { method: 'post' });
+    });
   };
 
   return (

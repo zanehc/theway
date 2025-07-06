@@ -322,7 +322,35 @@ export default function Orders() {
     console.log('Current orders state:', orders);
     console.log('Filtered orders:', filteredOrders);
     console.log('Selected status:', selectedStatus);
-  }, [orders, filteredOrders, selectedStatus]);
+    console.log('User info:', { 
+      userId: user?.id, 
+      userEmail: user?.email,
+      userRole,
+      isAdmin: userRole === 'admin'
+    });
+    
+    // 각 주문의 취소 가능 여부 확인
+    filteredOrders.forEach(order => {
+      const isAdminUser = userRole === 'admin';
+      const isOwnOrder = order.user_id === user?.id;
+      const canCancel = order.status === 'pending' && (
+        isAdminUser || (!isAdminUser && isOwnOrder)
+      );
+      
+      console.log(`🔍 Order ${order.id} cancel check:`, {
+        orderId: order.id,
+        orderStatus: order.status,
+        orderUserId: order.user_id,
+        orderCustomerName: order.customer_name,
+        currentUserId: user?.id,
+        currentUserEmail: user?.email,
+        isAdmin: isAdminUser,
+        isOwnOrder,
+        canCancel,
+        cancelButtonShouldShow: canCancel
+      });
+    });
+  }, [orders, filteredOrders, selectedStatus, user, userRole]);
 
   const getStatusColor = (status: OrderStatus) => {
     return statusOptions.find(option => option.value === status)?.color || 'text-gray-800';
@@ -681,6 +709,10 @@ export default function Orders() {
                     {/* 취소 불가능한 상태 표시 */}
                     {order.status !== 'pending' && order.status !== 'cancelled' && (
                       <span className="text-xs text-gray-500 font-medium">취소불가</span>
+                    )}
+                    {/* 디버깅: 조건이 맞지 않을 때 표시 */}
+                    {order.status === 'pending' && !isAdmin && order.user_id !== user?.id && (
+                      <span className="text-xs text-orange-600 font-medium">본인주문아님</span>
                     )}
                   </td>
                 </tr>
