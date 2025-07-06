@@ -174,7 +174,7 @@ export default function Index() {
           <h3 style="color: #7c2d12; font-weight: bold; margin: 0 0 8px 0;">길을여는교회</h3>
           <p style="color: #7c2d12; margin: 0; font-size: 14px;">전남 나주시 혁신로 135</p>
           <p style="color: #7c2d12; margin: 4px 0 0 0; font-size: 14px;">이음카페</p>
-        </div>
+            </div>
       `;
       
       churchMarker.bindPopup(popupContent);
@@ -200,7 +200,7 @@ export default function Index() {
           <div className="flex items-center">
             <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-            </svg>
+              </svg>
             {errorMessage}
           </div>
         </div>
@@ -211,7 +211,7 @@ export default function Index() {
           <div className="flex items-center">
             <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-            </svg>
+              </svg>
             {successMessage}
           </div>
         </div>
@@ -231,18 +231,18 @@ export default function Index() {
                 따뜻한 커피 한 잔과 함께 나누는 진심 어린 대화.<br />
                 길을여는교회 이음카페에서 특별한 시간을 경험하세요.
               </p>
-              
-              {/* 주요 기능 버튼 */}
+
+        {/* 주요 기능 버튼 */}
               {loading ? null : user ? (
                 <div className="flex flex-col sm:flex-row gap-4 mb-12">
-                  <a 
-                    href="/orders/new" 
+          <a 
+            href="/orders/new" 
                     className="bg-gradient-wine hover:bg-wine-800 text-ivory-50 px-8 py-4 rounded-xl font-bold transition-all duration-300 shadow-medium hover:shadow-large transform hover:-translate-y-1 text-lg text-center"
                   >
                     새 주문하기
                   </a>
-                  <a 
-                    href="/orders" 
+          <a 
+            href="/orders" 
                     className="bg-ivory-200/80 hover:bg-wine-100 text-wine-700 border border-wine-300 px-8 py-4 rounded-xl font-bold transition-all duration-300 shadow-soft hover:shadow-medium transform hover:-translate-y-1 text-lg text-center"
                   >
                     주문 현황 보기
@@ -283,7 +283,7 @@ export default function Index() {
                 <a href="#" className="text-wine-500 hover:text-wine-700 transition-colors">
                   <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-                  </svg>
+              </svg>
                 </a>
               </div>
             </div>
@@ -306,14 +306,14 @@ export default function Index() {
                     <div className="text-ivory-200 font-medium">완료</div>
                   </div>
                 </div>
-              </div>
+            </div>
               
               {/* 작은 지도 */}
               <div className="mt-6 bg-gradient-ivory rounded-2xl shadow-soft border border-ivory-200/50 overflow-hidden">
                 <div id="map" className="w-full h-48 border-4 border-wine-600 rounded-2xl"></div>
               </div>
             </div>
-          </div>
+            </div>
         </div>
       </section>
 
@@ -323,41 +323,41 @@ export default function Index() {
           <div className="bg-gradient-ivory rounded-3xl shadow-soft border border-ivory-200/50 overflow-hidden">
             <div className="px-8 py-6 border-b border-ivory-200/50 bg-ivory-100/30">
               <h2 className="text-2xl font-black text-wine-800">최근 주문</h2>
-            </div>
-            {recentOrders.length > 0 ? (
+          </div>
+          {recentOrders.length > 0 ? (
               <div className="divide-y divide-ivory-200/50">
                 {recentOrders.map((order, index) => order && (
                   <div key={order.id} className="p-6 hover:bg-ivory-100/50 transition-all duration-300 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 animate-fade-in" style={{animationDelay: `${index * 0.1}s`}}>
                     <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-4">
                       <h3 className="text-xl font-bold text-wine-800">{order.customer_name}</h3>
                       <span className={`px-4 py-2 rounded-xl text-sm font-bold shadow-sm ${
-                        order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                        order.status === 'preparing' ? 'bg-blue-100 text-blue-800' :
-                        order.status === 'ready' ? 'bg-green-100 text-green-800' :
-                        order.status === 'completed' ? 'bg-wine-100 text-wine-800' : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {order.status === 'pending' ? '대기' :
-                          order.status === 'preparing' ? '제조중' :
-                          order.status === 'ready' ? '완료' :
-                          order.status === 'completed' ? '픽업완료' : '취소'}
-                      </span>
-                      {order.church_group && (
+                      order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                      order.status === 'preparing' ? 'bg-blue-100 text-blue-800' :
+                      order.status === 'ready' ? 'bg-green-100 text-green-800' :
+                      order.status === 'completed' ? 'bg-wine-100 text-wine-800' : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {order.status === 'pending' ? '대기' :
+                        order.status === 'preparing' ? '제조중' :
+                        order.status === 'ready' ? '완료' :
+                        order.status === 'completed' ? '픽업완료' : '취소'}
+                    </span>
+                    {order.church_group && (
                         <span className="px-4 py-2 bg-ivory-200 text-wine-700 rounded-xl text-sm font-bold shadow-sm">
-                          {order.church_group}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-right text-wine-500 text-sm font-bold">
-                      {new Date(order.created_at).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </div>
+                        {order.church_group}
+                      </span>
+                    )}
                   </div>
-                ))}
-              </div>
-            ) : (
+                    <div className="text-right text-wine-500 text-sm font-bold">
+                    {new Date(order.created_at).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
               <div className="p-12 text-center">
                 <p className="text-wine-400 text-lg font-medium">최근 주문이 없습니다.</p>
-              </div>
-            )}
+            </div>
+          )}
           </div>
         </div>
       </section>

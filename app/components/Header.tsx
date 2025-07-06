@@ -7,6 +7,7 @@ import { MyPageModal } from "./MyPageModal";
 
 export default function Header() {
   const [user, setUser] = useState<any>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [showLogin, setShowLogin] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
   const [showMyPage, setShowMyPage] = useState(false);
@@ -20,8 +21,20 @@ export default function Header() {
         const { data: { user } } = await supabase.auth.getUser();
         console.log('Current user:', user);
         setUser(user);
+        if (user) {
+          // users 테이블에서 role 조회
+          const { data: userData } = await supabase
+            .from('users')
+            .select('role')
+            .eq('id', user.id)
+            .single();
+          setUserRole(userData?.role || null);
+        } else {
+          setUserRole(null);
+        }
       } catch (error) {
         console.error('Error getting user:', error);
+        setUserRole(null);
       } finally {
         setLoading(false);
       }
@@ -34,6 +47,16 @@ export default function Header() {
       async (event, session) => {
         console.log('Auth state changed:', event, session?.user);
         setUser(session?.user ?? null);
+        if (session?.user) {
+          const { data: userData } = await supabase
+            .from('users')
+            .select('role')
+            .eq('id', session.user.id)
+            .single();
+          setUserRole(userData?.role || null);
+        } else {
+          setUserRole(null);
+        }
         setLoading(false);
       }
     );
@@ -89,8 +112,10 @@ export default function Header() {
               </svg>
             </div>
             <div>
-              <h1 className="text-2xl font-black text-wine-800 tracking-tight leading-tight drop-shadow-sm">길을여는교회 이음카페</h1>
-              <p className="text-sm text-wine-500 font-medium">주문 관리 시스템</p>
+              <h1 className="text-2xl font-black text-wine-800 tracking-tight leading-tight drop-shadow-sm">
+                길을여는교회<br />
+                <span className="text-wine-600">이음카페</span>
+              </h1>
             </div>
           </Link>
 
@@ -104,18 +129,22 @@ export default function Header() {
                 >
                   주문 현황
                 </Link>
-                <Link 
-                  to="/menus" 
-                  className="text-wine-700 hover:text-wine-900 font-medium transition-colors duration-300"
-                >
-                  메뉴 관리
-                </Link>
-                <Link 
-                  to="/reports" 
-                  className="text-wine-700 hover:text-wine-900 font-medium transition-colors duration-300"
-                >
-                  매출 보고
-                </Link>
+                {userRole === 'admin' && (
+                  <>
+                    <Link 
+                      to="/menus" 
+                      className="text-wine-700 hover:text-wine-900 font-medium transition-colors duration-300"
+                    >
+                      메뉴 관리
+                    </Link>
+                    <Link 
+                      to="/reports" 
+                      className="text-wine-700 hover:text-wine-900 font-medium transition-colors duration-300"
+                    >
+                      매출 보고
+                    </Link>
+                  </>
+                )}
               </>
             )}
           </nav>
