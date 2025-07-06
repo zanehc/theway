@@ -67,7 +67,7 @@ export default function Header() {
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
-      window.location.reload();
+      window.location.replace('/');
     } catch (error) {
       console.error('Logout error:', error);
     }

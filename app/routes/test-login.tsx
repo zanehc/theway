@@ -52,7 +52,7 @@ export default function TestLogin() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    setMessage('로그아웃 완료');
+    window.location.replace('/');
   };
 
   return (

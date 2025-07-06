@@ -90,7 +90,7 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     onClose();
-    window.location.reload();
+    window.location.replace('/');
   };
 
   if (!isOpen) return null;

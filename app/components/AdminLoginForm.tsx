@@ -29,7 +29,7 @@ export function AdminLoginForm() {
         console.log('Login successful:', data);
         setSuccess('로그인 성공! 페이지를 새로고침합니다...');
         setTimeout(() => {
-          window.location.reload();
+          window.location.replace('/');
         }, 1000);
       }
     } catch (err) {
