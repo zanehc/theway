@@ -1,7 +1,7 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useFetcher, Link } from "@remix-run/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getOrders, updateOrderStatus } from "~/lib/database";
 import { supabase } from "~/lib/supabase";
 import Header from "~/components/Header";
@@ -88,6 +88,8 @@ export default function Orders() {
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus | ''>(currentStatus as OrderStatus | '' || '');
   const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [newOrderAlert, setNewOrderAlert] = useState<{customer: string, church: string} | null>(null);
+  const alertTimeout = useRef<NodeJS.Timeout | null>(null);
 
   // URL 파라미터로 전달된 상태가 있으면 필터 적용
   useEffect(() => {
@@ -117,6 +119,39 @@ export default function Orders() {
 
     getUserRole();
   }, []);
+
+  // Supabase Realtime: 새 주문 알림 (관리자만)
+  useEffect(() => {
+    if (userRole !== 'admin') return;
+    const channel = supabase
+      .channel('orders-insert')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'orders',
+      }, payload => {
+        const order = payload.new;
+        setNewOrderAlert({
+          customer: order.customer_name,
+          church: order.church_group || '',
+        });
+        // 사운드: 목장명 주문~! 음성
+        const msg = `${order.church_group ? order.church_group + ' ' : ''}주문이 들어왔습니다!`;
+        if ('speechSynthesis' in window) {
+          const utter = new window.SpeechSynthesisUtterance(msg);
+          utter.lang = 'ko-KR';
+          window.speechSynthesis.speak(utter);
+        }
+        // 7초 후 알림 자동 사라짐
+        if (alertTimeout.current) clearTimeout(alertTimeout.current);
+        alertTimeout.current = setTimeout(() => setNewOrderAlert(null), 7000);
+      })
+      .subscribe();
+    return () => {
+      channel.unsubscribe();
+      if (alertTimeout.current) clearTimeout(alertTimeout.current);
+    };
+  }, [userRole]);
 
   const filteredOrders = selectedStatus 
     ? orders.filter(order => order.status === selectedStatus)
@@ -335,6 +370,23 @@ export default function Orders() {
           )}
         </div>
       </main>
+
+      {/* 새 주문 알림 배너 (관리자만) */}
+      {newOrderAlert && (
+        <div
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-[99999] bg-wine-600 text-ivory-50 px-6 py-4 rounded-xl shadow-2xl font-bold text-lg flex items-center gap-4 cursor-pointer animate-fade-in"
+          onClick={() => {
+            setNewOrderAlert(null);
+            window.location.href = '/orders?status=pending';
+          }}
+        >
+          <span>🛎️</span>
+          <span>
+            <span className="text-yellow-200">{newOrderAlert.church || '새'}</span> 주문이 들어왔습니다!<br />
+            <span className="text-sm text-ivory-200">(클릭 시 대기중 주문으로 이동)</span>
+          </span>
+        </div>
+      )}
     </div>
   );
 } 

@@ -95,7 +95,33 @@ export default function NewOrder() {
       }
     }
     fetchUserInfo();
-  }, []);
+
+    // 재주문 정보가 있으면 자동 채우기
+    const reorderRaw = localStorage.getItem('reorder');
+    if (reorderRaw) {
+      try {
+        const reorder = JSON.parse(reorderRaw);
+        setCustomerName(reorder.customerName || '');
+        setChurchGroup(reorder.churchGroup || '');
+        setPaymentMethod(reorder.paymentMethod || 'cash');
+        setNotes(reorder.notes || '');
+        // 메뉴 id로 메뉴 객체 매칭
+        if (Array.isArray(reorder.items)) {
+          const cartItems = reorder.items.map((item: any) => {
+            const menu = menus.find((m: any) => m.id === item.menu_id);
+            if (!menu) return null;
+            return {
+              menu,
+              quantity: item.quantity,
+              total_price: item.total_price,
+            };
+          }).filter(Boolean);
+          setCart(cartItems);
+        }
+      } catch (e) { /* 무시 */ }
+      localStorage.removeItem('reorder');
+    }
+  }, [menus]);
 
   // 에러 메시지 표시
   useEffect(() => {
