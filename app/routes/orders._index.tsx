@@ -2,7 +2,7 @@ import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useFetcher, Link } from "@remix-run/react";
 import { useState, useEffect, useRef } from "react";
-import { getOrders, updateOrderStatus, createNotification } from "~/lib/database";
+import { getOrders, updateOrderStatus, createNotification, getOrdersByUserId } from "~/lib/database";
 import { supabase } from "~/lib/supabase";
 import Header from "~/components/Header";
 import type { OrderStatus } from "~/types";
@@ -13,18 +13,52 @@ export async function loader({ request }: LoaderFunctionArgs) {
     const status = url.searchParams.get('status');
     const paymentStatus = url.searchParams.get('payment_status');
     
-    const orders = await getOrders(status || undefined);
+    // 사용자 인증 확인
+    const { supabase } = await import('~/lib/supabase');
+    const { data: { user } } = await supabase.auth.getUser();
     
-    // 결제 상태 필터링
+    let orders: any[] = [];
+    let userRole: string | null = null;
+    
+    if (user) {
+      // 사용자 역할 확인
+      const { data: userData } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+      
+      userRole = userData?.role || null;
+      
+      if (userRole === 'admin') {
+        // 관리자: 모든 주문 조회
+        orders = await getOrders(status || undefined);
+      } else {
+        // 고객: 본인의 주문만 조회
+        orders = await getOrdersByUserId(user.id);
+        
+        // 상태 필터링 (고객의 경우)
+        if (status) {
+          orders = orders.filter(order => order.status === status);
+        }
+      }
+    }
+    
+    // 결제 상태 필터링 (관리자만)
     let filteredOrders = orders;
-    if (paymentStatus) {
+    if (paymentStatus && userRole === 'admin') {
       filteredOrders = orders.filter(order => order.payment_status === paymentStatus);
     }
     
-    return json({ orders: filteredOrders, currentStatus: status, currentPaymentStatus: paymentStatus });
+    return json({ 
+      orders: filteredOrders, 
+      currentStatus: status, 
+      currentPaymentStatus: paymentStatus,
+      userRole
+    });
   } catch (error) {
     console.error('Orders loader error:', error);
-    return json({ orders: [], currentStatus: null, currentPaymentStatus: null });
+    return json({ orders: [], currentStatus: null, currentPaymentStatus: null, userRole: null });
   }
 }
 
@@ -84,11 +118,10 @@ const statusButtons = [
 ];
 
 export default function Orders() {
-  const { orders: initialOrders, currentStatus, currentPaymentStatus } = useLoaderData<typeof loader>();
+  const { orders: initialOrders, currentStatus, currentPaymentStatus, userRole } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
   const [orders, setOrders] = useState(initialOrders);
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus | ''>(currentStatus as OrderStatus | '' || '');
-  const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [newOrderAlert, setNewOrderAlert] = useState<{customer: string, church: string} | null>(null);
   const alertTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -114,7 +147,6 @@ export default function Orders() {
             .select('role, name, email')
             .eq('id', user.id)
             .single();
-          setUserRole(userData?.role || null);
           console.log('🔍 User data from database:', userData);
         }
       } catch (error) {
@@ -567,7 +599,9 @@ export default function Orders() {
         {/* 필터 */}
         <div className="bg-gradient-ivory rounded-3xl border-4 border-wine-600 shadow-soft p-6 sm:p-8 mb-8 animate-slide-up">
           <div className="flex gap-2 sm:gap-3 items-center justify-center overflow-x-auto">
-            {statusButtons.map(btn => (
+            {statusButtons
+              .filter(btn => isAdmin || btn.key !== 'payment_confirmed') // 고객은 결제완료 필터 제거
+              .map(btn => (
               <button
                 key={btn.key}
                 onClick={() => {
@@ -650,7 +684,7 @@ export default function Orders() {
                   {/* 주문메뉴(여러 행) */}
                   <td className="align-middle">
                     <div className="flex flex-col gap-1 items-center">
-                      {order.order_items?.map(item => (
+                      {order.order_items?.map((item: any) => (
                         <div key={item.id} className="text-xs text-wine-700">
                           {item.menu?.name} x{item.quantity}
                         </div>
