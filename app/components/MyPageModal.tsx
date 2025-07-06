@@ -248,10 +248,17 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
                 <div className="space-y-3 sm:space-y-4 max-h-96 overflow-y-auto">
                   {orderHistory.orders.map((order) => (
                     <div key={order.id} className="bg-ivory-50 rounded-xl p-3 sm:p-4 border border-ivory-200">
+                      {/* 주문 헤더 */}
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-2 sm:gap-0">
                         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                           <span className="text-sm sm:text-lg font-bold text-wine-800">
                             {new Date(order.created_at).toLocaleDateString('ko-KR')}
+                          </span>
+                          <span className="text-xs sm:text-sm text-wine-600">
+                            {new Date(order.created_at).toLocaleTimeString('ko-KR', { 
+                              hour: '2-digit', 
+                              minute: '2-digit' 
+                            })}
                           </span>
                           <span className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm font-bold ${getStatusColor(order.status)}`}>
                             {getStatusLabel(order.status)}
@@ -269,24 +276,87 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
                         </span>
                       </div>
                       
-                      <div className="space-y-1 sm:space-y-2">
+                      {/* 주문 상세 정보 */}
+                      <div className="space-y-2 sm:space-y-3">
+                        {/* 고객 정보 */}
+                        <div className="flex items-center justify-between text-xs sm:text-sm">
+                          <span className="text-wine-700 font-medium">고객명:</span>
+                          <span className="text-wine-800 font-bold">{order.customer_name}</span>
+                        </div>
+                        
+                        {order.church_group && (
+                          <div className="flex items-center justify-between text-xs sm:text-sm">
+                            <span className="text-wine-700 font-medium">목장:</span>
+                            <span className="text-wine-800 font-bold">{order.church_group}</span>
+                          </div>
+                        )}
+                        
+                        <div className="flex items-center justify-between text-xs sm:text-sm">
+                          <span className="text-wine-700 font-medium">결제방법:</span>
+                          <span className="text-wine-800 font-bold">
+                            {order.payment_method === 'cash' ? '현금' : '계좌이체'}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {/* 주문 아이템 */}
+                      <div className="mt-3 sm:mt-4 space-y-1 sm:space-y-2">
+                        <div className="text-xs sm:text-sm font-bold text-wine-700 mb-2">주문 메뉴:</div>
                         {order.order_items?.map((item) => (
-                          <div key={item.id} className="flex justify-between text-xs sm:text-sm">
-                            <span className="text-wine-700">
+                          <div key={item.id} className="flex justify-between text-xs sm:text-sm bg-white p-2 rounded-lg">
+                            <span className="text-wine-700 font-medium">
                               {item.menu?.name} x {item.quantity}
                             </span>
-                            <span className="text-wine-600 font-medium">
+                            <span className="text-wine-600 font-bold">
                               ₩{item.total_price.toLocaleString()}
                             </span>
                           </div>
                         ))}
                       </div>
 
+                      {/* 요청사항 */}
                       {order.notes && (
-                        <div className="mt-2 sm:mt-3 p-2 bg-wine-50 rounded-lg">
-                          <p className="text-xs sm:text-sm text-wine-700">요청사항: {order.notes}</p>
+                        <div className="mt-3 sm:mt-4 p-2 sm:p-3 bg-wine-50 rounded-lg border border-wine-100">
+                          <div className="text-xs sm:text-sm font-bold text-wine-700 mb-1">요청사항:</div>
+                          <p className="text-xs sm:text-sm text-wine-700">{order.notes}</p>
                         </div>
                       )}
+                      
+                      {/* 주문 상태 타임라인 */}
+                      <div className="mt-3 sm:mt-4 pt-3 border-t border-ivory-200">
+                        <div className="text-xs sm:text-sm font-bold text-wine-700 mb-2">주문 진행상황:</div>
+                        <div className="flex items-center space-x-2">
+                          <div className={`w-3 h-3 rounded-full ${
+                            order.status === 'pending' || order.status === 'preparing' || order.status === 'ready' || order.status === 'completed'
+                              ? 'bg-green-500' : 'bg-gray-300'
+                          }`}></div>
+                          <span className="text-xs text-wine-600">주문 접수</span>
+                          
+                          <div className="flex-1 h-1 bg-gray-200 rounded"></div>
+                          
+                          <div className={`w-3 h-3 rounded-full ${
+                            order.status === 'preparing' || order.status === 'ready' || order.status === 'completed'
+                              ? 'bg-blue-500' : 'bg-gray-300'
+                          }`}></div>
+                          <span className="text-xs text-wine-600">제조중</span>
+                          
+                          <div className="flex-1 h-1 bg-gray-200 rounded"></div>
+                          
+                          <div className={`w-3 h-3 rounded-full ${
+                            order.status === 'ready' || order.status === 'completed'
+                              ? 'bg-green-500' : 'bg-gray-300'
+                          }`}></div>
+                          <span className="text-xs text-wine-600">제조완료</span>
+                          
+                          <div className="flex-1 h-1 bg-gray-200 rounded"></div>
+                          
+                          <div className={`w-3 h-3 rounded-full ${
+                            order.status === 'completed'
+                              ? 'bg-wine-500' : 'bg-gray-300'
+                          }`}></div>
+                          <span className="text-xs text-wine-600">픽업완료</span>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>

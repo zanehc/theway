@@ -102,58 +102,6 @@ export default function Index() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Leaflet 지도 초기화
-  useEffect(() => {
-    const initMap = async () => {
-      // Leaflet CSS와 JS를 동적으로 로드
-      if (!document.querySelector('link[href*="leaflet.css"]')) {
-        const link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-        link.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
-        link.crossOrigin = '';
-        document.head.appendChild(link);
-      }
-
-      if (!window.L) {
-        const script = document.createElement('script');
-        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-        script.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
-        script.crossOrigin = '';
-        script.onload = () => {
-          createMap();
-        };
-        document.head.appendChild(script);
-      } else {
-        createMap();
-      }
-    };
-
-    const createMap = () => {
-      if (typeof window.L !== 'undefined' && !window.mapInitialized) {
-        const map = window.L.map('map').setView([37.5665, 126.9780], 15);
-        
-        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
-
-        // 길을여는교회 위치 마커 추가
-        const churchMarker = window.L.marker([37.5665, 126.9780]).addTo(map);
-        churchMarker.bindPopup(`
-          <div style="text-align: center;">
-            <h3 style="margin: 0 0 10px 0; color: #8B4513; font-weight: bold;">길을여는교회</h3>
-            <p style="margin: 0; color: #666;">이음카페</p>
-            <p style="margin: 5px 0 0 0; color: #666; font-size: 12px;">서울특별시 강남구</p>
-          </div>
-        `);
-
-        window.mapInitialized = true;
-      }
-    };
-
-    initMap();
-  }, []);
-
   // 타입 안전성을 위한 문자열 변환
   const errorMessage = error ? String(error) : null;
   const successMessage = success ? String(success) : null;
@@ -185,137 +133,145 @@ export default function Index() {
         </div>
       )}
       
-      {/* 히어로 섹션 */}
-      <section className="relative overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-20 lg:py-32">
-          <div className="text-center animate-fade-in">
-            <h1 className="text-6xl lg:text-8xl font-black text-wine-800 mb-6 tracking-tight">
-              길을여는교회
-            </h1>
-            <h2 className="text-4xl lg:text-6xl font-black text-wine-600 mb-8 tracking-tight">
-              이음카페
-            </h2>
-            <p className="text-2xl lg:text-3xl text-wine-500 font-medium mb-12 max-w-4xl mx-auto">
-              따뜻한 커피와 함께하는 교제의 공간
-            </p>
-            
-            {!user && (
-              <div className="space-y-4">
-                <p className="text-xl text-wine-400 font-medium">
-                  주문을 하시려면 로그인이 필요합니다
-                </p>
-                <div className="flex justify-center space-x-4">
-                  <button
-                    onClick={() => {
-                      const header = document.querySelector('[data-login-button]') as HTMLElement;
-                      if (header) header.click();
-                    }}
-                    className="px-8 py-4 bg-gradient-wine text-ivory-50 rounded-2xl text-xl font-bold hover:shadow-wine transition-all duration-300 shadow-medium hover:shadow-large transform hover:-translate-y-1"
-                  >
-                    로그인하기
-                  </button>
-                </div>
+      {/* 대시보드 */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* 헤더 */}
+        <div className="text-center mb-8 animate-fade-in">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-wine-800 mb-4 tracking-tight">
+            길을여는교회 이음카페
+          </h1>
+          <p className="text-lg sm:text-xl text-wine-600 font-medium">
+            {new Date().toLocaleDateString('ko-KR', { 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric',
+              weekday: 'long'
+            })}
+          </p>
+        </div>
+
+        {/* 통계 카드들 */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
+          {/* 총 주문 */}
+          <div className="bg-white rounded-xl shadow-soft p-4 sm:p-6 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-medium animate-slide-up">
+            <div className="p-3 bg-gradient-wine rounded-lg shadow-wine inline-block mb-3">
+              <svg className="w-6 h-6 sm:w-8 sm:h-8 text-ivory-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+              </svg>
+            </div>
+            <h3 className="text-2xl sm:text-3xl font-black text-wine-800 mb-1">{salesStats.totalOrders}</h3>
+            <p className="text-sm sm:text-base text-wine-600 font-medium">총 주문</p>
+          </div>
+
+          {/* 대기중 */}
+          <div className="bg-white rounded-xl shadow-soft p-4 sm:p-6 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-medium animate-slide-up" style={{animationDelay: '0.1s'}}>
+            <div className="p-3 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-lg shadow-medium inline-block mb-3">
+              <svg className="w-6 h-6 sm:w-8 sm:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h3 className="text-2xl sm:text-3xl font-black text-wine-800 mb-1">{salesStats.statusStats.pending}</h3>
+            <p className="text-sm sm:text-base text-wine-600 font-medium">대기중</p>
+          </div>
+
+          {/* 제조중 */}
+          <div className="bg-white rounded-xl shadow-soft p-4 sm:p-6 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-medium animate-slide-up" style={{animationDelay: '0.2s'}}>
+            <div className="p-3 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg shadow-medium inline-block mb-3">
+              <svg className="w-6 h-6 sm:w-8 sm:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+              </svg>
+            </div>
+            <h3 className="text-2xl sm:text-3xl font-black text-wine-800 mb-1">{salesStats.statusStats.preparing}</h3>
+            <p className="text-sm sm:text-base text-wine-600 font-medium">제조중</p>
+          </div>
+
+          {/* 완료 */}
+          <div className="bg-white rounded-xl shadow-soft p-4 sm:p-6 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-medium animate-slide-up" style={{animationDelay: '0.3s'}}>
+            <div className="p-3 bg-gradient-to-br from-green-400 to-green-600 rounded-lg shadow-medium inline-block mb-3">
+              <svg className="w-6 h-6 sm:w-8 sm:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h3 className="text-2xl sm:text-3xl font-black text-wine-800 mb-1">{salesStats.statusStats.completed}</h3>
+            <p className="text-sm sm:text-base text-wine-600 font-medium">완료</p>
+          </div>
+        </div>
+
+        {/* 매출 정보 */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
+          {/* 총 매출 */}
+          <div className="bg-gradient-ivory rounded-xl shadow-soft p-4 sm:p-6 text-center">
+            <h3 className="text-lg sm:text-xl font-black text-wine-800 mb-2">오늘의 매출</h3>
+            <p className="text-2xl sm:text-3xl font-black text-wine-600">₩{salesStats.totalRevenue.toLocaleString()}</p>
+          </div>
+
+          {/* 결제 완료 */}
+          <div className="bg-gradient-ivory rounded-xl shadow-soft p-4 sm:p-6 text-center">
+            <h3 className="text-lg sm:text-xl font-black text-wine-800 mb-2">결제 완료</h3>
+            <p className="text-2xl sm:text-3xl font-black text-wine-600">{salesStats.confirmedOrders}건</p>
+          </div>
+
+          {/* 운영시간 */}
+          <div className="bg-gradient-ivory rounded-xl shadow-soft p-4 sm:p-6 text-center">
+            <h3 className="text-lg sm:text-xl font-black text-wine-800 mb-2">운영시간</h3>
+            <p className="text-lg sm:text-xl font-bold text-wine-600">일요일 13:00-14:00</p>
+          </div>
+        </div>
+
+        {/* 최근 주문 */}
+        {user && (
+          <div className="bg-white rounded-xl shadow-soft p-4 sm:p-6 mb-8">
+            <h3 className="text-xl sm:text-2xl font-black text-wine-800 mb-4">최근 주문</h3>
+            {recentOrders.length > 0 ? (
+              <div className="space-y-3">
+                {recentOrders.slice(0, 5).map((order) => order && (
+                  <div key={order.id} className="flex items-center justify-between p-3 bg-ivory-50 rounded-lg">
+                    <div className="flex-1">
+                      <p className="font-medium text-wine-800">{order.customer_name}</p>
+                      <p className="text-sm text-wine-600">{order.church_group}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-wine-800">₩{order.total_amount.toLocaleString()}</p>
+                      <span className={`px-2 py-1 rounded text-xs font-bold ${
+                        order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                        order.status === 'preparing' ? 'bg-blue-100 text-blue-800' :
+                        order.status === 'ready' ? 'bg-green-100 text-green-800' :
+                        order.status === 'completed' ? 'bg-wine-100 text-wine-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {order.status === 'pending' ? '대기' :
+                         order.status === 'preparing' ? '제조중' :
+                         order.status === 'ready' ? '완료' :
+                         order.status === 'completed' ? '픽업완료' :
+                         order.status === 'cancelled' ? '취소' : order.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
+            ) : (
+              <p className="text-center text-wine-400 py-8">주문 내역이 없습니다.</p>
             )}
           </div>
-        </div>
-      </section>
+        )}
 
-      {/* 오늘의 현황 */}
-      <section className="py-20 lg:py-32 bg-gradient-ivory">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12">
-          <div className="text-center mb-16 animate-fade-in">
-            <h2 className="text-5xl lg:text-6xl font-black text-wine-800 mb-6 tracking-tight">
-              오늘의 현황
-            </h2>
-            <p className="text-2xl text-wine-600 font-medium">
-              {new Date().toLocaleDateString('ko-KR', { 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric',
-                weekday: 'long'
-              })}
-            </p>
+        {/* 로그인 안내 */}
+        {!user && (
+          <div className="bg-gradient-ivory rounded-xl shadow-soft p-6 sm:p-8 text-center">
+            <h3 className="text-xl sm:text-2xl font-black text-wine-800 mb-4">주문을 하시려면 로그인이 필요합니다</h3>
+            <p className="text-lg text-wine-600 mb-6">로그인 후 주문 현황과 새 주문을 이용하실 수 있습니다.</p>
+            <button
+              onClick={() => {
+                const header = document.querySelector('[data-login-button]') as HTMLElement;
+                if (header) header.click();
+              }}
+              className="px-6 sm:px-8 py-3 sm:py-4 bg-gradient-wine text-ivory-50 rounded-xl text-lg sm:text-xl font-bold hover:shadow-wine transition-all duration-300 shadow-medium hover:shadow-large transform hover:-translate-y-1"
+            >
+              로그인하기
+            </button>
           </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 mb-16">
-            {/* 총 주문 */}
-            <div className="bg-white rounded-3xl shadow-soft p-8 text-center transition-all duration-300 hover:-translate-y-2 hover:shadow-large animate-slide-up">
-              <div className="p-4 bg-gradient-wine rounded-2xl shadow-wine inline-block mb-4">
-                <svg className="w-10 h-10 text-ivory-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                </svg>
-              </div>
-              <h3 className="text-4xl font-black text-wine-800 mb-2">{salesStats.totalOrders}</h3>
-              <p className="text-lg text-wine-600 font-medium">총 주문</p>
-            </div>
-
-            {/* 대기중 */}
-            <div className="bg-white rounded-3xl shadow-soft p-8 text-center transition-all duration-300 hover:-translate-y-2 hover:shadow-large animate-slide-up" style={{animationDelay: '0.1s'}}>
-              <div className="p-4 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-2xl shadow-medium inline-block mb-4">
-                <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <h3 className="text-4xl font-black text-wine-800 mb-2">{salesStats.statusStats.pending}</h3>
-              <p className="text-lg text-wine-600 font-medium">대기중</p>
-            </div>
-
-            {/* 완료 */}
-            <div className="bg-white rounded-3xl shadow-soft p-8 text-center transition-all duration-300 hover:-translate-y-2 hover:shadow-large animate-slide-up" style={{animationDelay: '0.2s'}}>
-              <div className="p-4 bg-gradient-to-br from-green-400 to-green-600 rounded-2xl shadow-medium inline-block mb-4">
-                <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <h3 className="text-4xl font-black text-wine-800 mb-2">{salesStats.statusStats.completed}</h3>
-              <p className="text-lg text-wine-600 font-medium">완료</p>
-            </div>
-
-            {/* 지도 */}
-            <div className="bg-white rounded-3xl shadow-soft p-8 transition-all duration-300 hover:-translate-y-2 hover:shadow-large animate-slide-up" style={{animationDelay: '0.3s'}}>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-black text-wine-800">위치</h3>
-                <div className="p-2 bg-gradient-wine rounded-xl shadow-wine">
-                  <svg className="w-6 h-6 text-ivory-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                </div>
-              </div>
-              <div id="map" className="w-full h-32 rounded-2xl bg-ivory-100"></div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 운영시간 */}
-      <section className="py-20 lg:py-32">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12">
-          <div className="text-center mb-16 animate-fade-in">
-            <h2 className="text-5xl lg:text-6xl font-black text-wine-800 mb-6 tracking-tight">
-              운영시간
-            </h2>
-            <p className="text-2xl text-wine-600 font-medium">
-              매주 일요일 오후 1시 ~ 2시
-            </p>
-          </div>
-
-          <div className="bg-gradient-ivory rounded-3xl shadow-soft p-12 text-center animate-slide-up">
-            <div className="max-w-2xl mx-auto">
-              <div className="text-6xl font-black text-wine-800 mb-6">
-                일요일
-              </div>
-              <div className="text-4xl font-bold text-wine-600 mb-8">
-                13:00 - 14:00
-              </div>
-              <p className="text-xl text-wine-500 font-medium">
-                예배 후 교제 시간에 운영됩니다
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
+        )}
+      </div>
     </div>
   );
 }

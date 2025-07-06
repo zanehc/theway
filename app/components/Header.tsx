@@ -4,6 +4,7 @@ import { supabase } from "~/lib/supabase";
 import { LoginForm } from "./LoginForm";
 import { SignupForm } from "./SignupForm";
 import { MyPageModal } from "./MyPageModal";
+import { HamburgerMenu } from "./HamburgerMenu";
 
 export default function Header() {
   const [user, setUser] = useState<any>(null);
@@ -90,8 +91,8 @@ export default function Header() {
   if (loading) {
     return (
       <header className="bg-gradient-ivory shadow-soft border-b border-ivory-200/50 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12">
-          <div className="flex justify-between items-center py-6">
+        <div className="max-w-7xl mx-auto px-3 sm:px-8 lg:px-12">
+          <div className="flex justify-between items-center py-4 sm:py-6">
             <div className="animate-pulse bg-wine-200 h-8 w-64 rounded"></div>
             <div className="animate-pulse bg-wine-200 h-8 w-32 rounded"></div>
           </div>
@@ -119,61 +120,14 @@ export default function Header() {
             </div>
           </Link>
 
-          {/* 네비게이션 */}
-          <nav className="hidden md:flex items-center space-x-8 animate-slide-up">
-            {isLoggedIn && (
-              <>
-                <Link 
-                  to="/orders" 
-                  className="text-wine-700 hover:text-wine-900 font-medium transition-colors duration-300"
-                >
-                  주문 현황
-                </Link>
-                {userRole === 'admin' && (
-                  <>
-                    <Link 
-                      to="/menus" 
-                      className="text-wine-700 hover:text-wine-900 font-medium transition-colors duration-300"
-                    >
-                      메뉴 관리
-                    </Link>
-                    <Link 
-                      to="/reports" 
-                      className="text-wine-700 hover:text-wine-900 font-medium transition-colors duration-300"
-                    >
-                      매출 보고
-                    </Link>
-                  </>
-                )}
-              </>
-            )}
-          </nav>
-
-          {/* 우측 버튼들 */}
-          <div className="flex items-center space-x-2 sm:space-x-4 animate-slide-up">
-            {isLoggedIn && (
-              <Link 
-                to="/orders/new" 
-                className="px-3 sm:px-6 py-2 sm:py-3 rounded-lg sm:rounded-xl text-ivory-50 font-bold bg-gradient-wine hover:shadow-wine transition-all duration-300 shadow-medium hover:shadow-large transform hover:-translate-y-1 text-xs sm:text-sm"
-              >
-                새 주문
-              </Link>
-            )}
+          {/* 햄버거 메뉴 */}
+          <div className="animate-slide-up">
             {isLoggedIn ? (
-              <div className="flex items-center space-x-2 sm:space-x-3">
-                <button
-                  className="bg-wine-100 hover:bg-wine-200 text-wine-700 px-2 sm:px-4 py-2 rounded-lg font-medium transition-all duration-300 shadow-soft hover:shadow-medium text-xs sm:text-sm"
-                  onClick={() => setShowMyPage(true)}
-                >
-                  마이페이지
-                </button>
-                <button
-                  className="bg-wine-100 hover:bg-wine-200 text-wine-700 px-3 sm:px-6 py-2 sm:py-3 rounded-lg sm:rounded-xl font-bold transition-all duration-300 shadow-soft hover:shadow-medium transform hover:-translate-y-1 text-xs sm:text-sm"
-                  onClick={handleLogout}
-                >
-                  로그아웃
-                </button>
-              </div>
+              <HamburgerMenu 
+                user={user} 
+                userRole={userRole} 
+                onLogout={handleLogout}
+              />
             ) : (
               <button
                 className="bg-wine-100 hover:bg-wine-200 text-wine-700 px-3 sm:px-6 py-2 sm:py-3 rounded-lg sm:rounded-xl font-bold transition-all duration-300 shadow-soft hover:shadow-medium transform hover:-translate-y-1 text-xs sm:text-sm"

@@ -1,8 +1,9 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useFetcher } from "@remix-run/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { getOrders, updateOrderStatus } from "~/lib/database";
+import { supabase } from "~/lib/supabase";
 import Header from "~/components/Header";
 import type { OrderStatus } from "~/types";
 
@@ -50,6 +51,30 @@ export default function Orders() {
   const { orders, currentStatus } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus | ''>(currentStatus as OrderStatus | '' || '');
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const getUserRole = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: userData } = await supabase
+            .from('users')
+            .select('role')
+            .eq('id', user.id)
+            .single();
+          setUserRole(userData?.role || null);
+        }
+      } catch (error) {
+        console.error('Error getting user role:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    getUserRole();
+  }, []);
 
   const filteredOrders = selectedStatus 
     ? orders.filter(order => order.status === selectedStatus)
@@ -75,6 +100,19 @@ export default function Orders() {
     fetcher.submit(formData, { method: 'post' });
   };
 
+  const isAdmin = userRole === 'admin';
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-warm">
+        <Header />
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-wine-600"></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-warm">
       <Header />
@@ -82,7 +120,9 @@ export default function Orders() {
       <main className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-12">
         <div className="mb-12 animate-fade-in">
           <h1 className="text-5xl font-black text-wine-800 mb-4 tracking-tight">주문 현황</h1>
-          <p className="text-2xl text-wine-600 font-medium">현재 주문 상태를 확인하고 관리하세요</p>
+          <p className="text-2xl text-wine-600 font-medium">
+            {isAdmin ? '현재 주문 상태를 확인하고 관리하세요' : '현재 주문 상태를 확인하세요'}
+          </p>
         </div>
 
         {/* 필터 */}
@@ -186,43 +226,45 @@ export default function Orders() {
                       </div>
                     </div>
 
-                    {/* 상태 변경 버튼 */}
-                    <div className="ml-8 flex flex-col space-y-4">
-                      {order.status !== 'completed' && order.status !== 'cancelled' && (
-                        <>
-                          {order.status === 'pending' && (
+                    {/* 상태 변경 버튼 - 관리자만 표시 */}
+                    {isAdmin && (
+                      <div className="ml-8 flex flex-col space-y-4">
+                        {order.status !== 'completed' && order.status !== 'cancelled' && (
+                          <>
+                            {order.status === 'pending' && (
+                              <button
+                                onClick={() => handleStatusChange(order.id, 'preparing')}
+                                className="px-8 py-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-2xl text-lg font-bold hover:shadow-large transition-all duration-300 transform hover:-translate-y-1 shadow-medium"
+                              >
+                                제조 시작
+                              </button>
+                            )}
+                            {order.status === 'preparing' && (
+                              <button
+                                onClick={() => handleStatusChange(order.id, 'ready')}
+                                className="px-8 py-4 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-2xl text-lg font-bold hover:shadow-large transition-all duration-300 transform hover:-translate-y-1 shadow-medium"
+                              >
+                                제조 완료
+                              </button>
+                            )}
+                            {order.status === 'ready' && (
+                              <button
+                                onClick={() => handleStatusChange(order.id, 'completed')}
+                                className="px-8 py-4 bg-gradient-to-r from-wine-500 to-wine-600 text-white rounded-2xl text-lg font-bold hover:shadow-large transition-all duration-300 transform hover:-translate-y-1 shadow-medium"
+                              >
+                                픽업 완료
+                              </button>
+                            )}
                             <button
-                              onClick={() => handleStatusChange(order.id, 'preparing')}
-                              className="px-8 py-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-2xl text-lg font-bold hover:shadow-large transition-all duration-300 transform hover:-translate-y-1 shadow-medium"
+                              onClick={() => handleStatusChange(order.id, 'cancelled')}
+                              className="px-8 py-4 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-2xl text-lg font-bold hover:shadow-large transition-all duration-300 transform hover:-translate-y-1 shadow-medium"
                             >
-                              제조 시작
+                              주문 취소
                             </button>
-                          )}
-                          {order.status === 'preparing' && (
-                            <button
-                              onClick={() => handleStatusChange(order.id, 'ready')}
-                              className="px-8 py-4 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-2xl text-lg font-bold hover:shadow-large transition-all duration-300 transform hover:-translate-y-1 shadow-medium"
-                            >
-                              제조 완료
-                            </button>
-                          )}
-                          {order.status === 'ready' && (
-                            <button
-                              onClick={() => handleStatusChange(order.id, 'completed')}
-                              className="px-8 py-4 bg-gradient-to-r from-wine-500 to-wine-600 text-white rounded-2xl text-lg font-bold hover:shadow-large transition-all duration-300 transform hover:-translate-y-1 shadow-medium"
-                            >
-                              픽업 완료
-                            </button>
-                          )}
-                          <button
-                            onClick={() => handleStatusChange(order.id, 'cancelled')}
-                            className="px-8 py-4 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-2xl text-lg font-bold hover:shadow-large transition-all duration-300 transform hover:-translate-y-1 shadow-medium"
-                          >
-                            주문 취소
-                          </button>
-                        </>
-                      )}
-                    </div>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
