@@ -189,10 +189,21 @@ export default function Header() {
       
       {/* 로그인 모달 */}
       {showLogin && (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40" onClick={() => setShowLogin(false)}>
-          <div className="bg-white rounded-2xl p-8 shadow-large min-w-[400px] animate-scale-in relative" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[99999] bg-black/40 flex items-center justify-center p-4" onClick={() => setShowLogin(false)}>
+          <div 
+            className="bg-white rounded-2xl p-6 sm:p-8 shadow-large w-full max-w-md mx-auto animate-scale-in relative transform -translate-y-0" 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              maxHeight: '90vh',
+              overflowY: 'auto'
+            }}
+          >
             <button
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl font-bold"
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl font-bold z-10"
               onClick={() => setShowLogin(false)}
               aria-label="닫기"
             >
@@ -216,10 +227,21 @@ export default function Header() {
 
       {/* 회원가입 모달 */}
       {showSignup && (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40" onClick={() => setShowSignup(false)}>
-          <div className="bg-white rounded-2xl p-8 shadow-large min-w-[500px] max-h-[90vh] overflow-y-auto animate-scale-in relative" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[99999] bg-black/40 flex items-center justify-center p-4" onClick={() => setShowSignup(false)}>
+          <div 
+            className="bg-white rounded-2xl p-6 sm:p-8 shadow-large w-full max-w-lg mx-auto animate-scale-in relative transform -translate-y-0" 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              maxHeight: '90vh',
+              overflowY: 'auto'
+            }}
+          >
             <button
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl font-bold"
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl font-bold z-10"
               onClick={() => setShowSignup(false)}
               aria-label="닫기"
             >
