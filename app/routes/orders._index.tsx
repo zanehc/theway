@@ -83,8 +83,9 @@ const statusButtons = [
 ];
 
 export default function Orders() {
-  const { orders, currentStatus, currentPaymentStatus } = useLoaderData<typeof loader>();
+  const { orders: initialOrders, currentStatus, currentPaymentStatus } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
+  const [orders, setOrders] = useState(initialOrders);
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus | ''>(currentStatus as OrderStatus | '' || '');
   const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -120,33 +121,88 @@ export default function Orders() {
     getUserRole();
   }, []);
 
-  // Supabase Realtime: 새 주문 알림 (관리자만)
+  // Supabase Realtime: 주문 실시간 업데이트
   useEffect(() => {
     if (userRole !== 'admin') return;
+    
     const channel = supabase
-      .channel('orders-insert')
+      .channel('orders-realtime')
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'orders',
-      }, payload => {
-        const order = payload.new;
+      }, async (payload) => {
+        const newOrder = payload.new;
+        
+        // 새 주문 알림
         setNewOrderAlert({
-          customer: order.customer_name,
-          church: order.church_group || '',
+          customer: newOrder.customer_name,
+          church: newOrder.church_group || '',
         });
+        
         // 사운드: 목장명 주문~! 음성
-        const msg = `${order.church_group ? order.church_group + ' ' : ''}주문이 들어왔습니다!`;
+        const msg = `${newOrder.church_group ? newOrder.church_group + ' ' : ''}주문이 들어왔습니다!`;
         if ('speechSynthesis' in window) {
           const utter = new window.SpeechSynthesisUtterance(msg);
           utter.lang = 'ko-KR';
           window.speechSynthesis.speak(utter);
         }
+        
         // 7초 후 알림 자동 사라짐
         if (alertTimeout.current) clearTimeout(alertTimeout.current);
         alertTimeout.current = setTimeout(() => setNewOrderAlert(null), 7000);
+        
+        // 주문 목록에 새 주문 추가 (order_items 포함)
+        try {
+          const { data: orderWithItems } = await supabase
+            .from('orders')
+            .select(`
+              *,
+              order_items (
+                *,
+                menu:menus (*)
+              )
+            `)
+            .eq('id', newOrder.id)
+            .single();
+          
+          if (orderWithItems) {
+            setOrders((prevOrders: any[]) => [orderWithItems, ...prevOrders]);
+          }
+        } catch (error) {
+          console.error('Error fetching new order details:', error);
+        }
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'orders',
+      }, (payload) => {
+        const updatedOrder = payload.new;
+        
+        // 주문 목록에서 해당 주문 업데이트
+        setOrders((prevOrders: any[]) => 
+          prevOrders.map((order: any) => 
+            order.id === updatedOrder.id 
+              ? { ...order, ...updatedOrder }
+              : order
+          )
+        );
+      })
+      .on('postgres_changes', {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'orders',
+      }, (payload) => {
+        const deletedOrderId = payload.old.id;
+        
+        // 주문 목록에서 삭제된 주문 제거
+        setOrders((prevOrders: any[]) => 
+          prevOrders.filter((order: any) => order.id !== deletedOrderId)
+        );
       })
       .subscribe();
+      
     return () => {
       channel.unsubscribe();
       if (alertTimeout.current) clearTimeout(alertTimeout.current);
