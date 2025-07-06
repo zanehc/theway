@@ -77,6 +77,7 @@ export async function action({ request }: ActionFunctionArgs) {
 
   if (intent === 'updateMenu') {
     try {
+      console.log('=== UPDATE MENU ACTION START ===');
       const id = formData.get('id') as string;
       const name = formData.get('name') as string;
       const description = formData.get('description') as string;
@@ -85,7 +86,11 @@ export async function action({ request }: ActionFunctionArgs) {
       const imageFile = formData.get('image') as File | null;
       const removeImage = formData.get('removeImage') === 'true';
 
+      console.log('Form data:', { id, name, description, price, category, removeImage });
+      console.log('Image file:', imageFile ? { name: imageFile.name, size: imageFile.size } : 'null');
+
       if (!id || !name || !price || !category) {
+        console.log('Validation failed');
         return json({ error: '필수 필드를 입력해주세요.' }, { status: 400 });
       }
 
@@ -96,12 +101,21 @@ export async function action({ request }: ActionFunctionArgs) {
         category
       };
 
+      console.log('Initial update data:', updateData);
+
       // 기존 메뉴 정보 가져오기
-      const { data: existingMenu } = await supabase
+      const { data: existingMenu, error: fetchError } = await supabase
         .from('menus')
         .select('image_url')
         .eq('id', id)
         .single();
+
+      if (fetchError) {
+        console.error('Error fetching existing menu:', fetchError);
+        return json({ error: '기존 메뉴 정보를 가져오는데 실패했습니다.' }, { status: 400 });
+      }
+
+      console.log('Existing menu:', existingMenu);
 
       // 이미지 처리
       if (removeImage) {
@@ -127,13 +141,19 @@ export async function action({ request }: ActionFunctionArgs) {
         }
       }
 
-      const { error } = await supabase
+      console.log('Final update data:', updateData);
+
+      const { error: updateError } = await supabase
         .from('menus')
         .update(updateData)
         .eq('id', id);
 
-      if (error) throw error;
+      if (updateError) {
+        console.error('Database update error:', updateError);
+        throw updateError;
+      }
 
+      console.log('=== UPDATE MENU ACTION SUCCESS ===');
       return redirect('/menus');
     } catch (error) {
       console.error('Update menu error:', error);
@@ -218,8 +238,14 @@ export default function Menus() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     
+    console.log('Form submission - intent:', formData.get('intent'));
+    console.log('Form submission - id:', formData.get('id'));
+    console.log('Form submission - removeImage:', formData.get('removeImage'));
+    console.log('Selected image:', selectedImage);
+    
     if (selectedImage) {
       formData.set('image', selectedImage);
+      console.log('Image file added to form:', selectedImage.name, selectedImage.size);
     }
 
     fetcher.submit(formData, { method: 'post' });
@@ -488,6 +514,7 @@ export default function Menus() {
                          type="button"
                          onClick={() => {
                            if (confirm('현재 이미지를 삭제하시겠습니까?')) {
+                             console.log('Removing image from editing menu');
                              setEditingMenu({ ...editingMenu, image_url: null });
                            }
                          }}

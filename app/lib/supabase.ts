@@ -14,10 +14,16 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 // Storage 헬퍼 함수들
 export const uploadMenuImage = async (file: File, menuId: string): Promise<string | null> => {
   try {
+    console.log('=== UPLOAD MENU IMAGE START ===');
+    console.log('File:', { name: file.name, size: file.size, type: file.type });
+    console.log('Menu ID:', menuId);
+    
     const fileExt = file.name.split('.').pop();
     const timestamp = Date.now();
     const randomId = Math.random().toString(36).substring(2, 15);
     const fileName = `${menuId}-${timestamp}-${randomId}.${fileExt}`;
+    
+    console.log('Generated filename:', fileName);
     
     const { data, error } = await supabase.storage
       .from('menu-images')
@@ -27,15 +33,20 @@ export const uploadMenuImage = async (file: File, menuId: string): Promise<strin
       });
 
     if (error) {
-      console.error('Upload error:', error);
+      console.error('Storage upload error:', error);
       return null;
     }
+
+    console.log('Upload successful, data:', data);
 
     // 공개 URL 생성
     const { data: { publicUrl } } = supabase.storage
       .from('menu-images')
       .getPublicUrl(fileName);
 
+    console.log('Generated public URL:', publicUrl);
+    console.log('=== UPLOAD MENU IMAGE SUCCESS ===');
+    
     return publicUrl;
   } catch (error) {
     console.error('Upload error:', error);
