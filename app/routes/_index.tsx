@@ -84,19 +84,40 @@ export async function loader({ request }: LoaderFunctionArgs) {
 export default function Index() {
   const { menuStats, orderStats, recentOrders, totalMenus, totalOrders, menus, error, success, salesStats } = useLoaderData<typeof loader>();
   
-  // 로그인 상태 확인
+  // 로그인 상태 및 권한 확인
   const [user, setUser] = useState<any>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
+      if (user) {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+        setUserRole(userData?.role || null);
+      } else {
+        setUserRole(null);
+      }
       setLoading(false);
     };
     getUser();
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
+      if (session?.user) {
+        supabase
+          .from('users')
+          .select('role')
+          .eq('id', session.user.id)
+          .single()
+          .then(({ data }) => setUserRole(data?.role || null));
+      } else {
+        setUserRole(null);
+      }
       setLoading(false);
     });
     return () => subscription.unsubscribe();
@@ -192,7 +213,7 @@ export default function Index() {
         </div>
 
         {/* 매출 정보 */}
-        {user && (
+        {user && userRole === 'admin' && (
           <div className="grid grid-cols-1 lg:grid-cols-1 gap-4 sm:gap-6 mb-8">
             {/* 총 매출 */}
             <div className="bg-gradient-ivory rounded-xl shadow-soft p-4 sm:p-6 text-center">
