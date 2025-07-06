@@ -73,7 +73,7 @@ export default function NewOrder() {
   const [churchGroup, setChurchGroup] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('cash');
   const [notes, setNotes] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedCategory, setSelectedCategory] = useState('ice coffee');
 
   // 주문 제출 상태 확인
   const isSubmitting = fetcher.state === 'submitting';
@@ -141,17 +141,14 @@ export default function NewOrder() {
 
   // 카테고리 목록
   const categories = [
-    { id: 'all', name: '전체' },
-    { id: 'hot coffee', name: 'Hot 커피' },
     { id: 'ice coffee', name: 'Ice 커피' },
+    { id: 'hot coffee', name: 'Hot 커피' },
     { id: 'tea', name: '차' },
     { id: 'beverage', name: '음료' }
   ];
 
   // 선택된 카테고리에 따른 메뉴 필터링
-  const filteredMenus = selectedCategory === 'all' 
-    ? menus 
-    : menus.filter(menu => menu.category === selectedCategory);
+  const filteredMenus = menus.filter(menu => menu.category === selectedCategory);
 
   const addToCart = (menu: Menu) => {
     setCart(prev => {
@@ -262,7 +259,7 @@ export default function NewOrder() {
               </div>
 
               {/* 메뉴 카드 그리드 */}
-              <div className="grid grid-cols-4 gap-2 sm:gap-3">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
                 {filteredMenus.length === 0 ? (
                   <div className="col-span-full text-center py-8 sm:py-12">
                     <div className="animate-spin rounded-full h-8 w-8 sm:h-12 sm:w-12 border-b-2 border-wine-600 mx-auto mb-4"></div>
@@ -271,7 +268,8 @@ export default function NewOrder() {
                 ) : (
                   filteredMenus.map((menu) => (
                   <div key={menu.id} className="menu-card bg-white rounded-lg overflow-hidden shadow-medium hover:shadow-large transition-all duration-300 transform hover:-translate-y-1">
-                    <div className="h-20 sm:h-24 overflow-hidden bg-gradient-to-br from-ivory-100 to-ivory-200 flex items-center justify-center">
+                    {/* 음료사진 */}
+                    <div className="h-36 sm:h-44 overflow-hidden bg-gradient-to-br from-ivory-100 to-ivory-200 flex items-center justify-center">
                       {menu.image_url ? (
                         <img 
                           src={menu.image_url} 
@@ -287,12 +285,17 @@ export default function NewOrder() {
                         </div>
                       )}
                     </div>
-                    <div className="p-2 sm:p-3">
-                      <div className="flex justify-between items-center mb-1 sm:mb-2">
-                        <h3 className="text-xs sm:text-sm font-bold text-wine-800 truncate">{menu.name}</h3>
+                    <div className="p-4 sm:p-6">
+                      {/* 음료명 */}
+                      <h3 className="text-xs sm:text-sm font-bold text-wine-800 truncate mb-1 text-center">{menu.name}</h3>
+                      
+                      {/* 가격 */}
+                      <div className="text-center mb-1">
                         <span className="text-wine-700 font-bold text-xs">₩{menu.price.toLocaleString()}</span>
                       </div>
-                      <div className="flex justify-between items-center mb-2 sm:mb-3">
+                      
+                      {/* 뱃지 */}
+                      <div className="flex justify-center mb-2 sm:mb-3">
                         <span className={`text-xs px-1 sm:px-2 py-0.5 rounded-full font-medium ${
                           menu.category === 'hot coffee' ? 'bg-red-100 text-red-800' :
                           menu.category === 'ice coffee' ? 'bg-blue-100 text-blue-800' :
@@ -308,45 +311,43 @@ export default function NewOrder() {
                       </div>
                       
                       {/* 수량 조절 */}
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-wine-700">수량</span>
-                        <div className="flex items-center space-x-1">
-                          <button
-                            onClick={() => {
-                              const currentItem = cart.find(item => item.menu.id === menu.id);
-                              const currentQuantity = currentItem ? currentItem.quantity : 0;
-                              if (currentQuantity > 0) {
-                                updateQuantity(menu.id, currentQuantity - 1);
-                              }
-                            }}
-                            className="w-5 h-5 sm:w-6 sm:h-6 bg-wine-100 text-wine-700 rounded-full flex items-center justify-center font-bold hover:bg-wine-200 transition-colors disabled:opacity-50 text-xs"
-                            disabled={!cart.find(item => item.menu.id === menu.id) || (cart.find(item => item.menu.id === menu.id)?.quantity || 0) <= 0}
-                          >
-                            -
-                          </button>
-                          <input
-                            type="number"
-                            min="0"
-                            max="99"
-                            value={cart.find(item => item.menu.id === menu.id)?.quantity || 0}
-                            onChange={(e) => {
-                              const value = parseInt(e.target.value) || 0;
-                              const clampedValue = Math.min(Math.max(value, 0), 99);
-                              updateQuantity(menu.id, clampedValue);
-                            }}
-                            className="w-8 sm:w-10 h-5 sm:h-6 text-center border border-ivory-300 rounded text-xs font-bold bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500"
-                          />
-                          <button
-                            onClick={() => {
-                              const currentItem = cart.find(item => item.menu.id === menu.id);
-                              const currentQuantity = currentItem ? currentItem.quantity : 0;
-                              updateQuantity(menu.id, currentQuantity + 1);
-                            }}
-                            className="w-5 h-5 sm:w-6 sm:h-6 bg-wine-100 text-wine-700 rounded-full flex items-center justify-center font-bold hover:bg-wine-200 transition-colors text-xs"
-                          >
-                            +
-                          </button>
-                        </div>
+                      <div className="flex items-center justify-center space-x-1">
+                        <button
+                          onClick={() => {
+                            const currentItem = cart.find(item => item.menu.id === menu.id);
+                            const currentQuantity = currentItem ? currentItem.quantity : 0;
+                            if (currentQuantity > 0) {
+                              updateQuantity(menu.id, currentQuantity - 1);
+                            }
+                          }}
+                          className="w-5 h-5 sm:w-6 sm:h-6 bg-wine-100 text-wine-700 rounded-full flex items-center justify-center font-bold hover:bg-wine-200 transition-colors disabled:opacity-50 text-xs"
+                          disabled={!cart.find(item => item.menu.id === menu.id) || (cart.find(item => item.menu.id === menu.id)?.quantity || 0) <= 0}
+                        >
+                          -
+                        </button>
+                        <input
+                          type="number"
+                          min="0"
+                          max="99"
+                          value={cart.find(item => item.menu.id === menu.id)?.quantity || 0}
+                          onChange={(e) => {
+                            const value = parseInt(e.target.value) || 0;
+                            const clampedValue = Math.min(Math.max(value, 0), 99);
+                            updateQuantity(menu.id, clampedValue);
+                          }}
+                          className="w-8 sm:w-10 h-5 sm:h-6 text-center border border-ivory-300 rounded text-xs font-bold bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500"
+                          style={{ WebkitAppearance: 'none', MozAppearance: 'textfield' }}
+                        />
+                        <button
+                          onClick={() => {
+                            const currentItem = cart.find(item => item.menu.id === menu.id);
+                            const currentQuantity = currentItem ? currentItem.quantity : 0;
+                            updateQuantity(menu.id, currentQuantity + 1);
+                          }}
+                          className="w-5 h-5 sm:w-6 sm:h-6 bg-wine-100 text-wine-700 rounded-full flex items-center justify-center font-bold hover:bg-wine-200 transition-colors text-xs"
+                        >
+                          +
+                        </button>
                       </div>
                     </div>
                   </div>
