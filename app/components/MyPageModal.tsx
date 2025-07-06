@@ -111,7 +111,7 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-none flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-2xl shadow-large p-8 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-black text-wine-800">마이페이지</h2>
