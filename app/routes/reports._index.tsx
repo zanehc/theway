@@ -3,32 +3,22 @@ import { json } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
 import { useState } from "react";
 import { supabase } from "~/lib/supabase";
+import { requireAuth } from "~/lib/auth";
 import Header from "~/components/Header";
 
 export async function loader({ request }: LoaderFunctionArgs) {
+  // 로그인 상태 확인
+  const authResponse = await requireAuth(request);
+  if (authResponse) {
+    return authResponse;
+  }
+
   try {
-    const url = new URL(request.url);
-    const period = url.searchParams.get('period') || 'today';
-
-    // 기간별 날짜 계산
-    const now = new Date();
-    let startDate: Date;
-    let endDate: Date = now;
-
-    switch (period) {
-      case 'week':
-        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        break;
-      case 'month':
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        break;
-      default: // today
-        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        break;
-    }
-
-    // 주문 데이터 조회
-    const { data: orders, error: ordersError } = await supabase
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+    
+    // 최근 30일 주문 데이터 조회
+    const { data: orders, error } = await supabase
       .from('orders')
       .select(`
         *,
@@ -37,77 +27,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
           menu:menus (*)
         )
       `)
-      .gte('created_at', startDate.toISOString())
-      .lte('created_at', endDate.toISOString())
+      .gte('created_at', thirtyDaysAgo.toISOString())
+      .eq('payment_status', 'confirmed')
       .order('created_at', { ascending: false });
 
-    if (ordersError) throw ordersError;
+    if (error) throw error;
 
-    // 메뉴별 판매 통계
-    const menuStats = new Map();
-    let totalRevenue = 0;
-    let totalOrders = orders?.length || 0;
-
-    orders?.forEach((order: any) => {
-      if (order.payment_status === 'confirmed') {
-        totalRevenue += order.total_amount;
-      }
-
-      order.order_items?.forEach((item: any) => {
-        const menuName = item.menu?.name || 'Unknown';
-        const existing = menuStats.get(menuName) || { quantity: 0, revenue: 0 };
-        menuStats.set(menuName, {
-          quantity: existing.quantity + item.quantity,
-          revenue: existing.revenue + item.total_price,
-        });
-      });
-    });
-
-    // 목장별 통계
-    const groupStats = new Map();
-    orders?.forEach((order: any) => {
-      if (order.church_group) {
-        const existing = groupStats.get(order.church_group) || { orders: 0, revenue: 0 };
-        groupStats.set(order.church_group, {
-          orders: existing.orders + 1,
-          revenue: existing.revenue + (order.payment_status === 'confirmed' ? order.total_amount : 0),
-        });
-      }
-    });
-
-    // 시간대별 주문 통계
-    const hourlyStats = new Array(24).fill(0);
-    orders?.forEach((order: any) => {
-      const hour = new Date(order.created_at).getHours();
-      hourlyStats[hour]++;
-    });
-
-    return json({
-      period,
-      totalRevenue,
-      totalOrders,
-      menuStats: Array.from(menuStats.entries()).map(([name, stats]) => ({
-        name,
-        ...stats,
-      })).sort((a, b) => b.quantity - a.quantity),
-      groupStats: Array.from(groupStats.entries()).map(([name, stats]) => ({
-        name,
-        ...stats,
-      })).sort((a, b) => b.revenue - a.revenue),
-      hourlyStats,
-      orders: orders || [],
-    });
+    return json({ orders: orders || [] });
   } catch (error) {
     console.error('Reports loader error:', error);
-    return json({
-      period: 'today',
-      totalRevenue: 0,
-      totalOrders: 0,
-      menuStats: [],
-      groupStats: [],
-      hourlyStats: new Array(24).fill(0),
-      orders: [],
-    });
+    return json({ orders: [] });
   }
 }
 

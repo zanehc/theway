@@ -17,6 +17,89 @@ export async function getMenus() {
   return data as Menu[];
 }
 
+export async function getAllMenus() {
+  const { data, error } = await supabase
+    .from('menus')
+    .select('*')
+    .order('category', { ascending: true })
+    .order('name', { ascending: true });
+
+  if (error) {
+    console.error('Get all menus error:', error);
+    return [];
+  }
+  return data as Menu[];
+}
+
+export async function createMenu(menuData: {
+  name: string;
+  description?: string;
+  price: number;
+  category: string;
+  is_available: boolean;
+  image_url?: string;
+}) {
+  const { data, error } = await supabase
+    .from('menus')
+    .insert({
+      name: menuData.name,
+      description: menuData.description,
+      price: menuData.price,
+      category: menuData.category,
+      is_available: menuData.is_available,
+      image_url: menuData.image_url,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Create menu error:', error);
+    throw error;
+  }
+  return data as Menu;
+}
+
+export async function updateMenu(id: string, menuData: {
+  name: string;
+  description?: string;
+  price: number;
+  category: string;
+  is_available: boolean;
+  image_url?: string;
+}) {
+  const { data, error } = await supabase
+    .from('menus')
+    .update({
+      name: menuData.name,
+      description: menuData.description,
+      price: menuData.price,
+      category: menuData.category,
+      is_available: menuData.is_available,
+      image_url: menuData.image_url,
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Update menu error:', error);
+    throw error;
+  }
+  return data as Menu;
+}
+
+export async function deleteMenu(id: string) {
+  const { error } = await supabase
+    .from('menus')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Delete menu error:', error);
+    throw error;
+  }
+}
+
 export async function getMenusByCategory(category: string) {
   const { data, error } = await supabase
     .from('menus')

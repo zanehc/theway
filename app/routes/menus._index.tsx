@@ -2,20 +2,21 @@ import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useFetcher } from "@remix-run/react";
 import { useState } from "react";
-import { supabase } from "~/lib/supabase";
+import { getAllMenus, createMenu, updateMenu, deleteMenu } from "~/lib/database";
+import { requireAuth } from "~/lib/auth";
 import Header from "~/components/Header";
 import type { Menu } from "~/types";
 
 export async function loader({ request }: LoaderFunctionArgs) {
-  try {
-    const { data, error } = await supabase
-      .from('menus')
-      .select('*')
-      .order('category', { ascending: true })
-      .order('name', { ascending: true });
+  // 로그인 상태 확인
+  const authResponse = await requireAuth(request);
+  if (authResponse) {
+    return authResponse;
+  }
 
-    if (error) throw error;
-    return json({ menus: data as Menu[] });
+  try {
+    const menus = await getAllMenus();
+    return json({ menus });
   } catch (error) {
     console.error('Menus loader error:', error);
     return json({ menus: [] });
@@ -28,19 +29,13 @@ export async function action({ request }: ActionFunctionArgs) {
 
   if (intent === 'createMenu') {
     try {
-      const { data, error } = await supabase
-        .from('menus')
-        .insert({
-          name: formData.get('name') as string,
-          description: formData.get('description') as string,
-          price: parseFloat(formData.get('price') as string),
-          category: formData.get('category') as string,
-          is_available: formData.get('is_available') === 'true',
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
+      await createMenu({
+        name: formData.get('name') as string,
+        description: formData.get('description') as string || undefined,
+        price: parseFloat(formData.get('price') as string),
+        category: formData.get('category') as string,
+        is_available: formData.get('is_available') === 'true',
+      });
       return redirect('/menus');
     } catch (error) {
       console.error('Create menu error:', error);
@@ -51,18 +46,13 @@ export async function action({ request }: ActionFunctionArgs) {
   if (intent === 'updateMenu') {
     try {
       const id = formData.get('id') as string;
-      const { error } = await supabase
-        .from('menus')
-        .update({
-          name: formData.get('name') as string,
-          description: formData.get('description') as string,
-          price: parseFloat(formData.get('price') as string),
-          category: formData.get('category') as string,
-          is_available: formData.get('is_available') === 'true',
-        })
-        .eq('id', id);
-
-      if (error) throw error;
+      await updateMenu(id, {
+        name: formData.get('name') as string,
+        description: formData.get('description') as string || undefined,
+        price: parseFloat(formData.get('price') as string),
+        category: formData.get('category') as string,
+        is_available: formData.get('is_available') === 'true',
+      });
       return redirect('/menus');
     } catch (error) {
       console.error('Update menu error:', error);
@@ -73,12 +63,7 @@ export async function action({ request }: ActionFunctionArgs) {
   if (intent === 'deleteMenu') {
     try {
       const id = formData.get('id') as string;
-      const { error } = await supabase
-        .from('menus')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
+      await deleteMenu(id);
       return redirect('/menus');
     } catch (error) {
       console.error('Delete menu error:', error);

@@ -3,10 +3,17 @@ import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useFetcher } from "@remix-run/react";
 import { useState } from "react";
 import { getOrders, updateOrderStatus } from "~/lib/database";
+import { requireAuth } from "~/lib/auth";
 import Header from "~/components/Header";
 import type { OrderStatus } from "~/types";
 
 export async function loader({ request }: LoaderFunctionArgs) {
+  // 로그인 상태 확인
+  const authResponse = await requireAuth(request);
+  if (authResponse) {
+    return authResponse;
+  }
+
   try {
     const url = new URL(request.url);
     const status = url.searchParams.get('status');
