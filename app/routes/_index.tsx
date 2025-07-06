@@ -135,88 +135,72 @@ export default function Index() {
       
       {/* 대시보드 */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* 헤더 */}
-        <div className="text-center mb-8 animate-fade-in">
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-wine-800 mb-4 tracking-tight">
-            길을여는교회 이음카페
-          </h1>
-          <p className="text-lg sm:text-xl text-wine-600 font-medium">
+        {/* 현황 패널 */}
+        <div className="relative bg-ivory-100 border-4 border-wine-600 rounded-3xl p-4 sm:p-6 mb-8">
+          {/* 날짜 패널 - 상단 중앙에 오버랩 */}
+          <div className="absolute left-1/2 top-0 z-20 transform -translate-x-1/2 -translate-y-2/3 bg-ivory-50 border border-wine-400 rounded-xl px-4 py-2 shadow-sm text-wine-700 font-bold text-xs sm:text-sm">
             {new Date().toLocaleDateString('ko-KR', { 
               year: 'numeric', 
               month: 'long', 
               day: 'numeric',
               weekday: 'long'
             })}
-          </p>
-        </div>
-
-        {/* 통계 카드들 */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
-          {/* 총 주문 */}
-          <Link to="/orders" className="bg-white rounded-xl shadow-soft p-4 sm:p-6 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-medium animate-slide-up cursor-pointer">
-            <div className="p-3 bg-gradient-wine rounded-lg shadow-wine inline-block mb-3">
-              <svg className="w-6 h-6 sm:w-8 sm:h-8 text-ivory-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-              </svg>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
+            {/* 대기중 */}
+            <div className="bg-ivory-50 rounded-xl shadow-soft p-3 sm:p-4 text-center border border-wine-200">
+              <div className="flex flex-col items-center">
+                <svg className="w-7 h-7 sm:w-8 sm:h-8 text-wine-600 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <h3 className="text-xl sm:text-2xl font-black text-wine-700 mb-1">{salesStats.statusStats.pending}</h3>
+                <p className="text-xs sm:text-sm text-wine-600 font-bold">대기중</p>
+              </div>
             </div>
-            <h3 className="text-2xl sm:text-3xl font-black text-wine-800 mb-1">{salesStats.totalOrders}</h3>
-            <p className="text-sm sm:text-base text-wine-600 font-medium">총 주문</p>
-          </Link>
-
-          {/* 대기중 */}
-          <Link to="/orders?status=pending" className="bg-white rounded-xl shadow-soft p-4 sm:p-6 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-medium animate-slide-up cursor-pointer" style={{animationDelay: '0.1s'}}>
-            <div className="p-3 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-lg shadow-medium inline-block mb-3">
-              <svg className="w-6 h-6 sm:w-8 sm:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+            {/* 제조중 */}
+            <div className="bg-ivory-50 rounded-xl shadow-soft p-3 sm:p-4 text-center border border-wine-200">
+              <div className="flex flex-col items-center">
+                <svg className="w-7 h-7 sm:w-8 sm:h-8 text-wine-600 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                </svg>
+                <h3 className="text-xl sm:text-2xl font-black text-wine-700 mb-1">{salesStats.statusStats.preparing}</h3>
+                <p className="text-xs sm:text-sm text-wine-600 font-bold">제조중</p>
+              </div>
             </div>
-            <h3 className="text-2xl sm:text-3xl font-black text-wine-800 mb-1">{salesStats.statusStats.pending}</h3>
-            <p className="text-sm sm:text-base text-wine-600 font-medium">대기중</p>
-          </Link>
-
-          {/* 제조중 */}
-          <Link to="/orders?status=preparing" className="bg-white rounded-xl shadow-soft p-4 sm:p-6 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-medium animate-slide-up cursor-pointer" style={{animationDelay: '0.2s'}}>
-            <div className="p-3 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg shadow-medium inline-block mb-3">
-              <svg className="w-6 h-6 sm:w-8 sm:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-              </svg>
+            {/* 픽업완료 */}
+            <div className="bg-ivory-50 rounded-xl shadow-soft p-3 sm:p-4 text-center border border-wine-200">
+              <div className="flex flex-col items-center">
+                <svg className="w-7 h-7 sm:w-8 sm:h-8 text-wine-600 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <h3 className="text-xl sm:text-2xl font-black text-wine-700 mb-1">{salesStats.statusStats.completed}</h3>
+                <p className="text-xs sm:text-sm text-wine-600 font-bold">픽업완료</p>
+              </div>
             </div>
-            <h3 className="text-2xl sm:text-3xl font-black text-wine-800 mb-1">{salesStats.statusStats.preparing}</h3>
-            <p className="text-sm sm:text-base text-wine-600 font-medium">제조중</p>
-          </Link>
-
-          {/* 완료 */}
-          <Link to="/orders?status=completed" className="bg-white rounded-xl shadow-soft p-4 sm:p-6 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-medium animate-slide-up cursor-pointer" style={{animationDelay: '0.3s'}}>
-            <div className="p-3 bg-gradient-to-br from-green-400 to-green-600 rounded-lg shadow-medium inline-block mb-3">
-              <svg className="w-6 h-6 sm:w-8 sm:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+            {/* 결제완료 */}
+            <div className="bg-ivory-50 rounded-xl shadow-soft p-3 sm:p-4 text-center border border-wine-200">
+              <div className="flex flex-col items-center">
+                <svg className="w-7 h-7 sm:w-8 sm:h-8 text-wine-600 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 20h9" />
+                  <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth={2} fill="none" />
+                </svg>
+                <h3 className="text-xl sm:text-2xl font-black text-wine-700 mb-1">{salesStats.confirmedOrders}</h3>
+                <p className="text-xs sm:text-sm text-wine-600 font-bold">결제완료</p>
+              </div>
             </div>
-            <h3 className="text-2xl sm:text-3xl font-black text-wine-800 mb-1">{salesStats.statusStats.completed}</h3>
-            <p className="text-sm sm:text-base text-wine-600 font-medium">완료</p>
-          </Link>
+          </div>
         </div>
 
         {/* 매출 정보 */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
-          {/* 총 매출 */}
-          <Link to="/reports" className="bg-gradient-ivory rounded-xl shadow-soft p-4 sm:p-6 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-medium cursor-pointer">
-            <h3 className="text-lg sm:text-xl font-black text-wine-800 mb-2">오늘의 매출</h3>
-            <p className="text-2xl sm:text-3xl font-black text-wine-600">₩{salesStats.totalRevenue.toLocaleString()}</p>
-          </Link>
-
-          {/* 결제 완료 */}
-          <Link to="/orders?payment_status=confirmed" className="bg-gradient-ivory rounded-xl shadow-soft p-4 sm:p-6 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-medium cursor-pointer">
-            <h3 className="text-lg sm:text-xl font-black text-wine-800 mb-2">결제 완료</h3>
-            <p className="text-2xl sm:text-3xl font-black text-wine-600">{salesStats.confirmedOrders}건</p>
-          </Link>
-
-          {/* 운영시간 */}
-          <div className="bg-gradient-ivory rounded-xl shadow-soft p-4 sm:p-6 text-center">
-            <h3 className="text-lg sm:text-xl font-black text-wine-800 mb-2">운영시간</h3>
-            <p className="text-lg sm:text-xl font-bold text-wine-600">일요일 13:00-14:00</p>
+        {user && (
+          <div className="grid grid-cols-1 lg:grid-cols-1 gap-4 sm:gap-6 mb-8">
+            {/* 총 매출 */}
+            <div className="bg-gradient-ivory rounded-xl shadow-soft p-4 sm:p-6 text-center">
+              <h3 className="text-lg sm:text-xl font-black text-wine-800 mb-2">오늘의 매출</h3>
+              <p className="text-2xl sm:text-3xl font-black text-wine-600">₩{salesStats.totalRevenue.toLocaleString()}</p>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* 최근 주문 */}
         {user && (
@@ -270,8 +254,8 @@ export default function Index() {
             <p className="text-lg text-wine-600 mb-6">로그인 후 주문 현황과 새 주문을 이용하실 수 있습니다.</p>
             <button
               onClick={() => {
-                const header = document.querySelector('[data-login-button]') as HTMLElement;
-                if (header) header.click();
+                const headerLoginBtn = document.querySelector('header button, header [data-login-button]');
+                if (headerLoginBtn) (headerLoginBtn as HTMLElement).click();
               }}
               className="px-6 sm:px-8 py-3 sm:py-4 bg-gradient-wine text-ivory-50 rounded-xl text-lg sm:text-xl font-bold hover:shadow-wine transition-all duration-300 shadow-medium hover:shadow-large transform hover:-translate-y-1"
             >

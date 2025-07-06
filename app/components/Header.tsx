@@ -142,7 +142,7 @@ export default function Header() {
       
       {/* 로그인 모달 */}
       {showLogin && (
-        <div className="fixed inset-0 z-[99999] bg-black/50 backdrop-blur-none flex items-center justify-center p-4" onClick={() => setShowLogin(false)}>
+        <div className="fixed inset-0 z-[99999] bg-black/50 backdrop-blur-none flex items-center justify-center p-4 min-h-screen" onClick={() => setShowLogin(false)}>
           <div 
             className="relative bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 shadow-2xl w-full max-w-xs sm:max-w-md mx-auto animate-scale-in" 
             onClick={(e) => e.stopPropagation()}
@@ -176,7 +176,7 @@ export default function Header() {
 
       {/* 회원가입 모달 */}
       {showSignup && (
-        <div className="fixed inset-0 z-[99999] bg-black/50 backdrop-blur-none flex items-center justify-center p-4" onClick={() => setShowSignup(false)}>
+        <div className="fixed inset-0 z-[99999] bg-black/50 backdrop-blur-none flex items-center justify-center p-4 min-h-screen" onClick={() => setShowSignup(false)}>
           <div 
             className="relative bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 shadow-2xl w-full max-w-xs sm:max-w-lg mx-auto animate-scale-in" 
             onClick={(e) => e.stopPropagation()}
