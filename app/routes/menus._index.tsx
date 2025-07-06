@@ -318,100 +318,100 @@ export default function Menus() {
            ))}
          </div>
 
-        {/* 새 메뉴 추가 모달 */}
-        {showCreateModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full max-h-[90vh] overflow-y-auto">
-              <h2 className="text-2xl font-black text-wine-800 mb-6">새 메뉴 추가</h2>
-              
-              <fetcher.Form method="post" onSubmit={handleSubmit} className="space-y-4">
-                <input type="hidden" name="intent" value="createMenu" />
-                
-                <div>
-                  <label className="block text-sm font-bold text-wine-700 mb-2">메뉴명 *</label>
-                  <input
-                    type="text"
-                    name="name"
-                    required
-                    className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-ivory-50/50 focus:outline-none focus:ring-2 focus:ring-wine-500"
-                  />
-                </div>
+                 {/* 새 메뉴 추가 모달 */}
+         {showCreateModal && (
+           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+             <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full max-h-[90vh] overflow-y-auto">
+               <h2 className="text-2xl font-black text-wine-800 mb-6">새 메뉴 추가</h2>
+               
+               <fetcher.Form method="post" onSubmit={handleSubmit} className="space-y-4">
+                 <input type="hidden" name="intent" value="createMenu" />
+                 
+                 <div>
+                   <label className="block text-sm font-bold text-wine-700 mb-2">메뉴명 *</label>
+                   <input
+                     type="text"
+                     name="name"
+                     required
+                     className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500"
+                   />
+                 </div>
 
-                <div>
-                  <label className="block text-sm font-bold text-wine-700 mb-2">설명</label>
-                  <textarea
-                    name="description"
-                    rows={3}
-                    className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-ivory-50/50 focus:outline-none focus:ring-2 focus:ring-wine-500 resize-none"
-                  />
-                </div>
+                 <div>
+                   <label className="block text-sm font-bold text-wine-700 mb-2">설명</label>
+                   <textarea
+                     name="description"
+                     rows={3}
+                     className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500 resize-none"
+                   />
+                 </div>
 
-                <div>
-                  <label className="block text-sm font-bold text-wine-700 mb-2">가격 *</label>
-                  <input
-                    type="number"
-                    name="price"
-                    required
-                    min="0"
-                    className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-ivory-50/50 focus:outline-none focus:ring-2 focus:ring-wine-500"
-                  />
-                </div>
+                 <div>
+                   <label className="block text-sm font-bold text-wine-700 mb-2">가격 *</label>
+                   <input
+                     type="number"
+                     name="price"
+                     required
+                     min="0"
+                     className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500"
+                   />
+                 </div>
 
-                <div>
-                  <label className="block text-sm font-bold text-wine-700 mb-2">카테고리 *</label>
-                  <select
-                    name="category"
-                    required
-                    className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-ivory-50/50 focus:outline-none focus:ring-2 focus:ring-wine-500"
-                  >
-                    <option value="">카테고리 선택</option>
-                    {categories.map((category) => (
-                      <option key={category.id} value={category.id}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                 <div>
+                   <label className="block text-sm font-bold text-wine-700 mb-2">카테고리 *</label>
+                   <select
+                     name="category"
+                     required
+                     className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500"
+                   >
+                     <option value="" className="text-black">카테고리 선택</option>
+                     {categories.map((category) => (
+                       <option key={category.id} value={category.id} className="text-black">
+                         {category.name}
+                       </option>
+                     ))}
+                   </select>
+                 </div>
 
-                <div>
-                  <label className="block text-sm font-bold text-wine-700 mb-2">이미지</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-ivory-50/50 focus:outline-none focus:ring-2 focus:ring-wine-500"
-                  />
-                  {imagePreview && (
-                    <div className="mt-2">
-                      <img src={imagePreview} alt="Preview" className="w-20 h-20 object-cover rounded-lg" />
-                    </div>
-                  )}
-                </div>
+                 <div>
+                   <label className="block text-sm font-bold text-wine-700 mb-2">이미지</label>
+                   <input
+                     type="file"
+                     accept="image/*"
+                     onChange={handleImageChange}
+                     className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500"
+                   />
+                   {imagePreview && (
+                     <div className="mt-2">
+                       <img src={imagePreview} alt="Preview" className="w-20 h-20 object-cover rounded-lg" />
+                     </div>
+                   )}
+                 </div>
 
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowCreateModal(false);
-                      setSelectedImage(null);
-                      setImagePreview(null);
-                    }}
-                    className="flex-1 bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-bold hover:bg-gray-200 transition-colors"
-                  >
-                    취소
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={fetcher.state === 'submitting'}
-                    className="flex-1 bg-gradient-wine text-ivory-50 py-3 px-4 rounded-lg font-bold hover:shadow-wine transition-all duration-300 disabled:opacity-50"
-                  >
-                    {fetcher.state === 'submitting' ? '추가 중...' : '추가'}
-                  </button>
-                </div>
-              </fetcher.Form>
-            </div>
-          </div>
-        )}
+                 <div className="flex gap-3 pt-4">
+                   <button
+                     type="button"
+                     onClick={() => {
+                       setShowCreateModal(false);
+                       setSelectedImage(null);
+                       setImagePreview(null);
+                     }}
+                     className="flex-1 bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-bold hover:bg-gray-200 transition-colors"
+                   >
+                     취소
+                   </button>
+                   <button
+                     type="submit"
+                     disabled={fetcher.state === 'submitting'}
+                     className="flex-1 bg-gradient-wine text-ivory-50 py-3 px-4 rounded-lg font-bold hover:shadow-wine transition-all duration-300 disabled:opacity-50"
+                   >
+                     {fetcher.state === 'submitting' ? '추가 중...' : '추가'}
+                   </button>
+                 </div>
+               </fetcher.Form>
+             </div>
+           </div>
+         )}
 
                  {/* 메뉴 수정 모달 */}
          {editingMenu && (
@@ -431,7 +431,7 @@ export default function Menus() {
                      name="name"
                      defaultValue={editingMenu.name}
                      required
-                     className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-ivory-50/50 focus:outline-none focus:ring-2 focus:ring-wine-500"
+                     className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500"
                    />
                  </div>
 
@@ -441,7 +441,7 @@ export default function Menus() {
                      name="description"
                      defaultValue={editingMenu.description || ''}
                      rows={3}
-                     className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-ivory-50/50 focus:outline-none focus:ring-2 focus:ring-wine-500 resize-none"
+                     className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500 resize-none"
                    />
                  </div>
 
@@ -453,7 +453,7 @@ export default function Menus() {
                      defaultValue={editingMenu.price}
                      required
                      min="0"
-                     className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-ivory-50/50 focus:outline-none focus:ring-2 focus:ring-wine-500"
+                     className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500"
                    />
                  </div>
 
@@ -463,10 +463,10 @@ export default function Menus() {
                      name="category"
                      defaultValue={editingMenu.category}
                      required
-                     className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-ivory-50/50 focus:outline-none focus:ring-2 focus:ring-wine-500"
+                     className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500"
                    >
                      {categories.map((category) => (
-                       <option key={category.id} value={category.id}>
+                       <option key={category.id} value={category.id} className="text-black">
                          {category.name}
                        </option>
                      ))}
@@ -496,7 +496,7 @@ export default function Menus() {
                      type="file"
                      accept="image/*"
                      onChange={handleImageChange}
-                     className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-ivory-50/50 focus:outline-none focus:ring-2 focus:ring-wine-500"
+                     className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500"
                    />
                    {imagePreview && (
                      <div className="mt-2">
