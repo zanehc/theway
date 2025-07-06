@@ -347,6 +347,8 @@ export async function getUsersByRole(role: string) {
 
 // 알림 생성
 export async function createNotification({ user_id, order_id, type, message }: { user_id: string, order_id: string, type: string, message: string }) {
+  console.log('🔔 Creating notification:', { user_id, order_id, type, message });
+  
   const { error } = await supabase
     .from('notifications')
     .insert({
@@ -355,8 +357,11 @@ export async function createNotification({ user_id, order_id, type, message }: {
       type,
       message,
     });
+    
   if (error) {
-    console.error('Create notification error:', error);
+    console.error('❌ Create notification error:', error);
     throw error;
+  } else {
+    console.log('✅ Notification created successfully');
   }
 } 

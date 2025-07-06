@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useFetcher } from '@remix-run/react';
 import type { Notification } from '~/types';
+import { supabase } from '~/lib/supabase';
 
 interface NotificationBellProps {
   userId: string;
@@ -14,6 +15,7 @@ export default function NotificationBell({ userId }: NotificationBellProps) {
   // 알림 데이터 로드
   useEffect(() => {
     if (userId) {
+      console.log('🔔 Loading notifications for user:', userId);
       fetcher.load(`/api/notifications?userId=${userId}`);
     }
   }, [userId]);
@@ -21,9 +23,57 @@ export default function NotificationBell({ userId }: NotificationBellProps) {
   // fetcher 데이터가 업데이트되면 notifications 상태 업데이트
   useEffect(() => {
     if (fetcher.data && typeof fetcher.data === 'object' && 'notifications' in fetcher.data) {
-      setNotifications(fetcher.data.notifications as Notification[]);
+      const newNotifications = fetcher.data.notifications as Notification[];
+      console.log('📨 Notifications loaded:', newNotifications.length, 'notifications');
+      setNotifications(newNotifications);
     }
   }, [fetcher.data]);
+
+  // 실시간 알림 업데이트
+  useEffect(() => {
+    if (!userId) return;
+    
+    console.log('🔔 Setting up realtime notifications for bell:', userId);
+    
+    const channel = supabase
+      .channel('bell-notifications')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+      }, (payload) => {
+        const newNotification = payload.new as Notification;
+        console.log('📨 Bell received new notification:', newNotification);
+        
+        if (newNotification.user_id === userId) {
+          console.log('✅ Bell notification matches user, updating state');
+          setNotifications(prev => [newNotification, ...prev]);
+        }
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'notifications',
+      }, (payload) => {
+        const updatedNotification = payload.new as Notification;
+        console.log('📨 Bell received updated notification:', updatedNotification);
+        
+        if (updatedNotification.user_id === userId) {
+          console.log('✅ Bell notification update matches user, updating state');
+          setNotifications(prev => 
+            prev.map(n => n.id === updatedNotification.id ? updatedNotification : n)
+          );
+        }
+      })
+      .subscribe((status) => {
+        console.log('🔔 Bell notification channel status:', status);
+      });
+      
+    return () => {
+      console.log('🔔 Cleaning up bell notification channel');
+      channel.unsubscribe();
+    };
+  }, [userId]);
 
   const unreadCount = notifications.filter(n => n.status === 'unread').length;
 

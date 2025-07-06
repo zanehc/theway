@@ -69,6 +69,7 @@ export default function Header() {
     // 알림 실시간 구독 (로그인한 사용자)
     let notifChannel: any = null;
     if (typeof window !== 'undefined') {
+      console.log('🔔 Setting up notification channel for user:', user?.id);
       notifChannel = supabase
         .channel('user-notifications')
         .on('postgres_changes', {
@@ -77,7 +78,9 @@ export default function Header() {
           table: 'notifications',
         }, payload => {
           const notif = payload.new;
+          console.log('📨 Notification received:', notif);
           if (user && notif.user_id === user.id) {
+            console.log('✅ Notification matches current user, showing alert');
             setUserNotification({ message: notif.message });
             // 사운드: 알림 메시지 음성
             if ('speechSynthesis' in window) {
@@ -87,9 +90,21 @@ export default function Header() {
             }
             if (notifTimeout.current) clearTimeout(notifTimeout.current);
             notifTimeout.current = setTimeout(() => setUserNotification(null), 7000);
+          } else {
+            console.log('❌ Notification does not match current user:', { 
+              notificationUserId: notif.user_id, 
+              currentUserId: user?.id 
+            });
           }
         })
-        .subscribe();
+        .subscribe((status) => {
+          console.log('🔔 Notification channel status:', status);
+          if (status === 'SUBSCRIBED') {
+            console.log('✅ Notification channel subscribed successfully');
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error('❌ Notification channel subscription failed');
+          }
+        });
     }
     return () => {
       subscription.unsubscribe();
@@ -158,6 +173,13 @@ export default function Header() {
             {/* 고객일 때만 알림 벨 표시 */}
             {isLoggedIn && userRole === 'customer' && (
               <NotificationBell userId={user.id} />
+            )}
+            
+            {/* 회원명 표시 */}
+            {isLoggedIn && (
+              <div className="hidden sm:block text-wine-700 font-bold text-sm sm:text-base">
+                {user.email?.split('@')[0]}님 안녕하세요
+              </div>
             )}
             
             {/* 햄버거 메뉴 또는 로그인 버튼 */}

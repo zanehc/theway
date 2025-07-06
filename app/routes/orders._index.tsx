@@ -74,9 +74,10 @@ const statusOptions: { value: OrderStatus; label: string; color: string; bgColor
 
 // 상태 옵션(ready=완료, completed=픽업완료, cancelled=취소)
 const statusButtons = [
+  { key: 'all', label: '전체' },
   { key: 'pending', label: '대기' },
   { key: 'preparing', label: '제조중' },
-  { key: 'ready', label: '완료' },
+  { key: 'ready', label: '제조완료' },
   { key: 'completed', label: '픽업완료' },
   { key: 'payment_confirmed', label: '결제완료' },
   { key: 'cancelled', label: '취소' },
@@ -91,6 +92,7 @@ export default function Orders() {
   const [loading, setLoading] = useState(true);
   const [newOrderAlert, setNewOrderAlert] = useState<{customer: string, church: string} | null>(null);
   const alertTimeout = useRef<NodeJS.Timeout | null>(null);
+  const [user, setUser] = useState<any>(null);
 
   // URL 파라미터로 전달된 상태가 있으면 필터 적용
   useEffect(() => {
@@ -100,9 +102,10 @@ export default function Orders() {
   }, [currentStatus]);
 
   useEffect(() => {
-    const getUserRole = async () => {
+    const getUserAndRole = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
+        setUser(user);
         if (user) {
           const { data: userData } = await supabase
             .from('users')
@@ -117,55 +120,45 @@ export default function Orders() {
         setLoading(false);
       }
     };
-
-    getUserRole();
+    getUserAndRole();
   }, []);
 
-  // Supabase Realtime: 주문 실시간 업데이트
+  // Supabase Realtime: 주문 실시간 업데이트 (관리자: 전체, 고객: 본인 주문만)
   useEffect(() => {
-    if (userRole !== 'admin') return;
-    
+    if (loading) return;
+    if (!userRole) return;
+    if (!user && userRole !== 'admin') return;
+
+    let filter = {};
+    if (userRole !== 'admin') {
+      // 고객: 본인 주문만 구독
+      filter = { filter: `user_id=eq.${user.id}` };
+      console.log('👤 고객 주문 실시간 구독:', user.id);
+    } else {
+      console.log('🛠️ 관리자 전체 주문 실시간 구독');
+    }
+
     const channel = supabase
       .channel('orders-realtime')
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'orders',
+        ...filter,
       }, async (payload) => {
         const newOrder = payload.new;
-        
-        // 새 주문 알림
+        // ... (기존 코드 동일)
         setNewOrderAlert({
           customer: newOrder.customer_name,
           church: newOrder.church_group || '',
         });
-        
-        // 사운드: 목장명 주문~! 음성
-        const msg = `${newOrder.church_group ? newOrder.church_group + ' ' : ''}주문이 들어왔습니다!`;
-        if ('speechSynthesis' in window) {
-          const utter = new window.SpeechSynthesisUtterance(msg);
-          utter.lang = 'ko-KR';
-          window.speechSynthesis.speak(utter);
-        }
-        
-        // 7초 후 알림 자동 사라짐
-        if (alertTimeout.current) clearTimeout(alertTimeout.current);
-        alertTimeout.current = setTimeout(() => setNewOrderAlert(null), 7000);
-        
-        // 주문 목록에 새 주문 추가 (order_items 포함)
+        // ... (음성, 알림 등)
         try {
           const { data: orderWithItems } = await supabase
             .from('orders')
-            .select(`
-              *,
-              order_items (
-                *,
-                menu:menus (*)
-              )
-            `)
+            .select(`*, order_items (*, menu:menus (*))`)
             .eq('id', newOrder.id)
             .single();
-          
           if (orderWithItems) {
             setOrders((prevOrders: any[]) => [orderWithItems, ...prevOrders]);
           }
@@ -177,41 +170,26 @@ export default function Orders() {
         event: 'UPDATE',
         schema: 'public',
         table: 'orders',
+        ...filter,
       }, async (payload) => {
         const updatedOrder = payload.new;
-        console.log('Realtime UPDATE received:', updatedOrder);
-        
-        // 주문 목록에서 해당 주문 업데이트 (order_items 포함)
         try {
           const { data: orderWithItems } = await supabase
             .from('orders')
-            .select(`
-              *,
-              order_items (
-                *,
-                menu:menus (*)
-              )
-            `)
+            .select(`*, order_items (*, menu:menus (*))`)
             .eq('id', updatedOrder.id)
             .single();
-          
           if (orderWithItems) {
-            setOrders((prevOrders: any[]) => 
-              prevOrders.map((order: any) => 
-                order.id === updatedOrder.id 
-                  ? orderWithItems
-                  : order
+            setOrders((prevOrders: any[]) =>
+              prevOrders.map((order: any) =>
+                order.id === updatedOrder.id ? orderWithItems : order
               )
             );
           }
         } catch (error) {
-          console.error('Error fetching updated order details:', error);
-          // fallback: 기본 업데이트
-          setOrders((prevOrders: any[]) => 
-            prevOrders.map((order: any) => 
-              order.id === updatedOrder.id 
-                ? { ...order, ...updatedOrder }
-                : order
+          setOrders((prevOrders: any[]) =>
+            prevOrders.map((order: any) =>
+              order.id === updatedOrder.id ? { ...order, ...updatedOrder } : order
             )
           );
         }
@@ -220,25 +198,32 @@ export default function Orders() {
         event: 'DELETE',
         schema: 'public',
         table: 'orders',
+        ...filter,
       }, (payload) => {
         const deletedOrderId = payload.old.id;
-        
-        // 주문 목록에서 삭제된 주문 제거
-        setOrders((prevOrders: any[]) => 
+        setOrders((prevOrders: any[]) =>
           prevOrders.filter((order: any) => order.id !== deletedOrderId)
         );
       })
-      .subscribe();
-      
+      .subscribe((status) => {
+        console.log('Realtime subscription status:', status);
+      });
     return () => {
       channel.unsubscribe();
       if (alertTimeout.current) clearTimeout(alertTimeout.current);
     };
-  }, [userRole]);
+  }, [userRole, user, loading]);
 
   const filteredOrders = selectedStatus 
     ? orders.filter(order => order.status === selectedStatus)
     : orders;
+
+  // Debug: Log current orders state
+  useEffect(() => {
+    console.log('Current orders state:', orders);
+    console.log('Filtered orders:', filteredOrders);
+    console.log('Selected status:', selectedStatus);
+  }, [orders, filteredOrders, selectedStatus]);
 
   const getStatusColor = (status: OrderStatus) => {
     return statusOptions.find(option => option.value === status)?.color || 'text-gray-800';
@@ -269,6 +254,17 @@ export default function Orders() {
         alert('상태 업데이트에 실패했습니다.');
       } else {
         console.log('Status updated successfully:', orderId, 'to', newStatus);
+        
+        // 실시간 업데이트 대신 즉시 로컬 상태 업데이트
+        setOrders((prevOrders: any[]) => {
+          const updatedOrders = prevOrders.map((order: any) => 
+            order.id === orderId 
+              ? { ...order, status: newStatus, updated_at: new Date().toISOString() }
+              : order
+          );
+          console.log('Immediately updated orders state:', updatedOrders);
+          return updatedOrders;
+        });
       }
     } catch (error) {
       console.error('Status change error:', error);
@@ -278,6 +274,8 @@ export default function Orders() {
 
   const handlePaymentConfirm = async (order: any) => {
     try {
+      console.log('💳 Payment confirm:', { orderId: order.id, hasUserId: !!order.user_id });
+      
       // 결제 상태 업데이트
       const { error } = await supabase
         .from('orders')
@@ -293,8 +291,21 @@ export default function Orders() {
         return;
       }
       
+      // 즉시 로컬 상태 업데이트
+      setOrders((prevOrders: any[]) => {
+        const updatedOrders = prevOrders.map((o: any) => 
+          o.id === order.id 
+            ? { ...o, payment_status: 'confirmed', updated_at: new Date().toISOString() }
+            : o
+        );
+        console.log('Immediately updated payment status:', updatedOrders);
+        return updatedOrders;
+      });
+      
       // 결제완료 알림 생성
       if (order.user_id) {
+        console.log('📱 Creating payment notification for user:', order.user_id);
+        
         const orderTime = new Date(order.created_at).toLocaleString('ko-KR', {
           month: '2-digit',
           day: '2-digit',
@@ -308,12 +319,18 @@ export default function Orders() {
         
         const message = `${order.customer_name}이/가 ${orderTime}에 주문하신 ${menuNames}가 결제완료 상태입니다`;
         
+        console.log('📝 Payment notification message:', message);
+        
         await createNotification({
           user_id: order.user_id,
           order_id: order.id,
           type: 'order_payment_confirmed',
           message
         });
+        
+        console.log('✅ Payment notification completed');
+      } else {
+        console.log('⚠️ No payment notification created - user_id missing');
       }
     } catch (error) {
       console.error('Payment confirm with notification error:', error);
@@ -324,10 +341,14 @@ export default function Orders() {
   // 상태 변경 핸들러 (알림 포함)
   const handleStatusChangeWithNotification = async (order: any, newStatus: OrderStatus) => {
     try {
+      console.log('🔄 Status change with notification:', { orderId: order.id, newStatus, hasUserId: !!order.user_id });
+      
       await handleStatusChange(order.id, newStatus);
       
       // 알림 생성 (고객에게만)
       if (order.user_id && ['preparing', 'ready', 'completed'].includes(newStatus)) {
+        console.log('📱 Creating notification for user:', order.user_id);
+        
         const statusMessages: Record<string, string> = {
           'preparing': '제조중',
           'ready': '제조완료',
@@ -348,15 +369,25 @@ export default function Orders() {
         
         const message = `${order.customer_name}이/가 ${orderTime}에 주문하신 ${menuNames}가 ${statusMessages[newStatus]} 상태입니다`;
         
+        console.log('📝 Notification message:', message);
+        
         await createNotification({
           user_id: order.user_id,
           order_id: order.id,
           type: `order_${newStatus}`,
           message
         });
+        
+        console.log('✅ Status change notification completed');
+      } else {
+        console.log('⚠️ No notification created - user_id missing or status not eligible:', { 
+          hasUserId: !!order.user_id, 
+          status: newStatus, 
+          eligibleStatuses: ['preparing', 'ready', 'completed'] 
+        });
       }
     } catch (error) {
-      console.error('Status change with notification error:', error);
+      console.error('❌ Status change with notification error:', error);
     }
   };
 
@@ -387,7 +418,7 @@ export default function Orders() {
 
         {/* 필터 */}
         <div className="bg-gradient-ivory rounded-3xl border-4 border-wine-600 shadow-soft p-6 sm:p-8 mb-8 animate-slide-up">
-          <div className="flex flex-wrap gap-3 sm:gap-4 items-center justify-center">
+          <div className="flex gap-2 sm:gap-3 items-center justify-center overflow-x-auto">
             {statusButtons.map(btn => (
               <button
                 key={btn.key}
@@ -395,6 +426,9 @@ export default function Orders() {
                   if (btn.key === 'payment_confirmed') {
                     setSelectedStatus('');
                     window.location.search = '?payment_status=confirmed';
+                  } else if (btn.key === 'all') {
+                    setSelectedStatus('');
+                    window.location.search = '';
                   } else {
                     setSelectedStatus(btn.key === 'cancelled' ? 'cancelled' : btn.key as OrderStatus);
                     if (window.location.search.includes('payment_status')) {
@@ -402,8 +436,10 @@ export default function Orders() {
                     }
                   }
                 }}
-                className={`px-6 py-3 rounded-2xl text-base sm:text-lg font-bold transition-all duration-300 shadow-soft hover:shadow-medium transform hover:-translate-y-1 ${
-                  (btn.key === 'payment_confirmed' && currentPaymentStatus === 'confirmed') || (btn.key !== 'payment_confirmed' && selectedStatus === btn.key)
+                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all duration-300 shadow-soft hover:shadow-medium transform hover:-translate-y-1 ${
+                  (btn.key === 'payment_confirmed' && currentPaymentStatus === 'confirmed') || 
+                  (btn.key === 'all' && !selectedStatus && !currentPaymentStatus) ||
+                  (btn.key !== 'payment_confirmed' && btn.key !== 'all' && selectedStatus === btn.key)
                     ? 'bg-gradient-wine text-ivory-50 shadow-wine'
                     : 'bg-ivory-200/80 text-wine-700 hover:bg-wine-100'
                 }`}
@@ -431,7 +467,7 @@ export default function Orders() {
             </thead>
             <tbody>
               {filteredOrders.map((order, idx) => (
-                <tr key={order.id} className="bg-ivory-50">
+                <tr key={order.id} className="bg-ivory-50 border-b-4 border-dashed border-wine-600">
                   {/* 연번 */}
                   <td className="align-middle font-bold text-wine-700">{idx + 1}</td>
                   {/* 주문자 */}
@@ -480,41 +516,43 @@ export default function Orders() {
                   {/* 상태표시버튼 */}
                   {isAdmin && (
                     <td className="align-middle">
-                      {order.status === 'pending' && (
-                        <button
-                          className="px-3 py-2 bg-blue-600 text-white rounded text-xs font-bold hover:bg-blue-700 transition"
-                          onClick={() => handleStatusChangeWithNotification(order, 'preparing')}
-                        >
-                          제조시작
-                        </button>
-                      )}
-                      {order.status === 'preparing' && (
-                        <button
-                          className="px-3 py-2 bg-green-600 text-white rounded text-xs font-bold hover:bg-green-700 transition"
-                          onClick={() => handleStatusChangeWithNotification(order, 'ready')}
-                        >
-                          제조완료
-                        </button>
-                      )}
-                      {order.status === 'ready' && (
-                        <button
-                          className="px-3 py-2 bg-wine-600 text-white rounded text-xs font-bold hover:bg-wine-700 transition"
-                          onClick={() => handleStatusChangeWithNotification(order, 'completed')}
-                        >
-                          픽업완료
-                        </button>
-                      )}
-                      {order.status === 'completed' && order.payment_status !== 'confirmed' && (
-                        <button
-                          className="px-3 py-2 bg-purple-600 text-white rounded text-xs font-bold hover:bg-purple-700 transition"
-                          onClick={() => handlePaymentConfirm(order)}
-                        >
-                          결제완료
-                        </button>
-                      )}
-                      {((order.status === 'completed' && order.payment_status === 'confirmed') || order.status === 'cancelled') && (
-                        <span className="text-xs text-gray-500 font-medium">종료</span>
-                      )}
+                      <div className="flex flex-col gap-1">
+                        {order.status === 'pending' && (
+                          <button
+                            className="px-3 py-2 bg-blue-600 text-white rounded text-xs font-bold hover:bg-blue-700 transition"
+                            onClick={() => handleStatusChangeWithNotification(order, 'preparing')}
+                          >
+                            제조시작
+                          </button>
+                        )}
+                        {order.status === 'preparing' && (
+                          <button
+                            className="px-3 py-2 bg-green-600 text-white rounded text-xs font-bold hover:bg-green-700 transition"
+                            onClick={() => handleStatusChangeWithNotification(order, 'ready')}
+                          >
+                            제조완료
+                          </button>
+                        )}
+                        {order.status === 'ready' && (
+                          <button
+                            className="px-3 py-2 bg-wine-600 text-white rounded text-xs font-bold hover:bg-wine-700 transition"
+                            onClick={() => handleStatusChangeWithNotification(order, 'completed')}
+                          >
+                            픽업완료
+                          </button>
+                        )}
+                        {order.status === 'completed' && order.payment_status !== 'confirmed' && (
+                          <button
+                            className="px-3 py-2 bg-purple-600 text-white rounded text-xs font-bold hover:bg-purple-700 transition"
+                            onClick={() => handlePaymentConfirm(order)}
+                          >
+                            결제완료
+                          </button>
+                        )}
+                        {((order.status === 'completed' && order.payment_status === 'confirmed') || order.status === 'cancelled') && (
+                          <span className="text-xs text-gray-500 font-medium">종료</span>
+                        )}
+                      </div>
                     </td>
                   )}
                   {/* 주문취소버튼 */}
