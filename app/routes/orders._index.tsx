@@ -177,40 +177,77 @@ export default function Orders() {
     fetcher.submit(formData, { method: 'post' });
   };
 
-  const handlePaymentConfirm = (orderId: string) => {
-    const formData = new FormData();
-    formData.append('intent', 'updatePayment');
-    formData.append('orderId', orderId);
-    formData.append('paymentStatus', 'confirmed');
-    fetcher.submit(formData, { method: 'post' });
+  const handlePaymentConfirm = async (order: any) => {
+    try {
+      const formData = new FormData();
+      formData.append('intent', 'updatePayment');
+      formData.append('orderId', order.id);
+      formData.append('paymentStatus', 'confirmed');
+      fetcher.submit(formData, { method: 'post' });
+      
+      // 결제완료 알림 생성
+      if (order.user_id) {
+        const orderTime = new Date(order.created_at).toLocaleString('ko-KR', {
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        
+        const menuNames = order.order_items?.map((item: any) => 
+          `${item.menu?.name} ${item.quantity}개`
+        ).join(', ') || '주문 메뉴';
+        
+        const message = `${order.customer_name}이/가 ${orderTime}에 주문하신 ${menuNames}가 결제완료 상태입니다`;
+        
+        await createNotification({
+          user_id: order.user_id,
+          order_id: order.id,
+          type: 'order_payment_confirmed',
+          message
+        });
+      }
+    } catch (error) {
+      console.error('Payment confirm with notification error:', error);
+    }
   };
 
   // 상태 변경 핸들러 (알림 포함)
   const handleStatusChangeWithNotification = async (order: any, newStatus: OrderStatus) => {
-    await handleStatusChange(order.id, newStatus);
-    // 제조완료/결제완료 시 알림
-    if (newStatus === 'ready') {
-      // 제조완료 알림
-      if (order.user_id) {
+    try {
+      await handleStatusChange(order.id, newStatus);
+      
+      // 알림 생성 (고객에게만)
+      if (order.user_id && ['preparing', 'ready', 'completed'].includes(newStatus)) {
+        const statusMessages: Record<string, string> = {
+          'preparing': '제조중',
+          'ready': '제조완료',
+          'completed': '픽업완료'
+        };
+        
+        const orderTime = new Date(order.created_at).toLocaleString('ko-KR', {
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        
+        // 주문 메뉴 목록 생성
+        const menuNames = order.order_items?.map((item: any) => 
+          `${item.menu?.name} ${item.quantity}개`
+        ).join(', ') || '주문 메뉴';
+        
+        const message = `${order.customer_name}이/가 ${orderTime}에 주문하신 ${menuNames}가 ${statusMessages[newStatus]} 상태입니다`;
+        
         await createNotification({
           user_id: order.user_id,
           order_id: order.id,
-          type: 'order_ready',
-          message: `${order.customer_name}님의 주문이 제조완료되었습니다!`
+          type: `order_${newStatus}`,
+          message
         });
       }
-    } else if (newStatus === 'completed') {
-      // 픽업완료(주문완료) → 결제완료 버튼으로 넘어감(알림 X)
-    } else if (newStatus === 'payment_confirmed') {
-      // 결제완료 알림
-      if (order.user_id) {
-        await createNotification({
-          user_id: order.user_id,
-          order_id: order.id,
-          type: 'order_paid',
-          message: `${order.customer_name}님의 주문이 결제완료되었습니다!`
-        });
-      }
+    } catch (error) {
+      console.error('Status change with notification error:', error);
     }
   };
 
@@ -357,7 +394,7 @@ export default function Orders() {
                     {isAdmin && order.status === 'completed' && order.payment_status !== 'confirmed' && (
                       <button
                         className="px-3 py-2 bg-purple-600 text-white rounded text-xs font-bold hover:bg-purple-700 transition"
-                        onClick={() => handlePaymentConfirm(order.id)}
+                        onClick={() => handlePaymentConfirm(order)}
                       >
                         결제완료
                       </button>

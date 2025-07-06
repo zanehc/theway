@@ -78,4 +78,15 @@ export type UserOrderHistory = {
   total_orders: number;
   total_spent: number;
   recent_orders: OrderWithItems[];
-}; 
+};
+
+export type NotificationStatus = 'unread' | 'read';
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  order_id: string;
+  message: string;
+  status: NotificationStatus;
+  created_at: string;
+} 

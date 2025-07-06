@@ -6,6 +6,7 @@ import { SignupForm } from "./SignupForm";
 import { MyPageModal } from "./MyPageModal";
 import { HamburgerMenu } from "./HamburgerMenu";
 import ModalPortal from './ModalPortal';
+import NotificationBell from './NotificationBell';
 
 export default function Header() {
   const [user, setUser] = useState<any>(null);
@@ -152,8 +153,14 @@ export default function Header() {
             </div>
           </Link>
 
-          {/* 햄버거 메뉴 */}
-          <div className="animate-slide-up">
+          {/* 우측 버튼들 */}
+          <div className="flex items-center space-x-2 sm:space-x-4 animate-slide-up">
+            {/* 고객일 때만 알림 벨 표시 */}
+            {isLoggedIn && userRole === 'customer' && (
+              <NotificationBell userId={user.id} />
+            )}
+            
+            {/* 햄버거 메뉴 또는 로그인 버튼 */}
             {isLoggedIn ? (
               <HamburgerMenu 
                 user={user} 
