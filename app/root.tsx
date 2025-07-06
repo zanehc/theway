@@ -39,17 +39,16 @@ export default function App() {
   const { ENV } = useLoaderData<typeof loader>();
 
   return (
-    <html lang="ko" className="h-full">
+    <html lang="ko" className="h-full bg-ivory-50">
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <Meta />
         <Links />
       </head>
-      <body className="h-full bg-gradient-warm font-sans antialiased relative overflow-visible">
-        <div className="min-h-full">
-          <Outlet />
-        </div>
+      <body className="h-full min-h-screen bg-ivory-50">
+        <Outlet />
+        <div id="modal-root" />
         <ScrollRestoration />
         <Scripts />
         <script

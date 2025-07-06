@@ -72,6 +72,16 @@ const statusOptions: { value: OrderStatus; label: string; color: string; bgColor
   { value: 'cancelled', label: '취소', color: 'text-red-800', bgColor: 'bg-red-100' },
 ];
 
+// 상태 옵션(ready=완료, completed=픽업완료, cancelled=취소)
+const statusButtons = [
+  { key: 'pending', label: '대기' },
+  { key: 'preparing', label: '제조중' },
+  { key: 'ready', label: '완료' },
+  { key: 'completed', label: '픽업완료' },
+  { key: 'payment_confirmed', label: '결제완료' },
+  { key: 'cancelled', label: '취소' },
+];
+
 export default function Orders() {
   const { orders, currentStatus, currentPaymentStatus } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
@@ -166,50 +176,32 @@ export default function Orders() {
         </div>
 
         {/* 필터 */}
-        <div className="bg-gradient-ivory rounded-3xl shadow-soft p-8 mb-8 border border-ivory-200/50 animate-slide-up">
-          <div className="flex flex-wrap gap-4 items-center">
-            <span className="text-xl font-bold text-wine-700">상태별 필터:</span>
-            <button
-              onClick={() => setSelectedStatus('')}
-              className={`px-8 py-4 rounded-2xl text-lg font-bold transition-all duration-300 shadow-soft hover:shadow-medium transform hover:-translate-y-1 ${
-                selectedStatus === '' 
-                  ? 'bg-gradient-wine text-ivory-50 shadow-wine' 
-                  : 'bg-ivory-200/80 text-wine-700 hover:bg-wine-100'
-              }`}
-            >
-              전체
-            </button>
-            {statusOptions.map((option) => (
+        <div className="bg-gradient-ivory rounded-3xl border-4 border-wine-600 shadow-soft p-6 sm:p-8 mb-8 animate-slide-up">
+          <div className="flex flex-wrap gap-3 sm:gap-4 items-center justify-center">
+            {statusButtons.map(btn => (
               <button
-                key={option.value}
-                onClick={() => setSelectedStatus(option.value)}
-                className={`px-8 py-4 rounded-2xl text-lg font-bold transition-all duration-300 shadow-soft hover:shadow-medium transform hover:-translate-y-1 ${
-                  selectedStatus === option.value 
-                    ? 'bg-gradient-wine text-ivory-50 shadow-wine' 
+                key={btn.key}
+                onClick={() => {
+                  if (btn.key === 'payment_confirmed') {
+                    setSelectedStatus('');
+                    window.location.search = '?payment_status=confirmed';
+                  } else {
+                    setSelectedStatus(btn.key === 'cancelled' ? 'cancelled' : btn.key as OrderStatus);
+                    if (window.location.search.includes('payment_status')) {
+                      window.location.search = '?status=' + btn.key;
+                    }
+                  }
+                }}
+                className={`px-6 py-3 rounded-2xl text-base sm:text-lg font-bold transition-all duration-300 shadow-soft hover:shadow-medium transform hover:-translate-y-1 ${
+                  (btn.key === 'payment_confirmed' && currentPaymentStatus === 'confirmed') || (btn.key !== 'payment_confirmed' && selectedStatus === btn.key)
+                    ? 'bg-gradient-wine text-ivory-50 shadow-wine'
                     : 'bg-ivory-200/80 text-wine-700 hover:bg-wine-100'
                 }`}
               >
-                {option.label}
+                {btn.label}
               </button>
             ))}
           </div>
-          
-          {/* 결제 상태 필터 표시 */}
-          {currentPaymentStatus && (
-            <div className="mt-4 p-4 bg-purple-100 rounded-xl border border-purple-200">
-              <div className="flex items-center justify-between">
-                <span className="text-lg font-bold text-purple-800">
-                  결제 상태 필터: {currentPaymentStatus === 'confirmed' ? '결제 완료' : currentPaymentStatus}
-                </span>
-                <Link 
-                  to="/orders" 
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700 transition-all duration-300"
-                >
-                  필터 해제
-                </Link>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* 주문 목록 */}

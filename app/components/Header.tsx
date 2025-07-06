@@ -5,6 +5,7 @@ import { LoginForm } from "./LoginForm";
 import { SignupForm } from "./SignupForm";
 import { MyPageModal } from "./MyPageModal";
 import { HamburgerMenu } from "./HamburgerMenu";
+import ModalPortal from './ModalPortal';
 
 export default function Header() {
   const [user, setUser] = useState<any>(null);
@@ -142,30 +143,32 @@ export default function Header() {
       
       {/* 로그인 모달 */}
       {showLogin && (
-        <div className="fixed inset-0 z-[99999] bg-black/50 backdrop-blur-none flex items-center justify-center p-4 min-h-screen" onClick={() => setShowLogin(false)}>
-          <div 
-            className="relative bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 shadow-2xl w-full max-w-xs sm:max-w-md mx-auto animate-scale-in" 
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              maxHeight: '90vh',
-              overflowY: 'auto'
-            }}
+        <ModalPortal>
+          {/* 검은 배경 오버레이 */}
+          <div
+            className="fixed inset-0 bg-black/60 z-[50000]"
+            onClick={() => setShowLogin(false)}
+          />
+          {/* 모달 본체 */}
+          <div
+            className="fixed left-1/2 top-1/2 z-[50001] -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl p-6 shadow-2xl w-full max-w-xs sm:max-w-md"
+            onClick={e => e.stopPropagation()}
+            style={{ maxHeight: '90vh', overflowY: 'auto' }}
           >
             <button
-              className="absolute top-3 right-3 sm:top-4 sm:right-4 text-gray-400 hover:text-gray-700 text-xl sm:text-2xl font-bold z-10"
+              className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-xl font-bold z-10"
               onClick={() => setShowLogin(false)}
               aria-label="닫기"
             >
               ×
             </button>
-            <h2 className="text-xl sm:text-2xl font-black text-wine-800 mb-4 sm:mb-6 text-center">로그인</h2>
-            
+            <h2 className="text-xl font-black text-wine-800 mb-4 text-center">로그인</h2>
             <LoginForm onSwitchToSignup={() => {
               setShowLogin(false);
               setShowSignup(true);
             }} onLoginSuccess={handleLoginSuccess} />
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {loginSuccess && (
@@ -176,30 +179,32 @@ export default function Header() {
 
       {/* 회원가입 모달 */}
       {showSignup && (
-        <div className="fixed inset-0 z-[99999] bg-black/50 backdrop-blur-none flex items-center justify-center p-4 min-h-screen" onClick={() => setShowSignup(false)}>
-          <div 
-            className="relative bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 shadow-2xl w-full max-w-xs sm:max-w-lg mx-auto animate-scale-in" 
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              maxHeight: '90vh',
-              overflowY: 'auto'
-            }}
+        <ModalPortal>
+          {/* 검은 배경 오버레이 */}
+          <div
+            className="fixed inset-0 bg-black/60 z-[50000]"
+            onClick={() => setShowSignup(false)}
+          />
+          {/* 모달 본체 */}
+          <div
+            className="fixed left-1/2 top-1/2 z-[50001] -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl p-6 shadow-2xl w-full max-w-xs sm:max-w-lg"
+            onClick={e => e.stopPropagation()}
+            style={{ maxHeight: '90vh', overflowY: 'auto' }}
           >
             <button
-              className="absolute top-3 right-3 sm:top-4 sm:right-4 text-gray-400 hover:text-gray-700 text-xl sm:text-2xl font-bold z-10"
+              className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-xl font-bold z-10"
               onClick={() => setShowSignup(false)}
               aria-label="닫기"
             >
               ×
             </button>
-            <h2 className="text-xl sm:text-2xl font-black text-wine-800 mb-4 sm:mb-6 text-center">회원가입</h2>
-            
+            <h2 className="text-xl font-black text-wine-800 mb-4 text-center">회원가입</h2>
             <SignupForm onSwitchToLogin={() => {
               setShowSignup(false);
               setShowLogin(true);
             }} />
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {/* 마이페이지 모달 */}

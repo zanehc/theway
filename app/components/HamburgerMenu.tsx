@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from '@remix-run/react';
 import { supabase } from '~/lib/supabase';
+import ModalPortal from './ModalPortal';
 
 interface HamburgerMenuProps {
   user: any;
@@ -25,7 +26,7 @@ export function HamburgerMenu({ user, userRole, onLogout }: HamburgerMenuProps) 
   };
 
   return (
-    <div className="relative">
+    <div>
       {/* 햄버거 버튼 */}
       <button
         onClick={toggleMenu}
@@ -39,15 +40,14 @@ export function HamburgerMenu({ user, userRole, onLogout }: HamburgerMenuProps) 
 
       {/* 메뉴 드롭다운 */}
       {isOpen && (
-        <>
+        <ModalPortal>
           {/* 배경 오버레이 */}
           <div 
-            className="fixed inset-0 z-40" 
+            className="fixed inset-0 z-[39999]" 
             onClick={closeMenu}
           />
-          
           {/* 메뉴 패널 */}
-          <div className="absolute right-0 top-12 w-48 bg-white rounded-xl shadow-2xl border border-ivory-200 z-50 py-2">
+          <div className="fixed right-4 top-16 w-56 bg-white rounded-xl shadow-2xl border border-ivory-200 z-[40000] py-2">
             {user ? (
               <>
                 {/* 사용자 정보 */}
@@ -133,7 +133,7 @@ export function HamburgerMenu({ user, userRole, onLogout }: HamburgerMenuProps) 
               </div>
             )}
           </div>
-        </>
+        </ModalPortal>
       )}
     </div>
   );
