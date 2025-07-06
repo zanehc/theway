@@ -15,7 +15,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 export const uploadMenuImage = async (file: File, menuId: string): Promise<string | null> => {
   try {
     const fileExt = file.name.split('.').pop();
-    const fileName = `${menuId}-${Date.now()}.${fileExt}`;
+    const timestamp = Date.now();
+    const randomId = Math.random().toString(36).substring(2, 15);
+    const fileName = `${menuId}-${timestamp}-${randomId}.${fileExt}`;
     
     const { data, error } = await supabase.storage
       .from('menu-images')

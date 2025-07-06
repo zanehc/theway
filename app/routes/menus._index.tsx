@@ -105,17 +105,22 @@ export async function action({ request }: ActionFunctionArgs) {
 
       // 이미지 처리
       if (removeImage) {
+        console.log('Removing existing image:', existingMenu?.image_url);
         // 기존 이미지 삭제
         if (existingMenu?.image_url) {
-          await deleteMenuImage(existingMenu.image_url);
+          const deleteResult = await deleteMenuImage(existingMenu.image_url);
+          console.log('Delete result:', deleteResult);
         }
         updateData.image_url = null;
       } else if (imageFile && imageFile.size > 0) {
+        console.log('Uploading new image for menu:', id);
         // 새 이미지 업로드
         const imageUrl = await uploadMenuImage(imageFile, id);
+        console.log('Upload result:', imageUrl);
         if (imageUrl) {
           // 기존 이미지가 있으면 삭제
           if (existingMenu?.image_url) {
+            console.log('Deleting old image:', existingMenu.image_url);
             await deleteMenuImage(existingMenu.image_url);
           }
           updateData.image_url = imageUrl;
