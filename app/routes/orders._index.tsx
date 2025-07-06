@@ -2,7 +2,7 @@ import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useFetcher, Link } from "@remix-run/react";
 import { useState, useEffect, useRef } from "react";
-import { getOrders, updateOrderStatus } from "~/lib/database";
+import { getOrders, updateOrderStatus, createNotification } from "~/lib/database";
 import { supabase } from "~/lib/supabase";
 import Header from "~/components/Header";
 import type { OrderStatus } from "~/types";
@@ -185,6 +185,35 @@ export default function Orders() {
     fetcher.submit(formData, { method: 'post' });
   };
 
+  // 상태 변경 핸들러 (알림 포함)
+  const handleStatusChangeWithNotification = async (order: any, newStatus: OrderStatus) => {
+    await handleStatusChange(order.id, newStatus);
+    // 제조완료/결제완료 시 알림
+    if (newStatus === 'ready') {
+      // 제조완료 알림
+      if (order.user_id) {
+        await createNotification({
+          user_id: order.user_id,
+          order_id: order.id,
+          type: 'order_ready',
+          message: `${order.customer_name}님의 주문이 제조완료되었습니다!`
+        });
+      }
+    } else if (newStatus === 'completed') {
+      // 픽업완료(주문완료) → 결제완료 버튼으로 넘어감(알림 X)
+    } else if (newStatus === 'payment_confirmed') {
+      // 결제완료 알림
+      if (order.user_id) {
+        await createNotification({
+          user_id: order.user_id,
+          order_id: order.id,
+          type: 'order_paid',
+          message: `${order.customer_name}님의 주문이 결제완료되었습니다!`
+        });
+      }
+    }
+  };
+
   const isAdmin = userRole === 'admin';
 
   if (loading) {
@@ -240,134 +269,118 @@ export default function Orders() {
         </div>
 
         {/* 주문 목록 */}
-        <div className="bg-gradient-ivory rounded-3xl shadow-soft border border-ivory-200/50 overflow-hidden animate-slide-up">
-          <div className="px-12 py-8 border-b border-ivory-200/50 bg-ivory-100/30">
-            <h2 className="text-3xl font-black text-wine-800">
-              주문 목록 ({filteredOrders.length}개)
-            </h2>
-          </div>
-          
-          {filteredOrders.length > 0 ? (
-            <div className="divide-y divide-ivory-200/50">
-              {filteredOrders.map((order, index) => (
-                <div key={order.id} className="p-10 hover:bg-ivory-100/50 transition-all duration-300 animate-fade-in" style={{animationDelay: `${index * 0.1}s`}}>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-6 mb-4">
-                        <h3 className="text-3xl font-black text-wine-800">
-                          {order.customer_name}
-                        </h3>
-                        <span className={`px-6 py-3 rounded-2xl text-lg font-bold shadow-sm ${getStatusBgColor(order.status)} ${getStatusColor(order.status)}`}>
-                          {getStatusLabel(order.status)}
-                        </span>
-                        {order.church_group && (
-                          <span className="px-6 py-3 bg-ivory-200 text-wine-700 rounded-2xl text-lg font-bold shadow-sm">
-                            {order.church_group}
-                          </span>
-                        )}
-                      </div>
-                      
-                      <p className="text-lg text-wine-500 mb-6 font-medium">
-                        주문 시간: {new Date(order.created_at).toLocaleString('ko-KR')}
-                      </p>
-
-                      {/* 주문 아이템 */}
-                      <div className="space-y-3 mb-6">
-                        {order.order_items?.map((item) => (
-                          <div key={item.id} className="flex items-center justify-between text-lg bg-ivory-100/50 p-4 rounded-2xl">
-                            <span className="text-wine-800 font-bold">
-                              {item.menu?.name} x {item.quantity}
-                            </span>
-                            <span className="text-wine-600 font-bold">
-                              ₩{item.total_price.toLocaleString()}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-
-                      {order.notes && (
-                        <div className="mb-6 bg-wine-50 p-6 rounded-2xl border border-wine-100">
-                          <p className="text-lg text-wine-700 font-bold">
-                            요청사항: {order.notes}
-                          </p>
+        <div className="overflow-x-auto animate-slide-up">
+          <table className="min-w-full text-center border-separate border-spacing-y-1 bg-white">
+            <thead>
+              <tr className="bg-ivory-100 text-wine-700 text-sm">
+                <th className="px-2 py-2">연번</th>
+                <th className="px-2 py-2">주문자<br/><span className="text-xs text-wine-400">(이름/목장)</span></th>
+                <th className="px-2 py-2">상태</th>
+                <th className="px-2 py-2">주문시간</th>
+                <th className="px-2 py-2">주문메뉴</th>
+                <th className="px-2 py-2">총금액</th>
+                <th className="px-2 py-2">상태변경</th>
+                <th className="px-2 py-2">취소</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredOrders.map((order, idx) => (
+                <tr key={order.id} className="bg-ivory-50">
+                  {/* 연번 */}
+                  <td className="align-middle font-bold text-wine-700">{idx + 1}</td>
+                  {/* 주문자(2행) */}
+                  <td className="align-middle">
+                    <div className="font-bold text-wine-800">{order.customer_name}</div>
+                    <div className="text-xs text-wine-600">{order.church_group || '-'}</div>
+                  </td>
+                  {/* 상태뱃지 */}
+                  <td className="align-middle">
+                    <span className={`px-2 py-1 rounded text-xs font-bold ${
+                      order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                      order.status === 'preparing' ? 'bg-blue-100 text-blue-800' :
+                      order.status === 'ready' ? 'bg-green-100 text-green-800' :
+                      order.status === 'completed' ? 'bg-wine-100 text-wine-800' :
+                      order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {order.status === 'pending' ? '대기' :
+                       order.status === 'preparing' ? '제조중' :
+                       order.status === 'ready' ? '제조완료' :
+                       order.status === 'completed' ? '주문완료' :
+                       order.status === 'cancelled' ? '취소' : order.status}
+                    </span>
+                  </td>
+                  {/* 주문시간 */}
+                  <td className="align-middle text-xs text-wine-700">
+                    {new Date(order.created_at).toLocaleString('ko-KR')}
+                  </td>
+                  {/* 주문메뉴(여러 행) */}
+                  <td className="align-middle">
+                    <div className="flex flex-col gap-1 items-center">
+                      {order.order_items?.map(item => (
+                        <div key={item.id} className="text-xs text-wine-700">
+                          {item.menu?.name} x{item.quantity}
                         </div>
-                      )}
-
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-6 text-lg text-wine-600 font-bold">
-                          <span>결제: {order.payment_method === 'cash' ? '현금' : '계좌이체'}</span>
-                          <span className={`px-4 py-2 rounded-2xl ${
-                            order.payment_status === 'confirmed' 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {order.payment_status === 'confirmed' ? '결제완료' : '결제대기'}
-                          </span>
-                        </div>
-                        <span className="text-3xl font-black text-wine-600">
-                          총 ₩{order.total_amount.toLocaleString()}
-                        </span>
-                      </div>
+                      ))}
                     </div>
-
-                    {/* 상태 변경 버튼 - 관리자만 표시 */}
-                    {isAdmin && (
-                      <div className="ml-8 flex flex-col space-y-4">
-                        {order.status !== 'completed' && order.status !== 'cancelled' && (
-                          <>
-                            {order.status === 'pending' && (
-                              <button
-                                onClick={() => handleStatusChange(order.id, 'preparing')}
-                                className="px-8 py-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-2xl text-lg font-bold hover:shadow-large transition-all duration-300 transform hover:-translate-y-1 shadow-medium"
-                              >
-                                제조 시작
-                              </button>
-                            )}
-                            {order.status === 'preparing' && (
-                              <button
-                                onClick={() => handleStatusChange(order.id, 'ready')}
-                                className="px-8 py-4 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-2xl text-lg font-bold hover:shadow-large transition-all duration-300 transform hover:-translate-y-1 shadow-medium"
-                              >
-                                제조 완료
-                              </button>
-                            )}
-                            {order.status === 'ready' && (
-                              <button
-                                onClick={() => handleStatusChange(order.id, 'completed')}
-                                className="px-8 py-4 bg-gradient-to-r from-wine-500 to-wine-600 text-white rounded-2xl text-lg font-bold hover:shadow-large transition-all duration-300 transform hover:-translate-y-1 shadow-medium"
-                              >
-                                픽업 완료
-                              </button>
-                            )}
-                            <button
-                              onClick={() => handleStatusChange(order.id, 'cancelled')}
-                              className="px-8 py-4 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-2xl text-lg font-bold hover:shadow-large transition-all duration-300 transform hover:-translate-y-1 shadow-medium"
-                            >
-                              주문 취소
-                            </button>
-                          </>
-                        )}
-                        
-                        {/* 결제 상태 변경 버튼 */}
-                        {order.payment_status !== 'confirmed' && (
-                          <button
-                            onClick={() => handlePaymentConfirm(order.id)}
-                            className="px-8 py-4 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-2xl text-lg font-bold hover:shadow-large transition-all duration-300 transform hover:-translate-y-1 shadow-medium"
-                          >
-                            결제 완료
-                          </button>
-                        )}
-                      </div>
+                  </td>
+                  {/* 총금액 */}
+                  <td className="align-middle font-bold text-wine-800">
+                    ₩{order.total_amount.toLocaleString()}
+                  </td>
+                  {/* 상태표시버튼 */}
+                  <td className="align-middle">
+                    {isAdmin && order.status !== 'cancelled' && order.status !== 'completed' && order.status !== 'ready' && (
+                      <button
+                        className="px-3 py-2 bg-blue-600 text-white rounded text-xs font-bold hover:bg-blue-700 transition"
+                        onClick={() => handleStatusChangeWithNotification(order, 'preparing')}
+                      >
+                        제조시작
+                      </button>
                     )}
-                  </div>
-                </div>
+                    {isAdmin && order.status === 'preparing' && (
+                      <button
+                        className="px-3 py-2 bg-green-600 text-white rounded text-xs font-bold hover:bg-green-700 transition"
+                        onClick={() => handleStatusChangeWithNotification(order, 'ready')}
+                      >
+                        제조완료
+                      </button>
+                    )}
+                    {isAdmin && order.status === 'ready' && (
+                      <button
+                        className="px-3 py-2 bg-wine-600 text-white rounded text-xs font-bold hover:bg-wine-700 transition"
+                        onClick={() => handleStatusChangeWithNotification(order, 'completed')}
+                      >
+                        픽업완료
+                      </button>
+                    )}
+                    {isAdmin && order.status === 'completed' && order.payment_status !== 'confirmed' && (
+                      <button
+                        className="px-3 py-2 bg-purple-600 text-white rounded text-xs font-bold hover:bg-purple-700 transition"
+                        onClick={() => handleStatusChangeWithNotification(order, 'payment_confirmed')}
+                      >
+                        결제완료
+                      </button>
+                    )}
+                    {isAdmin && ((order.status === 'completed' && order.payment_status === 'confirmed') || order.status === 'cancelled') && (
+                      <span className="text-xs text-wine-400">종료</span>
+                    )}
+                  </td>
+                  {/* 주문취소버튼 */}
+                  <td className="align-middle">
+                    {isAdmin && order.status !== 'cancelled' && order.status !== 'completed' && (
+                      <button
+                        className="px-3 py-2 bg-red-600 text-white rounded text-xs font-bold hover:bg-red-700 transition"
+                        onClick={() => handleStatusChange(order.id, 'cancelled')}
+                      >
+                        주문취소
+                      </button>
+                    )}
+                  </td>
+                </tr>
               ))}
-            </div>
-          ) : (
-            <div className="p-20 text-center">
-              <p className="text-wine-400 text-2xl font-medium">해당 상태의 주문이 없습니다.</p>
-            </div>
-          )}
+            </tbody>
+          </table>
         </div>
       </main>
 

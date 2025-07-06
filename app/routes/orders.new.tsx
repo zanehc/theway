@@ -390,8 +390,8 @@ export default function NewOrder() {
                   <input
                     type="text"
                     value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    className="w-full px-4 sm:px-6 py-3 sm:py-4 border border-ivory-300 rounded-xl sm:rounded-2xl text-base sm:text-lg font-medium bg-ivory-50/50 text-black focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300"
+                    readOnly
+                    className="w-full px-4 sm:px-6 py-3 sm:py-4 border border-ivory-300 rounded-xl sm:rounded-2xl text-base sm:text-lg font-medium bg-ivory-50/50 text-black focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300 opacity-70 cursor-not-allowed"
                     placeholder="고객명을 입력하세요"
                     required
                   />
@@ -404,8 +404,8 @@ export default function NewOrder() {
                   <input
                     type="text"
                     value={churchGroup}
-                    onChange={(e) => setChurchGroup(e.target.value)}
-                    className="w-full px-4 sm:px-6 py-3 sm:py-4 border border-ivory-300 rounded-xl sm:rounded-2xl text-base sm:text-lg font-medium bg-ivory-50/50 text-black focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300"
+                    readOnly
+                    className="w-full px-4 sm:px-6 py-3 sm:py-4 border border-ivory-300 rounded-xl sm:rounded-2xl text-base sm:text-lg font-medium bg-ivory-50/50 text-black focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300 opacity-70 cursor-not-allowed"
                     placeholder="목장명 (선택사항)"
                   />
                 </div>

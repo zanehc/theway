@@ -1,5 +1,5 @@
 import { Link } from "@remix-run/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "~/lib/supabase";
 import { LoginForm } from "./LoginForm";
 import { SignupForm } from "./SignupForm";
@@ -15,6 +15,8 @@ export default function Header() {
   const [showMyPage, setShowMyPage] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loginSuccess, setLoginSuccess] = useState(false);
+  const [userNotification, setUserNotification] = useState<{message: string} | null>(null);
+  const notifTimeout = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     // 현재 사용자 상태 확인
@@ -63,7 +65,36 @@ export default function Header() {
       }
     );
 
-    return () => subscription.unsubscribe();
+    // 알림 실시간 구독 (로그인한 사용자)
+    let notifChannel: any = null;
+    if (typeof window !== 'undefined') {
+      notifChannel = supabase
+        .channel('user-notifications')
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+        }, payload => {
+          const notif = payload.new;
+          if (user && notif.user_id === user.id) {
+            setUserNotification({ message: notif.message });
+            // 사운드: 알림 메시지 음성
+            if ('speechSynthesis' in window) {
+              const utter = new window.SpeechSynthesisUtterance(notif.message);
+              utter.lang = 'ko-KR';
+              window.speechSynthesis.speak(utter);
+            }
+            if (notifTimeout.current) clearTimeout(notifTimeout.current);
+            notifTimeout.current = setTimeout(() => setUserNotification(null), 7000);
+          }
+        })
+        .subscribe();
+    }
+    return () => {
+      subscription.unsubscribe();
+      if (notifChannel) notifChannel.unsubscribe();
+      if (notifTimeout.current) clearTimeout(notifTimeout.current);
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -212,6 +243,17 @@ export default function Header() {
         isOpen={showMyPage} 
         onClose={() => setShowMyPage(false)} 
       />
+
+      {/* 사용자 알림 배너 */}
+      {userNotification && (
+        <div
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-[99999] bg-green-600 text-ivory-50 px-6 py-4 rounded-xl shadow-2xl font-bold text-lg flex items-center gap-4 cursor-pointer animate-fade-in"
+          onClick={() => setUserNotification(null)}
+        >
+          <span>🔔</span>
+          <span>{userNotification.message}</span>
+        </div>
+      )}
     </header>
   );
 } 
