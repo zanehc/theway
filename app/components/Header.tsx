@@ -155,8 +155,8 @@ export default function Header() {
       
       {/* 로그인 모달 */}
       {showLogin && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowLogin(false)}>
-          <div className="bg-white rounded-2xl p-8 shadow-large min-w-[400px] animate-scale-in relative" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 sm:p-0" onClick={() => setShowLogin(false)}>
+          <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-large w-full max-w-md sm:min-w-[400px] animate-scale-in relative mx-auto" onClick={(e) => e.stopPropagation()}>
             <button
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl font-bold"
               onClick={() => setShowLogin(false)}
@@ -204,8 +204,8 @@ export default function Header() {
 
       {/* 회원가입 모달 */}
       {showSignup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowSignup(false)}>
-          <div className="bg-white rounded-2xl p-8 shadow-large min-w-[500px] max-h-[90vh] overflow-y-auto animate-scale-in relative" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 sm:p-0" onClick={() => setShowSignup(false)}>
+          <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-large w-full max-w-lg sm:min-w-[500px] max-h-[90vh] overflow-y-auto animate-scale-in relative mx-auto" onClick={(e) => e.stopPropagation()}>
             <button
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl font-bold"
               onClick={() => setShowSignup(false)}
