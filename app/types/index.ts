@@ -62,4 +62,20 @@ export type OrderWithItems = Order & {
 
 export type OrderItemWithMenu = OrderItem & {
   menu: Menu;
+};
+
+// Order status management
+export type OrderStatusUpdate = {
+  order_id: string;
+  status: OrderStatus;
+  updated_by?: string;
+  notes?: string;
+};
+
+// User order history
+export type UserOrderHistory = {
+  orders: OrderWithItems[];
+  total_orders: number;
+  total_spent: number;
+  recent_orders: OrderWithItems[];
 }; 

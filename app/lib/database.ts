@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { Menu, Order, OrderItem, User, OrderWithItems } from '~/types';
+import type { Menu, Order, OrderItem, User, OrderWithItems, UserOrderHistory, OrderStatusUpdate } from '~/types';
 
 // Menu queries
 export async function getMenus() {
@@ -57,6 +57,49 @@ export async function getOrders(status?: string) {
   return data as OrderWithItems[];
 }
 
+export async function getOrdersByUserId(userId: string, limit?: number) {
+  let query = supabase
+    .from('orders')
+    .select(`
+      *,
+      order_items (
+        *,
+        menu:menus (*)
+      )
+    `)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (limit) {
+    query = query.limit(limit);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error('Get orders by user id error:', error);
+    return [];
+  }
+  return data as OrderWithItems[];
+}
+
+export async function getUserOrderHistory(userId: string): Promise<UserOrderHistory> {
+  const orders = await getOrdersByUserId(userId);
+  
+  const total_orders = orders.length;
+  const total_spent = orders
+    .filter(order => order.payment_status === 'confirmed')
+    .reduce((sum, order) => sum + order.total_amount, 0);
+  
+  const recent_orders = orders.slice(0, 5); // 최근 5개 주문
+
+  return {
+    orders,
+    total_orders,
+    total_spent,
+    recent_orders,
+  };
+}
+
 export async function getOrderById(id: string) {
   const { data, error } = await supabase
     .from('orders')
@@ -102,6 +145,8 @@ export async function createOrder(orderData: {
         total_amount: orderData.total_amount,
         payment_method: orderData.payment_method,
         notes: orderData.notes,
+        status: 'pending', // 기본 상태
+        payment_status: 'pending', // 기본 결제 상태
       })
       .select()
       .single();
@@ -134,7 +179,10 @@ export async function createOrder(orderData: {
 export async function updateOrderStatus(id: string, status: string) {
   const { data, error } = await supabase
     .from('orders')
-    .update({ status })
+    .update({ 
+      status,
+      updated_at: new Date().toISOString()
+    })
     .eq('id', id)
     .select()
     .single();
@@ -149,7 +197,10 @@ export async function updateOrderStatus(id: string, status: string) {
 export async function updatePaymentStatus(id: string, payment_status: string) {
   const { data, error } = await supabase
     .from('orders')
-    .update({ payment_status })
+    .update({ 
+      payment_status,
+      updated_at: new Date().toISOString()
+    })
     .eq('id', id)
     .select()
     .single();
@@ -159,6 +210,110 @@ export async function updatePaymentStatus(id: string, payment_status: string) {
     throw error;
   }
   return data as Order;
+}
+
+// Sales statistics
+export async function getSalesStatistics(period: 'today' | 'week' | 'month' = 'today') {
+  const now = new Date();
+  let startDate: Date;
+
+  switch (period) {
+    case 'week':
+      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      break;
+    case 'month':
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      break;
+    default: // today
+      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      break;
+  }
+
+  const { data: orders, error } = await supabase
+    .from('orders')
+    .select(`
+      *,
+      order_items (
+        *,
+        menu:menus (*)
+      )
+    `)
+    .gte('created_at', startDate.toISOString())
+    .lte('created_at', now.toISOString())
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Get sales statistics error:', error);
+    return {
+      totalRevenue: 0,
+      totalOrders: 0,
+      confirmedOrders: 0,
+      pendingOrders: 0,
+      cancelledOrders: 0,
+      menuStats: [],
+      statusStats: {
+        pending: 0,
+        preparing: 0,
+        ready: 0,
+        completed: 0,
+        cancelled: 0,
+      }
+    };
+  }
+
+  let totalRevenue = 0;
+  let totalOrders = orders?.length || 0;
+  let confirmedOrders = 0;
+  let pendingOrders = 0;
+  let cancelledOrders = 0;
+  const menuStats = new Map();
+  const statusStats = {
+    pending: 0,
+    preparing: 0,
+    ready: 0,
+    completed: 0,
+    cancelled: 0,
+  };
+
+  orders?.forEach((order: any) => {
+    // 상태별 통계
+    statusStats[order.status as keyof typeof statusStats]++;
+
+    // 결제 상태별 통계
+    if (order.payment_status === 'confirmed') {
+      totalRevenue += order.total_amount;
+      confirmedOrders++;
+    } else if (order.payment_status === 'pending') {
+      pendingOrders++;
+    }
+
+    if (order.status === 'cancelled') {
+      cancelledOrders++;
+    }
+
+    // 메뉴별 통계
+    order.order_items?.forEach((item: any) => {
+      const menuName = item.menu?.name || 'Unknown';
+      const existing = menuStats.get(menuName) || { quantity: 0, revenue: 0 };
+      menuStats.set(menuName, {
+        quantity: existing.quantity + item.quantity,
+        revenue: existing.revenue + item.total_price,
+      });
+    });
+  });
+
+  return {
+    totalRevenue,
+    totalOrders,
+    confirmedOrders,
+    pendingOrders,
+    cancelledOrders,
+    menuStats: Array.from(menuStats.entries()).map(([name, stats]) => ({
+      name,
+      ...stats,
+    })).sort((a, b) => b.quantity - a.quantity),
+    statusStats,
+  };
 }
 
 // User queries
