@@ -13,48 +13,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
     const status = url.searchParams.get('status');
     const paymentStatus = url.searchParams.get('payment_status');
     
-    // 사용자 인증 확인
-    const { supabase } = await import('~/lib/supabase');
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    let orders: any[] = [];
-    let userRole: string | null = null;
-    
-    if (user) {
-      // 사용자 역할 확인
-      const { data: userData } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-      
-      userRole = userData?.role || null;
-      
-      if (userRole === 'admin') {
-        // 관리자: 모든 주문 조회
-        orders = await getOrders(status || undefined);
-      } else {
-        // 고객: 본인의 주문만 조회
-        orders = await getOrdersByUserId(user.id);
-        
-        // 상태 필터링 (고객의 경우)
-        if (status) {
-          orders = orders.filter(order => order.status === status);
-        }
-      }
-    }
-    
-    // 결제 상태 필터링 (관리자만)
-    let filteredOrders = orders;
-    if (paymentStatus && userRole === 'admin') {
-      filteredOrders = orders.filter(order => order.payment_status === paymentStatus);
-    }
-    
+    // 서버 사이드에서는 기본 정보만 반환하고, 주문은 클라이언트에서 불러옴
     return json({ 
-      orders: filteredOrders, 
+      orders: [], // 클라이언트에서 불러올 예정
       currentStatus: status, 
       currentPaymentStatus: paymentStatus,
-      userRole
+      userRole: null // 클라이언트에서 설정할 예정
     });
   } catch (error) {
     console.error('Orders loader error:', error);
@@ -118,14 +82,15 @@ const statusButtons = [
 ];
 
 export default function Orders() {
-  const { orders: initialOrders, currentStatus, currentPaymentStatus, userRole } = useLoaderData<typeof loader>();
+  const { orders: initialOrders, currentStatus, currentPaymentStatus, userRole: initialUserRole } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
-  const [orders, setOrders] = useState(initialOrders);
+  const [orders, setOrders] = useState<any[]>(initialOrders);
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus | ''>(currentStatus as OrderStatus | '' || '');
   const [loading, setLoading] = useState(true);
   const [newOrderAlert, setNewOrderAlert] = useState<{customer: string, church: string} | null>(null);
   const alertTimeout = useRef<NodeJS.Timeout | null>(null);
   const [user, setUser] = useState<any>(null);
+  const [userRole, setUserRole] = useState<string | null>(initialUserRole);
 
   // URL 파라미터로 전달된 상태가 있으면 필터 적용
   useEffect(() => {
@@ -134,8 +99,9 @@ export default function Orders() {
     }
   }, [currentStatus]);
 
+  // 클라이언트 사이드에서 사용자 정보와 주문 불러오기
   useEffect(() => {
-    const getUserAndRole = async () => {
+    const getUserAndOrders = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         setUser(user);
@@ -148,15 +114,36 @@ export default function Orders() {
             .eq('id', user.id)
             .single();
           console.log('🔍 User data from database:', userData);
+          
+          const role = userData?.role || null;
+          setUserRole(role);
+          
+          // 주문 불러오기
+          if (role === 'admin') {
+            console.log('🔍 Loading all orders for admin');
+            const allOrders = await getOrders(currentStatus || undefined);
+            setOrders(allOrders);
+          } else if (role === 'customer' || role === null) {
+            console.log('🔍 Loading orders for user:', user.id);
+            const userOrders = await getOrdersByUserId(user.id);
+            console.log('🔍 User orders loaded:', userOrders);
+            
+            // 상태 필터링
+            let filteredOrders = userOrders;
+            if (currentStatus) {
+              filteredOrders = userOrders.filter(order => order.status === currentStatus);
+            }
+            setOrders(filteredOrders);
+          }
         }
       } catch (error) {
-        console.error('Error getting user role:', error);
+        console.error('Error getting user and orders:', error);
       } finally {
         setLoading(false);
       }
     };
-    getUserAndRole();
-  }, []);
+    getUserAndOrders();
+  }, [currentStatus]);
 
   // 주문 취소 핸들러
   const handleOrderCancel = async (order: any) => {

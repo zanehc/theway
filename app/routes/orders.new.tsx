@@ -42,6 +42,11 @@ export async function action({ request }: ActionFunctionArgs) {
         const { data: { user } } = await supabase.auth.getUser();
         finalUserId = user?.id || undefined;
       }
+
+      // userId가 없으면 주문 생성 거부
+      if (!finalUserId) {
+        return json({ error: '로그인 정보가 확인되지 않아 주문을 생성할 수 없습니다. 다시 로그인 해주세요.' }, { status: 400 });
+      }
       
       console.log('🔍 Creating order with user info:', {
         clientUserId: userId,
@@ -233,6 +238,10 @@ export default function NewOrder() {
     };
 
     getCurrentUserId().then(userId => {
+      if (!userId) {
+        alert('로그인 정보가 확인되지 않아 주문을 생성할 수 없습니다. 다시 로그인 해주세요.');
+        return;
+      }
       const formData = new FormData();
       formData.append('intent', 'createOrder');
       formData.append('customerName', customerName);
