@@ -106,13 +106,16 @@ export default function Orders() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         setUser(user);
+        console.log('🔍 Current auth user:', user);
+        
         if (user) {
           const { data: userData } = await supabase
             .from('users')
-            .select('role')
+            .select('role, name, email')
             .eq('id', user.id)
             .single();
           setUserRole(userData?.role || null);
+          console.log('🔍 User data from database:', userData);
         }
       } catch (error) {
         console.error('Error getting user role:', error);
@@ -139,22 +142,25 @@ export default function Orders() {
       if (error) {
         console.error('Cancel order error:', error);
         alert('주문 취소에 실패했습니다.');
-      } else {
-        console.log('Order cancelled successfully:', order.id);
-        
-        // 즉시 로컬 상태 업데이트
-        setOrders((prevOrders: any[]) => {
-          const updatedOrders = prevOrders.map((o: any) => 
-            o.id === order.id 
-              ? { ...o, status: 'cancelled', updated_at: new Date().toISOString() }
-              : o
-          );
-          console.log('Immediately updated orders state after cancellation:', updatedOrders);
-          return updatedOrders;
-        });
-        
-        // 취소 알림 생성 (고객에게만)
-        if (order.user_id) {
+        return;
+      }
+
+      console.log('Order cancelled successfully:', order.id);
+      
+      // 즉시 로컬 상태 업데이트
+      setOrders((prevOrders: any[]) => {
+        const updatedOrders = prevOrders.map((o: any) => 
+          o.id === order.id 
+            ? { ...o, status: 'cancelled', updated_at: new Date().toISOString() }
+            : o
+        );
+        console.log('Immediately updated orders state after cancellation:', updatedOrders);
+        return updatedOrders;
+      });
+      
+      // 취소 알림 생성 (고객에게만) - 별도 try-catch로 감싸기
+      if (order.user_id) {
+        try {
           console.log('📱 Creating cancellation notification for user:', order.user_id);
           
           const orderTime = new Date(order.created_at).toLocaleString('ko-KR', {
@@ -180,8 +186,15 @@ export default function Orders() {
           });
           
           console.log('✅ Cancellation notification completed');
+        } catch (notificationError) {
+          console.error('❌ Notification creation failed:', notificationError);
+          // 알림 생성 실패는 주문 취소 실패로 처리하지 않음
         }
       }
+      
+      // 주문 취소 성공 메시지
+      alert('주문이 성공적으로 취소되었습니다.');
+      
     } catch (error) {
       console.error('Order cancel error:', error);
       alert('주문 취소에 실패했습니다.');
@@ -347,7 +360,15 @@ export default function Orders() {
         isAdmin: isAdminUser,
         isOwnOrder,
         canCancel,
-        cancelButtonShouldShow: canCancel
+        cancelButtonShouldShow: canCancel,
+        // 상세 비교 정보
+        userIdComparison: {
+          orderUserId: order.user_id,
+          currentUserId: user?.id,
+          areEqual: order.user_id === user?.id,
+          orderUserIdType: typeof order.user_id,
+          currentUserIdType: typeof user?.id
+        }
       });
     });
   }, [orders, filteredOrders, selectedStatus, user, userRole]);
