@@ -10,3 +10,74 @@ body {
     color-scheme: dark;
   }
 }
+
+/* Mobile text display fixes */
+@layer components {
+  /* Prevent text from displaying vertically in buttons */
+  .mobile-button-fix {
+    @apply whitespace-nowrap;
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
+    word-break: keep-all;
+    overflow-wrap: normal;
+  }
+
+  /* Category buttons horizontal layout */
+  .category-buttons {
+    @apply flex flex-wrap gap-2 sm:gap-4;
+  }
+
+  .category-button {
+    @apply px-3 py-2 sm:px-6 sm:py-3 rounded-2xl text-sm sm:text-lg font-bold transition-all duration-300 shadow-soft hover:shadow-medium transform hover:-translate-y-1 whitespace-nowrap;
+    min-width: fit-content;
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
+    word-break: keep-all;
+  }
+
+  /* Order item display fixes */
+  .order-item-text {
+    @apply whitespace-nowrap;
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
+    word-break: keep-all;
+  }
+
+  /* Status badge fixes */
+  .status-badge {
+    @apply px-3 py-1 sm:px-4 sm:py-2 rounded-xl text-xs sm:text-sm font-bold shadow-sm whitespace-nowrap;
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
+    word-break: keep-all;
+    min-width: fit-content;
+  }
+
+  /* Mobile responsive text */
+  .responsive-text {
+    @apply text-sm sm:text-base md:text-lg whitespace-nowrap;
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
+    word-break: keep-all;
+  }
+}
+
+/* Mobile-specific responsive styles */
+@media (max-width: 640px) {
+  .category-button {
+    font-size: 0.875rem; /* 14px */
+    padding: 0.5rem 0.75rem; /* 8px 12px */
+  }
+  
+  .status-badge {
+    font-size: 0.75rem; /* 12px */
+    padding: 0.25rem 0.5rem; /* 4px 8px */
+  }
+  
+  /* Ensure text stays horizontal on very small screens */
+  .mobile-horizontal-text {
+    writing-mode: horizontal-tb !important;
+    text-orientation: mixed !important;
+    word-break: keep-all !important;
+    white-space: nowrap !important;
+  }
+}

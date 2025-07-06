@@ -183,12 +183,12 @@ export default function NewOrder() {
               
               {/* 카테고리 필터 */}
               <div className="mb-8">
-                <div className="flex flex-wrap gap-4">
+                <div className="category-buttons">
                   {categories.map((category) => (
                     <button
                       key={category.id}
                       onClick={() => setSelectedCategory(category.id)}
-                      className={`px-6 py-3 rounded-full text-sm font-medium transition-all duration-300 ${
+                      className={`category-button mobile-button-fix ${
                         selectedCategory === category.id
                           ? 'bg-wine-700 text-ivory-50 shadow-medium'
                           : 'bg-ivory-200/80 text-wine-700 hover:bg-wine-100 hover:text-wine-900'
@@ -235,18 +235,18 @@ export default function NewOrder() {
                         <p className="text-gray-600 text-sm mb-4 line-clamp-2">{menu.description}</p>
                       )}
                       <div className="flex justify-between items-center mb-4">
-                        <span className={`text-xs px-3 py-1 rounded-full font-medium ${
-                          menu.category === 'hot coffee' ? 'bg-red-100 text-red-800' :
-                          menu.category === 'ice coffee' ? 'bg-blue-100 text-blue-800' :
-                          menu.category === 'tea' ? 'bg-orange-100 text-orange-800' :
-                          menu.category === 'beverage' ? 'bg-green-100 text-green-800' :
-                          'bg-gray-100 text-gray-600'
-                        }`}>
-                          {menu.category === 'hot coffee' ? 'Hot 커피' :
-                           menu.category === 'ice coffee' ? 'Ice 커피' :
-                           menu.category === 'tea' ? '차' :
-                           menu.category === 'beverage' ? '음료' : menu.category}
-                        </span>
+                                              <span className={`status-badge mobile-horizontal-text text-xs ${
+                        menu.category === 'hot coffee' ? 'bg-red-100 text-red-800' :
+                        menu.category === 'ice coffee' ? 'bg-blue-100 text-blue-800' :
+                        menu.category === 'tea' ? 'bg-orange-100 text-orange-800' :
+                        menu.category === 'beverage' ? 'bg-green-100 text-green-800' :
+                        'bg-gray-100 text-gray-600'
+                      }`}>
+                        {menu.category === 'hot coffee' ? 'Hot 커피' :
+                         menu.category === 'ice coffee' ? 'Ice 커피' :
+                         menu.category === 'tea' ? '차' :
+                         menu.category === 'beverage' ? '음료' : menu.category}
+                      </span>
                       </div>
                       
                       {/* 수량 조절 */}

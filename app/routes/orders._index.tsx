@@ -86,12 +86,12 @@ export default function Orders() {
         </div>
 
         {/* 필터 */}
-        <div className="bg-gradient-ivory rounded-3xl shadow-soft p-8 mb-8 border border-ivory-200/50 animate-slide-up">
-          <div className="flex flex-wrap gap-4 items-center">
-            <span className="text-xl font-bold text-wine-700">상태별 필터:</span>
+        <div className="bg-gradient-ivory rounded-3xl shadow-soft p-4 sm:p-8 mb-8 border border-ivory-200/50 animate-slide-up">
+          <div className="category-buttons items-center">
+            <span className="text-lg sm:text-xl font-bold text-wine-700 mb-2 sm:mb-0">상태별 필터:</span>
             <button
               onClick={() => setSelectedStatus('')}
-              className={`px-8 py-4 rounded-2xl text-lg font-bold transition-all duration-300 shadow-soft hover:shadow-medium transform hover:-translate-y-1 ${
+              className={`category-button mobile-button-fix ${
                 selectedStatus === '' 
                   ? 'bg-gradient-wine text-ivory-50 shadow-wine' 
                   : 'bg-ivory-200/80 text-wine-700 hover:bg-wine-100'
@@ -103,7 +103,7 @@ export default function Orders() {
               <button
                 key={option.value}
                 onClick={() => setSelectedStatus(option.value)}
-                className={`px-8 py-4 rounded-2xl text-lg font-bold transition-all duration-300 shadow-soft hover:shadow-medium transform hover:-translate-y-1 ${
+                className={`category-button mobile-button-fix ${
                   selectedStatus === option.value 
                     ? 'bg-gradient-wine text-ivory-50 shadow-wine' 
                     : 'bg-ivory-200/80 text-wine-700 hover:bg-wine-100'
@@ -133,11 +133,11 @@ export default function Orders() {
                         <h3 className="text-3xl font-black text-wine-800">
                           {order.customer_name}
                         </h3>
-                        <span className={`px-6 py-3 rounded-2xl text-lg font-bold shadow-sm ${getStatusBgColor(order.status)} ${getStatusColor(order.status)}`}>
+                        <span className={`status-badge mobile-horizontal-text ${getStatusBgColor(order.status)} ${getStatusColor(order.status)}`}>
                           {getStatusLabel(order.status)}
                         </span>
                         {order.church_group && (
-                          <span className="px-6 py-3 bg-ivory-200 text-wine-700 rounded-2xl text-lg font-bold shadow-sm">
+                          <span className="status-badge mobile-horizontal-text bg-ivory-200 text-wine-700">
                             {order.church_group}
                           </span>
                         )}
@@ -150,11 +150,11 @@ export default function Orders() {
                       {/* 주문 아이템 */}
                       <div className="space-y-3 mb-6">
                         {order.order_items?.map((item) => (
-                          <div key={item.id} className="flex items-center justify-between text-lg bg-ivory-100/50 p-4 rounded-2xl">
-                            <span className="text-wine-800 font-bold">
+                          <div key={item.id} className="flex items-center justify-between text-sm sm:text-lg bg-ivory-100/50 p-3 sm:p-4 rounded-2xl">
+                            <span className="order-item-text text-wine-800 font-bold">
                               {item.menu?.name} x {item.quantity}
                             </span>
-                            <span className="text-wine-600 font-bold">
+                            <span className="order-item-text text-wine-600 font-bold">
                               ₩{item.total_price.toLocaleString()}
                             </span>
                           </div>
@@ -172,7 +172,7 @@ export default function Orders() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-6 text-lg text-wine-600 font-bold">
                           <span>결제: {order.payment_method === 'cash' ? '현금' : '계좌이체'}</span>
-                          <span className={`px-4 py-2 rounded-2xl ${
+                          <span className={`status-badge mobile-horizontal-text ${
                             order.payment_status === 'confirmed' 
                               ? 'bg-green-100 text-green-800' 
                               : 'bg-yellow-100 text-yellow-800'

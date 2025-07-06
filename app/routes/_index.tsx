@@ -227,7 +227,7 @@ export default function Index() {
                       <p className="text-gray-600 text-sm mb-4 line-clamp-2">{menu.description}</p>
                     )}
                     <div className="flex justify-between items-center">
-                      <span className={`text-xs px-3 py-1 rounded-full font-medium ${
+                      <span className={`status-badge mobile-horizontal-text text-xs ${
                         menu.category === 'hot coffee' ? 'bg-red-100 text-red-800' :
                         menu.category === 'ice coffee' ? 'bg-blue-100 text-blue-800' :
                         menu.category === 'tea' ? 'bg-orange-100 text-orange-800' :
@@ -281,7 +281,7 @@ export default function Index() {
                   <div key={order.id} className="p-6 hover:bg-ivory-100/50 transition-all duration-300 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 animate-fade-in" style={{animationDelay: `${index * 0.1}s`}}>
                     <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-4">
                       <h3 className="text-xl font-bold text-wine-800">{order.customer_name}</h3>
-                      <span className={`px-4 py-2 rounded-xl text-sm font-bold shadow-sm ${
+                      <span className={`status-badge mobile-horizontal-text ${
                         order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                         order.status === 'preparing' ? 'bg-blue-100 text-blue-800' :
                         order.status === 'ready' ? 'bg-green-100 text-green-800' :
@@ -293,7 +293,7 @@ export default function Index() {
                           order.status === 'completed' ? '픽업완료' : '취소'}
                       </span>
                       {order.church_group && (
-                        <span className="px-4 py-2 bg-ivory-200 text-wine-700 rounded-xl text-sm font-bold shadow-sm">
+                        <span className="status-badge mobile-horizontal-text bg-ivory-200 text-wine-700">
                           {order.church_group}
                         </span>
                       )}
