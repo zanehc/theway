@@ -85,8 +85,9 @@ export async function action({ request }: ActionFunctionArgs) {
       const category = formData.get('category') as string;
       const imageFile = formData.get('image') as File | null;
       const removeImage = formData.get('removeImage') === 'true';
+      const hasNewImage = formData.get('hasNewImage') === 'true';
 
-      console.log('Form data:', { id, name, description, price, category, removeImage });
+      console.log('Form data:', { id, name, description, price, category, removeImage, hasNewImage });
       console.log('Image file:', imageFile ? { name: imageFile.name, size: imageFile.size } : 'null');
 
       if (!id || !name || !price || !category) {
@@ -118,9 +119,9 @@ export async function action({ request }: ActionFunctionArgs) {
       console.log('Existing menu:', existingMenu);
 
       // 이미지 처리
-      if (removeImage) {
-        console.log('Removing existing image:', existingMenu?.image_url);
-        // 기존 이미지 삭제
+      if (removeImage && !hasNewImage) {
+        console.log('Removing existing image only (no new image):', existingMenu?.image_url);
+        // 기존 이미지만 삭제
         if (existingMenu?.image_url) {
           const deleteResult = await deleteMenuImage(existingMenu.image_url);
           console.log('Delete result:', deleteResult);
@@ -138,6 +139,12 @@ export async function action({ request }: ActionFunctionArgs) {
             await deleteMenuImage(existingMenu.image_url);
           }
           updateData.image_url = imageUrl;
+        }
+      } else if (removeImage && hasNewImage) {
+        console.log('Both remove and new image selected - prioritizing new image upload');
+        // 새 이미지가 선택되었지만 업로드 실패한 경우 처리
+        if (existingMenu?.image_url) {
+          console.log('Keeping existing image due to upload failure');
         }
       }
 
@@ -231,6 +238,16 @@ export default function Menus() {
     } else {
       setSelectedImage(null);
       setImagePreview(null);
+    }
+  };
+
+  const resetImageInput = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    // 파일 입력 필드 초기화
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    if (fileInput) {
+      fileInput.value = '';
     }
   };
 
@@ -454,6 +471,7 @@ export default function Menus() {
                  <input type="hidden" name="intent" value="updateMenu" />
                  <input type="hidden" name="id" value={editingMenu.id} />
                  <input type="hidden" name="removeImage" value={editingMenu.image_url === null ? 'true' : 'false'} />
+                 <input type="hidden" name="hasNewImage" value={selectedImage ? 'true' : 'false'} />
                  
                  <div>
                    <label className="block text-sm font-bold text-wine-700 mb-2">메뉴명 *</label>
@@ -516,6 +534,7 @@ export default function Menus() {
                            if (confirm('현재 이미지를 삭제하시겠습니까?')) {
                              console.log('Removing image from editing menu');
                              setEditingMenu({ ...editingMenu, image_url: null });
+                             resetImageInput();
                            }
                          }}
                          className="mt-1 text-xs text-red-600 hover:text-red-800 font-medium"
