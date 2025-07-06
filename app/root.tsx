@@ -46,7 +46,7 @@ export default function App() {
         <Meta />
         <Links />
       </head>
-      <body className="h-full bg-gradient-warm font-sans antialiased">
+      <body className="h-full bg-gradient-warm font-sans antialiased relative overflow-visible">
         <div className="min-h-full">
           <Outlet />
         </div>
