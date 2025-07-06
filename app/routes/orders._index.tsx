@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher } from "@remix-run/react";
+import { useLoaderData, useFetcher, Link } from "@remix-run/react";
 import { useState, useEffect } from "react";
 import { getOrders, updateOrderStatus } from "~/lib/database";
 import { supabase } from "~/lib/supabase";
@@ -11,12 +11,20 @@ export async function loader({ request }: LoaderFunctionArgs) {
   try {
     const url = new URL(request.url);
     const status = url.searchParams.get('status');
+    const paymentStatus = url.searchParams.get('payment_status');
     
     const orders = await getOrders(status || undefined);
-    return json({ orders, currentStatus: status });
+    
+    // 결제 상태 필터링
+    let filteredOrders = orders;
+    if (paymentStatus) {
+      filteredOrders = orders.filter(order => order.payment_status === paymentStatus);
+    }
+    
+    return json({ orders: filteredOrders, currentStatus: status, currentPaymentStatus: paymentStatus });
   } catch (error) {
     console.error('Orders loader error:', error);
-    return json({ orders: [], currentStatus: null });
+    return json({ orders: [], currentStatus: null, currentPaymentStatus: null });
   }
 }
 
@@ -24,6 +32,7 @@ export async function action({ request }: ActionFunctionArgs) {
   const formData = await request.formData();
   const orderId = formData.get('orderId') as string;
   const status = formData.get('status') as OrderStatus;
+  const paymentStatus = formData.get('paymentStatus') as string;
   const intent = formData.get('intent') as string;
 
   if (intent === 'updateStatus' && orderId && status) {
@@ -33,6 +42,22 @@ export async function action({ request }: ActionFunctionArgs) {
     } catch (error) {
       console.error('Update status error:', error);
       return json({ error: '상태 업데이트에 실패했습니다.' }, { status: 400 });
+    }
+  }
+
+  if (intent === 'updatePayment' && orderId && paymentStatus) {
+    try {
+      const { supabase } = await import('~/lib/supabase');
+      const { error } = await supabase
+        .from('orders')
+        .update({ payment_status: paymentStatus })
+        .eq('id', orderId);
+      
+      if (error) throw error;
+      return redirect('/orders');
+    } catch (error) {
+      console.error('Update payment status error:', error);
+      return json({ error: '결제 상태 업데이트에 실패했습니다.' }, { status: 400 });
     }
   }
 
@@ -48,11 +73,18 @@ const statusOptions: { value: OrderStatus; label: string; color: string; bgColor
 ];
 
 export default function Orders() {
-  const { orders, currentStatus } = useLoaderData<typeof loader>();
+  const { orders, currentStatus, currentPaymentStatus } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus | ''>(currentStatus as OrderStatus | '' || '');
   const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // URL 파라미터로 전달된 상태가 있으면 필터 적용
+  useEffect(() => {
+    if (currentStatus) {
+      setSelectedStatus(currentStatus as OrderStatus);
+    }
+  }, [currentStatus]);
 
   useEffect(() => {
     const getUserRole = async () => {
@@ -97,6 +129,14 @@ export default function Orders() {
     formData.append('intent', 'updateStatus');
     formData.append('orderId', orderId);
     formData.append('status', newStatus);
+    fetcher.submit(formData, { method: 'post' });
+  };
+
+  const handlePaymentConfirm = (orderId: string) => {
+    const formData = new FormData();
+    formData.append('intent', 'updatePayment');
+    formData.append('orderId', orderId);
+    formData.append('paymentStatus', 'confirmed');
     fetcher.submit(formData, { method: 'post' });
   };
 
@@ -153,6 +193,23 @@ export default function Orders() {
               </button>
             ))}
           </div>
+          
+          {/* 결제 상태 필터 표시 */}
+          {currentPaymentStatus && (
+            <div className="mt-4 p-4 bg-purple-100 rounded-xl border border-purple-200">
+              <div className="flex items-center justify-between">
+                <span className="text-lg font-bold text-purple-800">
+                  결제 상태 필터: {currentPaymentStatus === 'confirmed' ? '결제 완료' : currentPaymentStatus}
+                </span>
+                <Link 
+                  to="/orders" 
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700 transition-all duration-300"
+                >
+                  필터 해제
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 주문 목록 */}
@@ -262,6 +319,16 @@ export default function Orders() {
                               주문 취소
                             </button>
                           </>
+                        )}
+                        
+                        {/* 결제 상태 변경 버튼 */}
+                        {order.payment_status !== 'confirmed' && (
+                          <button
+                            onClick={() => handlePaymentConfirm(order.id)}
+                            className="px-8 py-4 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-2xl text-lg font-bold hover:shadow-large transition-all duration-300 transform hover:-translate-y-1 shadow-medium"
+                          >
+                            결제 완료
+                          </button>
                         )}
                       </div>
                     )}

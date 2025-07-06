@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData } from "@remix-run/react";
+import { useLoaderData, Link } from "@remix-run/react";
 import { getMenus, getOrders, getSalesStatistics } from "~/lib/database";
 import Header from "~/components/Header";
 import { useEffect, useState } from 'react';
@@ -153,7 +153,7 @@ export default function Index() {
         {/* 통계 카드들 */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
           {/* 총 주문 */}
-          <div className="bg-white rounded-xl shadow-soft p-4 sm:p-6 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-medium animate-slide-up">
+          <Link to="/orders" className="bg-white rounded-xl shadow-soft p-4 sm:p-6 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-medium animate-slide-up cursor-pointer">
             <div className="p-3 bg-gradient-wine rounded-lg shadow-wine inline-block mb-3">
               <svg className="w-6 h-6 sm:w-8 sm:h-8 text-ivory-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
@@ -161,10 +161,10 @@ export default function Index() {
             </div>
             <h3 className="text-2xl sm:text-3xl font-black text-wine-800 mb-1">{salesStats.totalOrders}</h3>
             <p className="text-sm sm:text-base text-wine-600 font-medium">총 주문</p>
-          </div>
+          </Link>
 
           {/* 대기중 */}
-          <div className="bg-white rounded-xl shadow-soft p-4 sm:p-6 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-medium animate-slide-up" style={{animationDelay: '0.1s'}}>
+          <Link to="/orders?status=pending" className="bg-white rounded-xl shadow-soft p-4 sm:p-6 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-medium animate-slide-up cursor-pointer" style={{animationDelay: '0.1s'}}>
             <div className="p-3 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-lg shadow-medium inline-block mb-3">
               <svg className="w-6 h-6 sm:w-8 sm:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -172,10 +172,10 @@ export default function Index() {
             </div>
             <h3 className="text-2xl sm:text-3xl font-black text-wine-800 mb-1">{salesStats.statusStats.pending}</h3>
             <p className="text-sm sm:text-base text-wine-600 font-medium">대기중</p>
-          </div>
+          </Link>
 
           {/* 제조중 */}
-          <div className="bg-white rounded-xl shadow-soft p-4 sm:p-6 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-medium animate-slide-up" style={{animationDelay: '0.2s'}}>
+          <Link to="/orders?status=preparing" className="bg-white rounded-xl shadow-soft p-4 sm:p-6 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-medium animate-slide-up cursor-pointer" style={{animationDelay: '0.2s'}}>
             <div className="p-3 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg shadow-medium inline-block mb-3">
               <svg className="w-6 h-6 sm:w-8 sm:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
@@ -183,10 +183,10 @@ export default function Index() {
             </div>
             <h3 className="text-2xl sm:text-3xl font-black text-wine-800 mb-1">{salesStats.statusStats.preparing}</h3>
             <p className="text-sm sm:text-base text-wine-600 font-medium">제조중</p>
-          </div>
+          </Link>
 
           {/* 완료 */}
-          <div className="bg-white rounded-xl shadow-soft p-4 sm:p-6 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-medium animate-slide-up" style={{animationDelay: '0.3s'}}>
+          <Link to="/orders?status=completed" className="bg-white rounded-xl shadow-soft p-4 sm:p-6 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-medium animate-slide-up cursor-pointer" style={{animationDelay: '0.3s'}}>
             <div className="p-3 bg-gradient-to-br from-green-400 to-green-600 rounded-lg shadow-medium inline-block mb-3">
               <svg className="w-6 h-6 sm:w-8 sm:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -194,22 +194,22 @@ export default function Index() {
             </div>
             <h3 className="text-2xl sm:text-3xl font-black text-wine-800 mb-1">{salesStats.statusStats.completed}</h3>
             <p className="text-sm sm:text-base text-wine-600 font-medium">완료</p>
-          </div>
+          </Link>
         </div>
 
         {/* 매출 정보 */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
           {/* 총 매출 */}
-          <div className="bg-gradient-ivory rounded-xl shadow-soft p-4 sm:p-6 text-center">
+          <Link to="/reports" className="bg-gradient-ivory rounded-xl shadow-soft p-4 sm:p-6 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-medium cursor-pointer">
             <h3 className="text-lg sm:text-xl font-black text-wine-800 mb-2">오늘의 매출</h3>
             <p className="text-2xl sm:text-3xl font-black text-wine-600">₩{salesStats.totalRevenue.toLocaleString()}</p>
-          </div>
+          </Link>
 
           {/* 결제 완료 */}
-          <div className="bg-gradient-ivory rounded-xl shadow-soft p-4 sm:p-6 text-center">
+          <Link to="/orders?payment_status=confirmed" className="bg-gradient-ivory rounded-xl shadow-soft p-4 sm:p-6 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-medium cursor-pointer">
             <h3 className="text-lg sm:text-xl font-black text-wine-800 mb-2">결제 완료</h3>
             <p className="text-2xl sm:text-3xl font-black text-wine-600">{salesStats.confirmedOrders}건</p>
-          </div>
+          </Link>
 
           {/* 운영시간 */}
           <div className="bg-gradient-ivory rounded-xl shadow-soft p-4 sm:p-6 text-center">
@@ -221,7 +221,15 @@ export default function Index() {
         {/* 최근 주문 */}
         {user && (
           <div className="bg-white rounded-xl shadow-soft p-4 sm:p-6 mb-8">
-            <h3 className="text-xl sm:text-2xl font-black text-wine-800 mb-4">최근 주문</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl sm:text-2xl font-black text-wine-800">최근 주문</h3>
+              <Link 
+                to="/orders" 
+                className="px-4 py-2 bg-gradient-wine text-ivory-50 rounded-lg text-sm font-bold hover:shadow-wine transition-all duration-300 shadow-medium hover:shadow-large transform hover:-translate-y-1"
+              >
+                전체보기
+              </Link>
+            </div>
             {recentOrders.length > 0 ? (
               <div className="space-y-3">
                 {recentOrders.slice(0, 5).map((order) => order && (
