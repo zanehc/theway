@@ -35,7 +35,12 @@ export async function action({ request }: ActionFunctionArgs) {
 
       const totalAmount = items.reduce((sum: number, item: any) => sum + item.total_price, 0);
 
+      // 현재 로그인한 사용자 ID 가져오기
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id || undefined;
+
       await createOrder({
+        user_id: userId,
         customer_name: customerName,
         church_group: churchGroup || undefined,
         payment_method: paymentMethod,
@@ -70,6 +75,10 @@ export default function NewOrder() {
   const [notes, setNotes] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
 
+  // 주문 제출 상태 확인
+  const isSubmitting = fetcher.state === 'submitting';
+  const actionData = fetcher.data as { error?: string } | undefined;
+
   useEffect(() => {
     async function fetchUserInfo() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -87,6 +96,13 @@ export default function NewOrder() {
     }
     fetchUserInfo();
   }, []);
+
+  // 에러 메시지 표시
+  useEffect(() => {
+    if (actionData?.error) {
+      alert(actionData.error);
+    }
+  }, [actionData]);
 
   // 카테고리별로 메뉴 그룹화
   const menusByCategory = menus.reduce((acc, menu) => {
@@ -339,7 +355,7 @@ export default function NewOrder() {
             <div className="bg-gradient-ivory rounded-2xl sm:rounded-3xl shadow-soft p-4 sm:p-8 border border-ivory-200/50 sticky top-8 animate-slide-up" style={{animationDelay: '0.1s'}}>
               <h2 className="text-2xl sm:text-3xl font-black text-wine-800 mb-6 sm:mb-8">주문 정보</h2>
               
-              <fetcher.Form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+              <fetcher.Form method="post" onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
                 {/* 고객 정보 */}
                 <div>
                   <label className="block text-lg sm:text-xl font-bold text-wine-700 mb-1 sm:mb-2">
@@ -473,10 +489,10 @@ export default function NewOrder() {
                     
                     <button
                       type="submit"
-                      disabled={cart.length === 0 || !customerName.trim()}
+                      disabled={cart.length === 0 || !customerName.trim() || isSubmitting}
                       className="w-full bg-gradient-wine text-ivory-50 py-4 sm:py-6 px-6 sm:px-8 rounded-xl sm:rounded-2xl text-lg sm:text-2xl font-black hover:shadow-wine transition-all duration-300 transform hover:-translate-y-1 shadow-medium disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                     >
-                      주문 완료
+                      {isSubmitting ? '주문 처리 중...' : '주문 완료'}
                     </button>
                   </div>
                 </div>

@@ -111,25 +111,25 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-none flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl shadow-large p-8 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-black text-wine-800">마이페이지</h2>
+    <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-none flex items-center justify-center p-3 sm:p-4 z-50">
+      <div className="bg-white rounded-xl sm:rounded-2xl shadow-large p-4 sm:p-8 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-4 sm:mb-6">
+          <h2 className="text-xl sm:text-2xl font-black text-wine-800">마이페이지</h2>
           <button
             onClick={onClose}
             className="text-wine-600 hover:text-wine-800 transition-colors"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
         {/* 탭 네비게이션 */}
-        <div className="flex space-x-1 mb-6 bg-ivory-100 p-1 rounded-lg">
+        <div className="flex space-x-1 mb-4 sm:mb-6 bg-ivory-100 p-1 rounded-lg">
           <button
             onClick={() => setActiveTab('profile')}
-            className={`flex-1 py-3 px-4 rounded-lg font-bold transition-colors ${
+            className={`flex-1 py-2 sm:py-3 px-3 sm:px-4 rounded-lg font-bold transition-colors text-sm sm:text-base ${
               activeTab === 'profile'
                 ? 'bg-white text-wine-800 shadow-sm'
                 : 'text-wine-600 hover:text-wine-800'
@@ -139,7 +139,7 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
           </button>
           <button
             onClick={() => setActiveTab('orders')}
-            className={`flex-1 py-3 px-4 rounded-lg font-bold transition-colors ${
+            className={`flex-1 py-2 sm:py-3 px-3 sm:px-4 rounded-lg font-bold transition-colors text-sm sm:text-base ${
               activeTab === 'orders'
                 ? 'bg-white text-wine-800 shadow-sm'
                 : 'text-wine-600 hover:text-wine-800'
@@ -150,62 +150,62 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
         </div>
 
         {activeTab === 'profile' && user && (
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
             <div>
-              <label className="block text-sm font-bold text-wine-700 mb-2">
+              <label className="block text-xs sm:text-sm font-bold text-wine-700 mb-1 sm:mb-2">
                 이메일
               </label>
               <input
                 type="email"
                 value={user.email}
                 disabled
-                className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-lg font-medium bg-gray-100 text-gray-600 cursor-not-allowed"
+                className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-ivory-300 rounded-lg text-sm sm:text-lg font-medium bg-gray-100 text-gray-600 cursor-not-allowed"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-wine-700 mb-2">
+              <label className="block text-xs sm:text-sm font-bold text-wine-700 mb-1 sm:mb-2">
                 이름
               </label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-ivory-300 rounded-lg text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300"
                 placeholder="이름을 입력하세요"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-wine-700 mb-2">
+              <label className="block text-xs sm:text-sm font-bold text-wine-700 mb-1 sm:mb-2">
                 목장
               </label>
               <input
                 type="text"
                 value={churchGroup}
                 onChange={(e) => setChurchGroup(e.target.value)}
-                className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-ivory-300 rounded-lg text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300"
                 placeholder="목장명을 입력하세요"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-wine-700 mb-2">
+              <label className="block text-xs sm:text-sm font-bold text-wine-700 mb-1 sm:mb-2">
                 권한
               </label>
               <input
                 type="text"
                 value={user.role === 'admin' ? '관리자' : '일반 사용자'}
                 disabled
-                className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-lg font-medium bg-gray-100 text-gray-600 cursor-not-allowed"
+                className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-ivory-300 rounded-lg text-sm sm:text-lg font-medium bg-gray-100 text-gray-600 cursor-not-allowed"
               />
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 bg-gradient-wine text-black py-3 px-4 rounded-lg font-bold hover:shadow-wine transition-all duration-300 shadow-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 bg-gradient-wine text-black py-2 sm:py-3 px-3 sm:px-4 rounded-lg font-bold hover:shadow-wine transition-all duration-300 shadow-medium disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
               >
                 {loading ? '저장 중...' : '정보 수정'}
               </button>
@@ -213,7 +213,7 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
               <button
                 type="button"
                 onClick={handleLogout}
-                className="px-6 py-3 border border-red-300 text-red-600 rounded-lg font-medium hover:bg-red-50 transition-colors"
+                className="px-4 sm:px-6 py-2 sm:py-3 border border-red-300 text-red-600 rounded-lg font-medium hover:bg-red-50 transition-colors text-sm sm:text-base"
               >
                 로그아웃
               </button>
@@ -222,41 +222,41 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
         )}
 
         {activeTab === 'orders' && orderHistory && (
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             {/* 주문 통계 */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-gradient-ivory rounded-xl p-4 text-center">
-                <div className="text-2xl font-black text-wine-800">{orderHistory.total_orders}</div>
-                <div className="text-sm text-wine-600 font-medium">총 주문</div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+              <div className="bg-gradient-ivory rounded-xl p-3 sm:p-4 text-center">
+                <div className="text-lg sm:text-2xl font-black text-wine-800">{orderHistory.total_orders}</div>
+                <div className="text-xs sm:text-sm text-wine-600 font-medium">총 주문</div>
               </div>
-              <div className="bg-gradient-ivory rounded-xl p-4 text-center">
-                <div className="text-2xl font-black text-wine-800">₩{orderHistory.total_spent.toLocaleString()}</div>
-                <div className="text-sm text-wine-600 font-medium">총 결제액</div>
+              <div className="bg-gradient-ivory rounded-xl p-3 sm:p-4 text-center">
+                <div className="text-lg sm:text-2xl font-black text-wine-800">₩{orderHistory.total_spent.toLocaleString()}</div>
+                <div className="text-xs sm:text-sm text-wine-600 font-medium">총 결제액</div>
               </div>
-              <div className="bg-gradient-ivory rounded-xl p-4 text-center">
-                <div className="text-2xl font-black text-wine-800">
+              <div className="bg-gradient-ivory rounded-xl p-3 sm:p-4 text-center">
+                <div className="text-lg sm:text-2xl font-black text-wine-800">
                   {orderHistory.orders.filter(o => o.payment_status === 'confirmed').length}
                 </div>
-                <div className="text-sm text-wine-600 font-medium">결제완료</div>
+                <div className="text-xs sm:text-sm text-wine-600 font-medium">결제완료</div>
               </div>
             </div>
 
             {/* 주문 목록 */}
             <div>
-              <h3 className="text-xl font-black text-wine-800 mb-4">주문 내역</h3>
+              <h3 className="text-lg sm:text-xl font-black text-wine-800 mb-3 sm:mb-4">주문 내역</h3>
               {orderHistory.orders.length > 0 ? (
-                <div className="space-y-4 max-h-96 overflow-y-auto">
+                <div className="space-y-3 sm:space-y-4 max-h-96 overflow-y-auto">
                   {orderHistory.orders.map((order) => (
-                    <div key={order.id} className="bg-ivory-50 rounded-xl p-4 border border-ivory-200">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center space-x-3">
-                          <span className="text-lg font-bold text-wine-800">
+                    <div key={order.id} className="bg-ivory-50 rounded-xl p-3 sm:p-4 border border-ivory-200">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-2 sm:gap-0">
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                          <span className="text-sm sm:text-lg font-bold text-wine-800">
                             {new Date(order.created_at).toLocaleDateString('ko-KR')}
                           </span>
-                          <span className={`px-3 py-1 rounded-lg text-sm font-bold ${getStatusColor(order.status)}`}>
+                          <span className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm font-bold ${getStatusColor(order.status)}`}>
                             {getStatusLabel(order.status)}
                           </span>
-                          <span className={`px-3 py-1 rounded-lg text-sm font-bold ${
+                          <span className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm font-bold ${
                             order.payment_status === 'confirmed' 
                               ? 'bg-green-100 text-green-800' 
                               : 'bg-yellow-100 text-yellow-800'
@@ -264,14 +264,14 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
                             {order.payment_status === 'confirmed' ? '결제완료' : '결제대기'}
                           </span>
                         </div>
-                        <span className="text-lg font-black text-wine-800">
+                        <span className="text-sm sm:text-lg font-black text-wine-800">
                           ₩{order.total_amount.toLocaleString()}
                         </span>
                       </div>
                       
-                      <div className="space-y-2">
+                      <div className="space-y-1 sm:space-y-2">
                         {order.order_items?.map((item) => (
-                          <div key={item.id} className="flex justify-between text-sm">
+                          <div key={item.id} className="flex justify-between text-xs sm:text-sm">
                             <span className="text-wine-700">
                               {item.menu?.name} x {item.quantity}
                             </span>
@@ -283,16 +283,16 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
                       </div>
 
                       {order.notes && (
-                        <div className="mt-3 p-2 bg-wine-50 rounded-lg">
-                          <p className="text-sm text-wine-700">요청사항: {order.notes}</p>
+                        <div className="mt-2 sm:mt-3 p-2 bg-wine-50 rounded-lg">
+                          <p className="text-xs sm:text-sm text-wine-700">요청사항: {order.notes}</p>
                         </div>
                       )}
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-8">
-                  <p className="text-wine-400 text-lg">주문 내역이 없습니다.</p>
+                <div className="text-center py-6 sm:py-8">
+                  <p className="text-wine-400 text-sm sm:text-lg">주문 내역이 없습니다.</p>
                 </div>
               )}
             </div>
