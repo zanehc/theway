@@ -330,7 +330,7 @@ export default function Orders() {
                   </td>
                   {/* 상태표시버튼 */}
                   <td className="align-middle">
-                    {isAdmin && order.status !== 'cancelled' && order.status !== 'completed' && order.status !== 'ready' && (
+                    {isAdmin && order.status === 'pending' && (
                       <button
                         className="px-3 py-2 bg-blue-600 text-white rounded text-xs font-bold hover:bg-blue-700 transition"
                         onClick={() => handleStatusChangeWithNotification(order, 'preparing')}
@@ -357,7 +357,7 @@ export default function Orders() {
                     {isAdmin && order.status === 'completed' && order.payment_status !== 'confirmed' && (
                       <button
                         className="px-3 py-2 bg-purple-600 text-white rounded text-xs font-bold hover:bg-purple-700 transition"
-                        onClick={() => handleStatusChangeWithNotification(order, 'payment_confirmed')}
+                        onClick={() => handlePaymentConfirm(order.id)}
                       >
                         결제완료
                       </button>
