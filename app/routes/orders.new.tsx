@@ -39,7 +39,7 @@ export async function action({ request }: ActionFunctionArgs) {
       const { data: { user } } = await supabase.auth.getUser();
       const userId = user?.id || undefined;
 
-      await createOrder({
+      const result = await createOrder({
         user_id: userId,
         customer_name: customerName,
         church_group: churchGroup || undefined,
@@ -49,7 +49,8 @@ export async function action({ request }: ActionFunctionArgs) {
         items: items,
       });
 
-      return redirect('/orders');
+      console.log('📝 Order created successfully:', result);
+      return json({ success: true, orderId: result.id });
     } catch (error) {
       console.error('Create order error:', error);
       return json({ error: '주문 생성에 실패했습니다.' }, { status: 400 });
@@ -77,7 +78,7 @@ export default function NewOrder() {
 
   // 주문 제출 상태 확인
   const isSubmitting = fetcher.state === 'submitting';
-  const actionData = fetcher.data as { error?: string } | undefined;
+  const actionData = fetcher.data as { error?: string; success?: boolean; orderId?: string } | undefined;
 
   useEffect(() => {
     async function fetchUserInfo() {
@@ -123,10 +124,16 @@ export default function NewOrder() {
     }
   }, [menus]);
 
-  // 에러 메시지 표시
+  // 주문 생성 결과 처리
   useEffect(() => {
     if (actionData?.error) {
       alert(actionData.error);
+    } else if (actionData?.success) {
+      console.log('✅ Order created successfully, redirecting to orders page...');
+      alert('주문이 성공적으로 생성되었습니다!');
+      
+      // 주문 현황 페이지로 이동 (실시간 업데이트가 작동하도록)
+      window.location.href = '/orders?status=pending';
     }
   }, [actionData]);
 

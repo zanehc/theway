@@ -163,7 +163,12 @@ export default function Header() {
             <div>
               <h1 className="text-lg sm:text-2xl font-black text-wine-800 tracking-tight leading-tight drop-shadow-sm">
                 길을여는교회<br />
-                <span className="text-wine-600">이음카페</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-wine-600">이음카페</span>
+                  <span className="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-xs px-2 py-1 rounded-full font-bold shadow-sm">
+                    Beta
+                  </span>
+                </div>
               </h1>
             </div>
           </Link>

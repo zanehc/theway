@@ -123,93 +123,192 @@ export default function Orders() {
     getUserAndRole();
   }, []);
 
+  // 주문 취소 핸들러
+  const handleOrderCancel = async (order: any) => {
+    try {
+      console.log('❌ Cancelling order:', order.id);
+      
+      const { error } = await supabase
+        .from('orders')
+        .update({ 
+          status: 'cancelled',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', order.id);
+
+      if (error) {
+        console.error('Cancel order error:', error);
+        alert('주문 취소에 실패했습니다.');
+      } else {
+        console.log('Order cancelled successfully:', order.id);
+        
+        // 즉시 로컬 상태 업데이트
+        setOrders((prevOrders: any[]) => {
+          const updatedOrders = prevOrders.map((o: any) => 
+            o.id === order.id 
+              ? { ...o, status: 'cancelled', updated_at: new Date().toISOString() }
+              : o
+          );
+          console.log('Immediately updated orders state after cancellation:', updatedOrders);
+          return updatedOrders;
+        });
+        
+        // 취소 알림 생성 (고객에게만)
+        if (order.user_id) {
+          console.log('📱 Creating cancellation notification for user:', order.user_id);
+          
+          const orderTime = new Date(order.created_at).toLocaleString('ko-KR', {
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+          
+          const menuNames = order.order_items?.map((item: any) => 
+            `${item.menu?.name} ${item.quantity}개`
+          ).join(', ') || '주문 메뉴';
+          
+          const message = `${order.customer_name}이/가 ${orderTime}에 주문하신 ${menuNames}가 취소되었습니다`;
+          
+          console.log('📝 Cancellation notification message:', message);
+          
+          await createNotification({
+            user_id: order.user_id,
+            order_id: order.id,
+            type: 'order_cancelled',
+            message
+          });
+          
+          console.log('✅ Cancellation notification completed');
+        }
+      }
+    } catch (error) {
+      console.error('Order cancel error:', error);
+      alert('주문 취소에 실패했습니다.');
+    }
+  };
+
   // Supabase Realtime: 주문 실시간 업데이트 (관리자: 전체, 고객: 본인 주문만)
   useEffect(() => {
     if (loading) return;
     if (!userRole) return;
     if (!user && userRole !== 'admin') return;
 
-    let filter = {};
-    if (userRole !== 'admin') {
-      // 고객: 본인 주문만 구독
-      filter = { filter: `user_id=eq.${user.id}` };
-      console.log('👤 고객 주문 실시간 구독:', user.id);
-    } else {
-      console.log('🛠️ 관리자 전체 주문 실시간 구독');
-    }
+    console.log('🔄 Setting up realtime subscription...', { userRole, userId: user?.id });
 
-    const channel = supabase
-      .channel('orders-realtime')
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'orders',
-        ...filter,
-      }, async (payload) => {
-        const newOrder = payload.new;
-        // ... (기존 코드 동일)
-        setNewOrderAlert({
-          customer: newOrder.customer_name,
-          church: newOrder.church_group || '',
-        });
-        // ... (음성, 알림 등)
-        try {
-          const { data: orderWithItems } = await supabase
-            .from('orders')
-            .select(`*, order_items (*, menu:menus (*))`)
-            .eq('id', newOrder.id)
-            .single();
-          if (orderWithItems) {
-            setOrders((prevOrders: any[]) => [orderWithItems, ...prevOrders]);
+    // 실시간 구독 설정
+    const setupRealtime = async () => {
+      const channel = supabase
+        .channel(`orders-realtime-${userRole}-${user?.id || 'admin'}`)
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'orders',
+          filter: userRole !== 'admin' ? `user_id=eq.${user.id}` : undefined,
+        }, async (payload) => {
+          console.log('📦 New order received:', payload.new);
+          const newOrder = payload.new;
+          
+          // 새 주문 알림 (관리자만)
+          if (userRole === 'admin') {
+            setNewOrderAlert({
+              customer: newOrder.customer_name,
+              church: newOrder.church_group || '',
+            });
           }
-        } catch (error) {
-          console.error('Error fetching new order details:', error);
-        }
-      })
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'orders',
-        ...filter,
-      }, async (payload) => {
-        const updatedOrder = payload.new;
-        try {
-          const { data: orderWithItems } = await supabase
-            .from('orders')
-            .select(`*, order_items (*, menu:menus (*))`)
-            .eq('id', updatedOrder.id)
-            .single();
-          if (orderWithItems) {
+          
+          try {
+            const { data: orderWithItems } = await supabase
+              .from('orders')
+              .select(`*, order_items (*, menu:menus (*))`)
+              .eq('id', newOrder.id)
+              .single();
+            
+            if (orderWithItems) {
+              console.log('✅ Adding new order to state:', orderWithItems);
+              setOrders((prevOrders: any[]) => {
+                // 중복 방지
+                const exists = prevOrders.find(o => o.id === orderWithItems.id);
+                if (exists) {
+                  console.log('⚠️ Order already exists in state, skipping');
+                  return prevOrders;
+                }
+                return [orderWithItems, ...prevOrders];
+              });
+            }
+          } catch (error) {
+            console.error('❌ Error fetching new order details:', error);
+          }
+        })
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: userRole !== 'admin' ? `user_id=eq.${user.id}` : undefined,
+        }, async (payload) => {
+          console.log('🔄 Order updated:', payload.new);
+          const updatedOrder = payload.new;
+          
+          try {
+            const { data: orderWithItems } = await supabase
+              .from('orders')
+              .select(`*, order_items (*, menu:menus (*))`)
+              .eq('id', updatedOrder.id)
+              .single();
+            
+            if (orderWithItems) {
+              console.log('✅ Updating order in state:', orderWithItems);
+              setOrders((prevOrders: any[]) =>
+                prevOrders.map((order: any) =>
+                  order.id === updatedOrder.id ? orderWithItems : order
+                )
+              );
+            }
+          } catch (error) {
+            console.error('❌ Error fetching updated order details:', error);
+            // 폴백: 기본 업데이트
             setOrders((prevOrders: any[]) =>
               prevOrders.map((order: any) =>
-                order.id === updatedOrder.id ? orderWithItems : order
+                order.id === updatedOrder.id ? { ...order, ...updatedOrder } : order
               )
             );
           }
-        } catch (error) {
+        })
+        .on('postgres_changes', {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'orders',
+          filter: userRole !== 'admin' ? `user_id=eq.${user.id}` : undefined,
+        }, (payload) => {
+          console.log('🗑️ Order deleted:', payload.old);
+          const deletedOrderId = payload.old.id;
           setOrders((prevOrders: any[]) =>
-            prevOrders.map((order: any) =>
-              order.id === updatedOrder.id ? { ...order, ...updatedOrder } : order
-            )
+            prevOrders.filter((order: any) => order.id !== deletedOrderId)
           );
+        });
+
+      channel.subscribe((status) => {
+        console.log('📡 Realtime subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Realtime subscription active');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Realtime subscription failed');
         }
-      })
-      .on('postgres_changes', {
-        event: 'DELETE',
-        schema: 'public',
-        table: 'orders',
-        ...filter,
-      }, (payload) => {
-        const deletedOrderId = payload.old.id;
-        setOrders((prevOrders: any[]) =>
-          prevOrders.filter((order: any) => order.id !== deletedOrderId)
-        );
-      })
-      .subscribe((status) => {
-        console.log('Realtime subscription status:', status);
       });
+
+      return channel;
+    };
+
+    let channel: any = null;
+    setupRealtime().then(ch => {
+      channel = ch;
+    });
+
     return () => {
-      channel.unsubscribe();
+      console.log('🔌 Cleaning up realtime subscription');
+      if (channel) {
+        channel.unsubscribe();
+      }
       if (alertTimeout.current) clearTimeout(alertTimeout.current);
     };
   }, [userRole, user, loading]);
@@ -557,16 +656,31 @@ export default function Orders() {
                   )}
                   {/* 주문취소버튼 */}
                   <td className="align-middle">
+                    {/* 관리자: 대기 상태 주문만 취소 가능 */}
                     {isAdmin && order.status === 'pending' && (
                       <button
                         className="px-3 py-2 bg-red-600 text-white rounded text-xs font-bold hover:bg-red-700 transition"
-                        onClick={() => handleStatusChange(order.id, 'cancelled')}
+                        onClick={() => handleOrderCancel(order)}
                       >
                         주문취소
                       </button>
                     )}
+                    {/* 고객: 본인 주문이고 대기 상태일 때만 취소 가능 */}
+                    {!isAdmin && order.user_id === user?.id && order.status === 'pending' && (
+                      <button
+                        className="px-3 py-2 bg-red-600 text-white rounded text-xs font-bold hover:bg-red-700 transition"
+                        onClick={() => handleOrderCancel(order)}
+                      >
+                        주문취소
+                      </button>
+                    )}
+                    {/* 취소된 주문 표시 */}
                     {order.status === 'cancelled' && (
                       <span className="text-xs text-red-600 font-medium">취소됨</span>
+                    )}
+                    {/* 취소 불가능한 상태 표시 */}
+                    {order.status !== 'pending' && order.status !== 'cancelled' && (
+                      <span className="text-xs text-gray-500 font-medium">취소불가</span>
                     )}
                   </td>
                 </tr>
