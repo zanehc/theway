@@ -311,12 +311,12 @@ export default function Orders() {
             <thead>
               <tr className="bg-ivory-100 text-wine-700 text-sm">
                 <th className="px-2 py-2">연번</th>
-                <th className="px-2 py-2">주문자<br/><span className="text-xs text-wine-400">(이름/목장)</span></th>
+                <th className="px-2 py-2">주문자</th>
                 <th className="px-2 py-2">상태</th>
                 <th className="px-2 py-2">주문시간</th>
                 <th className="px-2 py-2">주문메뉴</th>
                 <th className="px-2 py-2">총금액</th>
-                <th className="px-2 py-2">상태변경</th>
+                {isAdmin && <th className="px-2 py-2">상태변경</th>}
                 <th className="px-2 py-2">취소</th>
               </tr>
             </thead>
@@ -325,10 +325,12 @@ export default function Orders() {
                 <tr key={order.id} className="bg-ivory-50">
                   {/* 연번 */}
                   <td className="align-middle font-bold text-wine-700">{idx + 1}</td>
-                  {/* 주문자(2행) */}
+                  {/* 주문자 */}
                   <td className="align-middle">
                     <div className="font-bold text-wine-800">{order.customer_name}</div>
-                    <div className="text-xs text-wine-600">{order.church_group || '-'}</div>
+                    {order.church_group && (
+                      <div className="text-xs text-wine-600">{order.church_group}</div>
+                    )}
                   </td>
                   {/* 상태뱃지 */}
                   <td className="align-middle">
@@ -349,7 +351,8 @@ export default function Orders() {
                   </td>
                   {/* 주문시간 */}
                   <td className="align-middle text-xs text-wine-700">
-                    {new Date(order.created_at).toLocaleString('ko-KR')}
+                    <div>{new Date(order.created_at).toLocaleDateString('ko-KR')}</div>
+                    <div>{new Date(order.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</div>
                   </td>
                   {/* 주문메뉴(여러 행) */}
                   <td className="align-middle">
@@ -366,52 +369,57 @@ export default function Orders() {
                     ₩{order.total_amount.toLocaleString()}
                   </td>
                   {/* 상태표시버튼 */}
-                  <td className="align-middle">
-                    {isAdmin && order.status === 'pending' && (
-                      <button
-                        className="px-3 py-2 bg-blue-600 text-white rounded text-xs font-bold hover:bg-blue-700 transition"
-                        onClick={() => handleStatusChangeWithNotification(order, 'preparing')}
-                      >
-                        제조시작
-                      </button>
-                    )}
-                    {isAdmin && order.status === 'preparing' && (
-                      <button
-                        className="px-3 py-2 bg-green-600 text-white rounded text-xs font-bold hover:bg-green-700 transition"
-                        onClick={() => handleStatusChangeWithNotification(order, 'ready')}
-                      >
-                        제조완료
-                      </button>
-                    )}
-                    {isAdmin && order.status === 'ready' && (
-                      <button
-                        className="px-3 py-2 bg-wine-600 text-white rounded text-xs font-bold hover:bg-wine-700 transition"
-                        onClick={() => handleStatusChangeWithNotification(order, 'completed')}
-                      >
-                        픽업완료
-                      </button>
-                    )}
-                    {isAdmin && order.status === 'completed' && order.payment_status !== 'confirmed' && (
-                      <button
-                        className="px-3 py-2 bg-purple-600 text-white rounded text-xs font-bold hover:bg-purple-700 transition"
-                        onClick={() => handlePaymentConfirm(order)}
-                      >
-                        결제완료
-                      </button>
-                    )}
-                    {isAdmin && ((order.status === 'completed' && order.payment_status === 'confirmed') || order.status === 'cancelled') && (
-                      <span className="text-xs text-wine-400">종료</span>
-                    )}
-                  </td>
+                  {isAdmin && (
+                    <td className="align-middle">
+                      {order.status === 'pending' && (
+                        <button
+                          className="px-3 py-2 bg-blue-600 text-white rounded text-xs font-bold hover:bg-blue-700 transition"
+                          onClick={() => handleStatusChangeWithNotification(order, 'preparing')}
+                        >
+                          제조시작
+                        </button>
+                      )}
+                      {order.status === 'preparing' && (
+                        <button
+                          className="px-3 py-2 bg-green-600 text-white rounded text-xs font-bold hover:bg-green-700 transition"
+                          onClick={() => handleStatusChangeWithNotification(order, 'ready')}
+                        >
+                          제조완료
+                        </button>
+                      )}
+                      {order.status === 'ready' && (
+                        <button
+                          className="px-3 py-2 bg-wine-600 text-white rounded text-xs font-bold hover:bg-wine-700 transition"
+                          onClick={() => handleStatusChangeWithNotification(order, 'completed')}
+                        >
+                          픽업완료
+                        </button>
+                      )}
+                      {order.status === 'completed' && order.payment_status !== 'confirmed' && (
+                        <button
+                          className="px-3 py-2 bg-purple-600 text-white rounded text-xs font-bold hover:bg-purple-700 transition"
+                          onClick={() => handlePaymentConfirm(order)}
+                        >
+                          결제완료
+                        </button>
+                      )}
+                      {((order.status === 'completed' && order.payment_status === 'confirmed') || order.status === 'cancelled') && (
+                        <span className="text-xs text-gray-500 font-medium">종료</span>
+                      )}
+                    </td>
+                  )}
                   {/* 주문취소버튼 */}
                   <td className="align-middle">
-                    {isAdmin && order.status !== 'cancelled' && order.status !== 'completed' && (
+                    {isAdmin && order.status === 'pending' && (
                       <button
                         className="px-3 py-2 bg-red-600 text-white rounded text-xs font-bold hover:bg-red-700 transition"
                         onClick={() => handleStatusChange(order.id, 'cancelled')}
                       >
                         주문취소
                       </button>
+                    )}
+                    {order.status === 'cancelled' && (
+                      <span className="text-xs text-red-600 font-medium">취소됨</span>
                     )}
                   </td>
                 </tr>
