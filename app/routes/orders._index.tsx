@@ -225,21 +225,42 @@ export default function Orders() {
     return statusOptions.find(option => option.value === status)?.label || status;
   };
 
-  const handleStatusChange = (orderId: string, newStatus: OrderStatus) => {
-    const formData = new FormData();
-    formData.append('intent', 'updateStatus');
-    formData.append('orderId', orderId);
-    formData.append('status', newStatus);
-    fetcher.submit(formData, { method: 'post' });
+  const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ 
+          status: newStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', orderId);
+
+      if (error) {
+        console.error('Update status error:', error);
+        alert('상태 업데이트에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('Status change error:', error);
+      alert('상태 업데이트에 실패했습니다.');
+    }
   };
 
   const handlePaymentConfirm = async (order: any) => {
     try {
-      const formData = new FormData();
-      formData.append('intent', 'updatePayment');
-      formData.append('orderId', order.id);
-      formData.append('paymentStatus', 'confirmed');
-      fetcher.submit(formData, { method: 'post' });
+      // 결제 상태 업데이트
+      const { error } = await supabase
+        .from('orders')
+        .update({ 
+          payment_status: 'confirmed',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', order.id);
+
+      if (error) {
+        console.error('Update payment status error:', error);
+        alert('결제 상태 업데이트에 실패했습니다.');
+        return;
+      }
       
       // 결제완료 알림 생성
       if (order.user_id) {
@@ -265,6 +286,7 @@ export default function Orders() {
       }
     } catch (error) {
       console.error('Payment confirm with notification error:', error);
+      alert('결제 상태 업데이트에 실패했습니다.');
     }
   };
 
