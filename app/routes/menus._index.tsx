@@ -203,6 +203,7 @@ export default function Menus() {
   const [editingMenu, setEditingMenu] = useState<Menu | null>(null);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [shouldRemoveImage, setShouldRemoveImage] = useState(false);
 
   // 에러 메시지 표시
   useEffect(() => {
@@ -230,6 +231,7 @@ export default function Menus() {
       }
       
       setSelectedImage(file);
+      setShouldRemoveImage(false); // 새 이미지 선택 시 삭제 플래그 초기화
       const reader = new FileReader();
       reader.onload = (e) => {
         setImagePreview(e.target?.result as string);
@@ -244,6 +246,7 @@ export default function Menus() {
   const resetImageInput = () => {
     setSelectedImage(null);
     setImagePreview(null);
+    setShouldRemoveImage(false);
     // 파일 입력 필드 초기화
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
     if (fileInput) {
@@ -335,16 +338,17 @@ export default function Menus() {
                </div>
                
                <div className="flex gap-1">
-                 <button
-                   onClick={() => {
-                     setEditingMenu(menu);
-                     setSelectedImage(null);
-                     setImagePreview(null);
-                   }}
-                   className="flex-1 bg-wine-100 text-wine-700 py-1 px-2 rounded font-bold hover:bg-wine-200 transition-colors text-xs"
-                 >
-                   수정
-                 </button>
+                                    <button
+                     onClick={() => {
+                       setEditingMenu(menu);
+                       setSelectedImage(null);
+                       setImagePreview(null);
+                       setShouldRemoveImage(false);
+                     }}
+                     className="flex-1 bg-wine-100 text-wine-700 py-1 px-2 rounded font-bold hover:bg-wine-200 transition-colors text-xs"
+                   >
+                     수정
+                   </button>
                  <fetcher.Form method="post" className="flex-1">
                    <input type="hidden" name="intent" value="deleteMenu" />
                    <input type="hidden" name="id" value={menu.id} />
@@ -470,7 +474,7 @@ export default function Menus() {
                <fetcher.Form method="post" onSubmit={handleSubmit} className="space-y-4">
                  <input type="hidden" name="intent" value="updateMenu" />
                  <input type="hidden" name="id" value={editingMenu.id} />
-                 <input type="hidden" name="removeImage" value={editingMenu.image_url === null ? 'true' : 'false'} />
+                 <input type="hidden" name="removeImage" value={shouldRemoveImage ? 'true' : 'false'} />
                  <input type="hidden" name="hasNewImage" value={selectedImage ? 'true' : 'false'} />
                  
                  <div>
@@ -533,8 +537,14 @@ export default function Menus() {
                          onClick={() => {
                            if (confirm('현재 이미지를 삭제하시겠습니까?')) {
                              console.log('Removing image from editing menu');
-                             setEditingMenu({ ...editingMenu, image_url: null });
-                             resetImageInput();
+                             setShouldRemoveImage(true);
+                             setSelectedImage(null);
+                             setImagePreview(null);
+                             // 파일 입력 필드 초기화
+                             const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+                             if (fileInput) {
+                               fileInput.value = '';
+                             }
                            }
                          }}
                          className="mt-1 text-xs text-red-600 hover:text-red-800 font-medium"
@@ -564,6 +574,7 @@ export default function Menus() {
                        setEditingMenu(null);
                        setSelectedImage(null);
                        setImagePreview(null);
+                       setShouldRemoveImage(false);
                      }}
                      className="flex-1 bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-bold hover:bg-gray-200 transition-colors"
                    >
