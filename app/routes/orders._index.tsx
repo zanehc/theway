@@ -177,17 +177,44 @@ export default function Orders() {
         event: 'UPDATE',
         schema: 'public',
         table: 'orders',
-      }, (payload) => {
+      }, async (payload) => {
         const updatedOrder = payload.new;
+        console.log('Realtime UPDATE received:', updatedOrder);
         
-        // 주문 목록에서 해당 주문 업데이트
-        setOrders((prevOrders: any[]) => 
-          prevOrders.map((order: any) => 
-            order.id === updatedOrder.id 
-              ? { ...order, ...updatedOrder }
-              : order
-          )
-        );
+        // 주문 목록에서 해당 주문 업데이트 (order_items 포함)
+        try {
+          const { data: orderWithItems } = await supabase
+            .from('orders')
+            .select(`
+              *,
+              order_items (
+                *,
+                menu:menus (*)
+              )
+            `)
+            .eq('id', updatedOrder.id)
+            .single();
+          
+          if (orderWithItems) {
+            setOrders((prevOrders: any[]) => 
+              prevOrders.map((order: any) => 
+                order.id === updatedOrder.id 
+                  ? orderWithItems
+                  : order
+              )
+            );
+          }
+        } catch (error) {
+          console.error('Error fetching updated order details:', error);
+          // fallback: 기본 업데이트
+          setOrders((prevOrders: any[]) => 
+            prevOrders.map((order: any) => 
+              order.id === updatedOrder.id 
+                ? { ...order, ...updatedOrder }
+                : order
+            )
+          );
+        }
       })
       .on('postgres_changes', {
         event: 'DELETE',
@@ -227,6 +254,8 @@ export default function Orders() {
 
   const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
     try {
+      console.log('Updating order status:', orderId, 'to', newStatus);
+      
       const { error } = await supabase
         .from('orders')
         .update({ 
@@ -238,6 +267,8 @@ export default function Orders() {
       if (error) {
         console.error('Update status error:', error);
         alert('상태 업데이트에 실패했습니다.');
+      } else {
+        console.log('Status updated successfully:', orderId, 'to', newStatus);
       }
     } catch (error) {
       console.error('Status change error:', error);
