@@ -293,6 +293,8 @@ export default function Orders() {
           setNewOrderAlert({
             customer: newOrder.customer_name,
             church: newOrder.church_group || '',
+            message: '주문이 완료되었습니다',
+            status: 'pending'
           });
         }
         try {
@@ -905,9 +907,6 @@ export default function Orders() {
             ) : (
               <>
                 <span className="text-yellow-700 font-bold">{newOrderAlert.church || '새'}</span> 주문이 들어왔습니다!<br />
-                {isAdmin && (
-                  <span className="text-sm text-ivory-200">(클릭 시 대기중 주문으로 이동)</span>
-                )}
               </>
             )}
           </span>
