@@ -90,7 +90,7 @@ export default function Orders() {
   const [orders, setOrders] = useState<any[]>(initialOrders);
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus | ''>(currentStatus as OrderStatus | '' || '');
   const [loading, setLoading] = useState(true);
-  const [newOrderAlert, setNewOrderAlert] = useState<{customer: string, church: string} | null>(null);
+  const [newOrderAlert, setNewOrderAlert] = useState<{customer: string, church: string, message?: string, status?: OrderStatus} | null>(null);
   const alertTimeout = useRef<NodeJS.Timeout | null>(null);
   const [user, setUser] = useState<any>(null);
   const [userRoleState, setUserRole] = useState<string | null>(userRole);
@@ -332,6 +332,38 @@ export default function Orders() {
                 order.id === updatedOrder.id ? orderWithItems : order
               )
             );
+            // 상태변경 팝업 알림 (고객)
+            if (userRoleState === 'customer' && user?.id === orderWithItems.user_id) {
+              // 이전 상태와 현재 상태 비교
+              const prevOrder = orders.find((o: any) => o.id === updatedOrder.id);
+              const prevStatus = prevOrder?.status;
+              const currStatus = orderWithItems.status;
+              let alertMsg = '';
+              let alertStatus: OrderStatus | null = null;
+              if (prevStatus === 'pending' && currStatus === 'preparing') {
+                alertMsg = '주문하신 주문이 제조중입니다';
+                alertStatus = 'preparing';
+              } else if (prevStatus === 'preparing' && currStatus === 'ready') {
+                alertMsg = '주문하신 주문이 제조완료되었습니다';
+                alertStatus = 'ready';
+              } else if (prevStatus === 'ready' && currStatus === 'completed') {
+                alertMsg = '주문하신 주문이 픽업되었습니다';
+                alertStatus = 'completed';
+              } else if (prevStatus === 'completed' && orderWithItems.payment_status === 'confirmed' && prevOrder?.payment_status !== 'confirmed') {
+                alertMsg = '주문하신 주문이 결제완료되었습니다';
+                alertStatus = 'completed';
+              }
+              if (alertMsg && alertStatus) {
+                setNewOrderAlert({
+                  customer: '',
+                  church: '',
+                  message: alertMsg,
+                  status: alertStatus
+                });
+                if (alertTimeout.current) clearTimeout(alertTimeout.current);
+                alertTimeout.current = setTimeout(() => setNewOrderAlert(null), 5000);
+              }
+            }
           }
         } catch (error) {
           console.error('❌ Error fetching updated order details:', error);
@@ -858,14 +890,20 @@ export default function Orders() {
       {/* 새 주문 알림 배너 (관리자/고객) */}
       {newOrderAlert && (
         <div
-          className={`fixed top-4 left-1/2 -translate-x-1/2 z-[99999] px-6 py-4 rounded-xl shadow-2xl font-bold text-lg flex items-center gap-4 cursor-pointer animate-fade-in ${getStatusBgColor('pending')} ${getStatusColor('pending')}`}
+          className={`fixed top-4 left-1/2 -translate-x-1/2 z-[99999] px-6 py-4 rounded-xl shadow-2xl font-bold text-lg flex items-center gap-4 cursor-pointer animate-fade-in ${getStatusBgColor(newOrderAlert.status || 'pending')} ${getStatusColor(newOrderAlert.status || 'pending')}`}
           onClick={() => setNewOrderAlert(null)}
         >
           <span>🛎️</span>
           <span>
-            <span className="text-yellow-700 font-bold">{newOrderAlert.church || '새'}</span> 주문이 들어왔습니다!<br />
-            {isAdmin && (
-              <span className="text-sm text-ivory-200">(클릭 시 대기중 주문으로 이동)</span>
+            {newOrderAlert.message ? (
+              <span>{newOrderAlert.message}</span>
+            ) : (
+              <>
+                <span className="text-yellow-700 font-bold">{newOrderAlert.church || '새'}</span> 주문이 들어왔습니다!<br />
+                {isAdmin && (
+                  <span className="text-sm text-ivory-200">(클릭 시 대기중 주문으로 이동)</span>
+                )}
+              </>
             )}
           </span>
         </div>
