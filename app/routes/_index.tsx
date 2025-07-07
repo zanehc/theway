@@ -131,6 +131,10 @@ export default function Index() {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [pendingOrders, setPendingOrders] = useState(todayPendingOrders);
+  const [readyOrders, setReadyOrders] = useState(todayReadyOrders);
+  const [statusStats, setStatusStats] = useState(todayStatusStats);
+
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -163,6 +167,34 @@ export default function Index() {
       setLoading(false);
     });
     return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    // 실시간 구독
+    const channel = supabase
+      .channel('orders-realtime-dashboard')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, async () => {
+        // 주문 데이터 새로고침
+        const [pending, ready] = await Promise.all([
+          supabase.from('orders').select('*, order_items(*)').eq('status', 'pending'),
+          supabase.from('orders').select('*, order_items(*)').eq('status', 'ready'),
+        ]);
+        setPendingOrders(pending.data || []);
+        setReadyOrders(ready.data || []);
+
+        // 상태별 통계 새로고침
+        const { data: allOrders } = await supabase.from('orders').select('status, payment_status');
+        const stats = { pending: 0, preparing: 0, ready: 0, completed: 0, cancelled: 0, confirmedOrders: 0 };
+        allOrders?.forEach((order: any) => {
+          if (!order) return;
+          const status = String(order.status) as keyof typeof stats;
+          if (status in stats) stats[status] = (stats[status] || 0) + 1;
+          if(order.payment_status === 'confirmed') stats.confirmedOrders += 1;
+        });
+        setStatusStats(stats);
+      })
+      .subscribe();
+    return () => { channel.unsubscribe(); };
   }, []);
 
   // 타입 안전성을 위한 문자열 변환
@@ -214,7 +246,7 @@ export default function Index() {
                   <svg className="w-5 h-5 sm:w-8 sm:h-8 text-wine-600 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <h3 className="text-xl sm:text-2xl font-black text-wine-700 mb-1">{todayStatusStats.pending}</h3>
+                  <h3 className="text-xl sm:text-2xl font-black text-wine-700 mb-1">{statusStats.pending}</h3>
                   <p className="text-xs sm:text-sm text-wine-600 font-bold">대기중</p>
                 </div>
               </div>
@@ -224,7 +256,7 @@ export default function Index() {
                   <svg className="w-5 h-5 sm:w-8 sm:h-8 text-wine-600 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                   </svg>
-                  <h3 className="text-xl sm:text-2xl font-black text-wine-700 mb-1">{todayStatusStats.preparing}</h3>
+                  <h3 className="text-xl sm:text-2xl font-black text-wine-700 mb-1">{statusStats.preparing}</h3>
                   <p className="text-xs sm:text-sm text-wine-600 font-bold">제조중</p>
                 </div>
               </div>
@@ -234,7 +266,7 @@ export default function Index() {
                   <svg className="w-5 h-5 sm:w-8 sm:h-8 text-wine-600 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <h3 className="text-xl sm:text-2xl font-black text-wine-700 mb-1">{todayStatusStats.ready}</h3>
+                  <h3 className="text-xl sm:text-2xl font-black text-wine-700 mb-1">{statusStats.ready}</h3>
                   <p className="text-xs sm:text-sm text-wine-600 font-bold">제조완료</p>
                 </div>
               </div>
@@ -245,7 +277,7 @@ export default function Index() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 20h9" />
                     <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth={2} fill="none" />
                   </svg>
-                  <h3 className="text-xl sm:text-2xl font-black text-wine-700 mb-1">{todayStatusStats.confirmedOrders}</h3>
+                  <h3 className="text-xl sm:text-2xl font-black text-wine-700 mb-1">{statusStats.confirmedOrders}</h3>
                   <p className="text-xs sm:text-sm text-wine-600 font-bold">결제완료</p>
                 </div>
               </div>
@@ -267,17 +299,14 @@ export default function Index() {
                     </tr>
                   </thead>
                   <tbody>
-                    {todayPendingOrders && todayPendingOrders.length > 0 ? (
-                      todayPendingOrders.map((order, idx) => {
-                        const totalQuantity = order.order_items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
-                        return (
-                          <tr key={order.id} className="bg-ivory-50 text-xs">
-                            <td className="font-bold text-wine-700 px-1 py-1">{idx + 1}</td>
-                            <td className="text-wine-800 px-1 py-1">{order.church_group || '-'}</td>
-                            <td className="text-wine-700 px-1 py-1">{totalQuantity}잔</td>
-                          </tr>
-                        );
-                      })
+                    {pendingOrders && pendingOrders.length > 0 ? (
+                      pendingOrders.map((order, idx) => order ? (
+                        <tr key={order.id} className="bg-ivory-50 text-xs">
+                          <td className="font-bold text-wine-700 px-1 py-1">{idx + 1}</td>
+                          <td className="text-wine-800 px-1 py-1">{order.church_group || '-'}</td>
+                          <td className="text-wine-700 px-1 py-1">{order.order_items?.reduce((sum: number, item: any) => sum + item.quantity, 0) || 0}잔</td>
+                        </tr>
+                      ) : null)
                     ) : (
                       <tr>
                         <td colSpan={3} className="text-wine-400 text-xs py-2">대기중 주문 없음</td>
@@ -300,17 +329,14 @@ export default function Index() {
                     </tr>
                   </thead>
                   <tbody>
-                    {todayReadyOrders && todayReadyOrders.length > 0 ? (
-                      todayReadyOrders.map((order, idx) => {
-                        const totalQuantity = order.order_items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
-                        return (
-                          <tr key={order.id} className="bg-ivory-50 text-xs">
-                            <td className="font-bold text-wine-700 px-1 py-1">{idx + 1}</td>
-                            <td className="text-wine-800 px-1 py-1">{order.church_group || '-'}</td>
-                            <td className="text-wine-700 px-1 py-1">{totalQuantity}잔</td>
-                          </tr>
-                        );
-                      })
+                    {readyOrders && readyOrders.length > 0 ? (
+                      readyOrders.map((order, idx) => order ? (
+                        <tr key={order.id} className="bg-ivory-50 text-xs">
+                          <td className="font-bold text-wine-700 px-1 py-1">{idx + 1}</td>
+                          <td className="text-wine-800 px-1 py-1">{order.church_group || '-'}</td>
+                          <td className="text-wine-700 px-1 py-1">{order.order_items?.reduce((sum: number, item: any) => sum + item.quantity, 0) || 0}잔</td>
+                        </tr>
+                      ) : null)
                     ) : (
                       <tr>
                         <td colSpan={3} className="text-wine-400 text-xs py-2">제조완료 주문 없음</td>
@@ -330,7 +356,7 @@ export default function Index() {
             <div className="bg-gradient-ivory rounded-xl shadow-soft p-4 sm:p-6">
               <h3 className="text-lg sm:text-xl font-black text-wine-800 mb-4 text-center">최근 4주간 주간매출</h3>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                {weeklySales.map((week) => (
+                {weeklySales.map((week) => week ? (
                   <div key={week.weekNumber} className="bg-white rounded-xl p-4 text-center border border-wine-200">
                     <h4 className="text-sm font-bold text-wine-700 mb-2">{week.label}</h4>
                     <div className="space-y-2">
@@ -344,7 +370,7 @@ export default function Index() {
                       </div>
                     </div>
                   </div>
-                ))}
+                ) : null)}
               </div>
             </div>
           </div>
@@ -360,7 +386,7 @@ export default function Index() {
               <>
                 {/* 모바일: 카드형 */}
                 <div className="block sm:hidden space-y-3">
-                  {recentOrders.slice(0, 5).map((order, idx) => order && (
+                  {recentOrders.slice(0, 5).map((order: any, idx: number) => order && (
                     <div key={order.id} className="bg-ivory-50 rounded-xl border border-wine-100 p-3 flex flex-col gap-1">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs text-wine-400">#{idx + 1}</span>
@@ -369,7 +395,7 @@ export default function Index() {
                       <div className="font-bold text-wine-800 text-sm">{order.customer_name}</div>
                       <div className="text-xs text-wine-600">{order.church_group || '-'}</div>
                       <div className="flex flex-wrap gap-1 text-xs text-wine-700">
-                        {order.order_items?.map(item => (
+                        {order.order_items?.map((item: any) => (
                           <span key={item.id}>{item.menu?.name} x{item.quantity}</span>
                         ))}
                       </div>
@@ -432,7 +458,7 @@ export default function Index() {
                       </tr>
                     </thead>
                     <tbody>
-                      {recentOrders.slice(0, 5).map((order, idx) => (
+                      {recentOrders.slice(0, 5).map((order: any, idx: number) => (
                         order ? (
                           <tr key={order.id} className="bg-ivory-50">
                             {/* 연번 */}
@@ -445,7 +471,7 @@ export default function Index() {
                             {/* 주문메뉴 */}
                             <td className="align-middle">
                               <div className="flex flex-col gap-1 items-center">
-                                {order.order_items?.map(item => (
+                                {order.order_items?.map((item: any) => (
                                   <div key={item.id} className="text-xs sm:text-sm text-wine-700">
                                     {item.menu?.name} x {item.quantity}
                                   </div>

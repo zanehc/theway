@@ -18,6 +18,7 @@ export default function Header() {
   const [loginSuccess, setLoginSuccess] = useState(false);
   const [userNotification, setUserNotification] = useState<{message: string} | null>(null);
   const notifTimeout = useRef<NodeJS.Timeout | null>(null);
+  const [orderStats, setOrderStats] = useState({ pending: 0, preparing: 0, ready: 0, completed: 0, cancelled: 0, confirmedOrders: 0 });
 
   useEffect(() => {
     // 현재 사용자 상태 확인
@@ -96,6 +97,25 @@ export default function Header() {
       if (notifTimeout.current) clearTimeout(notifTimeout.current);
     };
   }, [user]);
+
+  useEffect(() => {
+    // 주문 상태별 숫자 실시간 구독
+    const channel = supabase
+      .channel('orders-realtime-header')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, async () => {
+        const { data: allOrders } = await supabase.from('orders').select('status, payment_status');
+        const stats = { pending: 0, preparing: 0, ready: 0, completed: 0, cancelled: 0, confirmedOrders: 0 };
+        allOrders?.forEach((order: any) => {
+          if (!order) return;
+          const status = String(order.status) as keyof typeof stats;
+          if (status in stats) stats[status] = (stats[status] || 0) + 1;
+          if(order.payment_status === 'confirmed') stats.confirmedOrders += 1;
+        });
+        setOrderStats(stats);
+      })
+      .subscribe();
+    return () => { channel.unsubscribe(); };
+  }, []);
 
   const handleLogout = async () => {
     try {

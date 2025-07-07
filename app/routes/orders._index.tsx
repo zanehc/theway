@@ -1,11 +1,12 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, Link } from "@remix-run/react";
+import { useLoaderData, useFetcher, Link, useNavigate, useLocation } from "@remix-run/react";
 import { useState, useEffect, useRef } from "react";
 import { getOrders, updateOrderStatus, createNotification, getOrdersByUserId } from "~/lib/database";
 import { supabase } from "~/lib/supabase";
 import Header from "~/components/Header";
 import type { OrderStatus } from "~/types";
+import React from 'react';
 
 export async function loader({ request }: LoaderFunctionArgs) {
   try {
@@ -83,8 +84,8 @@ const statusButtons = [
 
 export default function Orders() {
   console.log('🔍 Orders component rendered');
-  const { orders: initialOrders, currentStatus, currentPaymentStatus, userRole: initialUserRole } = useLoaderData<typeof loader>();
-  console.log('🔍 Loader data:', { initialOrders, currentStatus, currentPaymentStatus, initialUserRole });
+  const { orders: initialOrders, currentStatus, userRole } = useLoaderData<typeof loader>();
+  console.log('🔍 Loader data:', { initialOrders, currentStatus, userRole });
   const fetcher = useFetcher();
   const [orders, setOrders] = useState<any[]>(initialOrders);
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus | ''>(currentStatus as OrderStatus | '' || '');
@@ -92,14 +93,32 @@ export default function Orders() {
   const [newOrderAlert, setNewOrderAlert] = useState<{customer: string, church: string} | null>(null);
   const alertTimeout = useRef<NodeJS.Timeout | null>(null);
   const [user, setUser] = useState<any>(null);
-  const [userRole, setUserRole] = useState<string | null>(initialUserRole);
-
-  // URL 파라미터로 전달된 상태가 있으면 필터 적용
-  useEffect(() => {
-    if (currentStatus) {
-      setSelectedStatus(currentStatus as OrderStatus);
+  const [userRoleState, setUserRole] = useState<string | null>(userRole);
+  const [currentPaymentStatus, setCurrentPaymentStatus] = useState<string>('');
+  const navigate = useNavigate();
+  const location = useLocation();
+  const filteredOrders = orders.filter(order => {
+    if (currentPaymentStatus === 'confirmed') {
+      return order.payment_status === 'confirmed';
     }
-  }, [currentStatus]);
+    if (selectedStatus) {
+      return order.status === selectedStatus;
+    }
+    return true;
+  });
+  const [currentPage, setCurrentPage] = useState(1);
+  const ORDERS_PER_PAGE = 10;
+  const totalPages = Math.ceil(filteredOrders.length / ORDERS_PER_PAGE);
+  const paginatedOrders = filteredOrders.slice((currentPage - 1) * ORDERS_PER_PAGE, currentPage * ORDERS_PER_PAGE);
+
+  // URL 파라미터 동기화
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const status = params.get('status') as OrderStatus | '';
+    const paymentStatus = params.get('payment_status') || '';
+    setSelectedStatus(status || '');
+    setCurrentPaymentStatus(paymentStatus || '');
+  }, [location.search]);
 
   // 클라이언트 사이드에서 사용자 정보와 주문 불러오기
   useEffect(() => {
@@ -372,10 +391,6 @@ export default function Orders() {
     };
   }, [userRole, user, loading]);
 
-  const filteredOrders = selectedStatus 
-    ? orders.filter(order => order.status === selectedStatus)
-    : orders;
-
   // Debug: Log current orders state
   useEffect(() => {
     console.log('Current orders state:', orders);
@@ -585,7 +600,26 @@ export default function Orders() {
     }
   };
 
-  const isAdmin = userRole === 'admin';
+  const isAdmin = userRoleState === 'admin';
+
+  // 필터 버튼 클릭 핸들러
+  const handleFilterClick = (btn: typeof statusButtons[number]) => {
+    if (btn.key === 'payment_confirmed') {
+      setSelectedStatus('');
+      navigate('?payment_status=confirmed');
+    } else if (btn.key === 'all') {
+      setSelectedStatus('');
+      navigate('');
+    } else {
+      setSelectedStatus(btn.key === 'cancelled' ? 'cancelled' : btn.key as OrderStatus);
+      navigate('?status=' + btn.key);
+    }
+  };
+
+  // 페이지 변경 시 스크롤 맨 위로 이동
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentPage]);
 
   if (loading) {
     return (
@@ -618,22 +652,9 @@ export default function Orders() {
               .map(btn => (
               <button
                 key={btn.key}
-                onClick={() => {
-                  if (btn.key === 'payment_confirmed') {
-                    setSelectedStatus('');
-                    window.location.search = '?payment_status=confirmed';
-                  } else if (btn.key === 'all') {
-                    setSelectedStatus('');
-                    window.location.search = '';
-                  } else {
-                    setSelectedStatus(btn.key === 'cancelled' ? 'cancelled' : btn.key as OrderStatus);
-                    if (window.location.search.includes('payment_status')) {
-                      window.location.search = '?status=' + btn.key;
-                    }
-                  }
-                }}
+                onClick={() => handleFilterClick(btn)}
                 className={`px-4 py-2 rounded-xl text-sm font-bold transition-all duration-300 shadow-soft hover:shadow-medium transform hover:-translate-y-1 ${
-                  (btn.key === 'payment_confirmed' && currentPaymentStatus === 'confirmed') || 
+                  (btn.key === 'payment_confirmed' && currentPaymentStatus === 'confirmed') ||
                   (btn.key === 'all' && !selectedStatus && !currentPaymentStatus) ||
                   (btn.key !== 'payment_confirmed' && btn.key !== 'all' && selectedStatus === btn.key)
                     ? 'bg-gradient-wine text-ivory-50 shadow-wine'
@@ -659,13 +680,14 @@ export default function Orders() {
                 <th className="px-2 py-2">총금액</th>
                 {isAdmin && <th className="px-2 py-2">상태변경</th>}
                 <th className="px-2 py-2">취소</th>
+                {isAdmin && <th className="px-2 py-2">삭제</th>}
               </tr>
             </thead>
             <tbody>
-              {filteredOrders.map((order, idx) => (
+              {paginatedOrders.map((order, idx) => (
                 <tr key={order.id} className="bg-ivory-50 border-b-4 border-dashed border-wine-600">
                   {/* 연번 */}
-                  <td className="align-middle font-bold text-wine-700">{idx + 1}</td>
+                  <td className="align-middle font-bold text-wine-700">{(currentPage - 1) * ORDERS_PER_PAGE + idx + 1}</td>
                   {/* 주문자 */}
                   <td className="align-middle">
                     <div className="font-bold text-wine-800">{order.customer_name}</div>
@@ -687,7 +709,7 @@ export default function Orders() {
                        order.status === 'preparing' ? '제조중' :
                        order.status === 'ready' ? '제조완료' :
                        order.status === 'completed' && order.payment_status === 'confirmed' ? '결제완료' :
-                       order.status === 'completed' ? '주문완료' :
+                       order.status === 'completed' ? '픽업완료' :
                        order.status === 'cancelled' ? '취소' : order.status}
                     </span>
                   </td>
@@ -747,7 +769,7 @@ export default function Orders() {
                           </button>
                         )}
                         {((order.status === 'completed' && order.payment_status === 'confirmed') || order.status === 'cancelled') && (
-                          <span className="text-xs text-gray-500 font-medium">종료</span>
+                          <span className="text-xs text-gray-500 font-medium">주문종료</span>
                         )}
                       </div>
                     </td>
@@ -785,11 +807,72 @@ export default function Orders() {
                       <span className="text-xs text-orange-600 font-medium">본인주문아님</span>
                     )}
                   </td>
+                  {/* 삭제 버튼 (관리자만) */}
+                  {isAdmin && (
+                    <td className="align-middle">
+                      <button
+                        className="px-2 py-1 bg-red-400 text-white rounded-full text-xs font-bold hover:bg-red-600 transition"
+                        title="주문 강제 삭제"
+                        onClick={async () => {
+                          if (window.confirm('정말로 이 주문을 완전히 삭제하시겠습니까? (이 작업은 되돌릴 수 없습니다)')) {
+                            try {
+                              const { error } = await supabase
+                                .from('orders')
+                                .delete()
+                                .eq('id', order.id);
+                              if (error) {
+                                alert('삭제에 실패했습니다: ' + error.message);
+                              } else {
+                                setOrders(prev => prev.filter(o => o.id !== order.id));
+                              }
+                            } catch (err) {
+                              alert('삭제 중 오류 발생: ' + err);
+                            }
+                          }
+                        }}
+                      >
+                        ×
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
+              {paginatedOrders.length === 0 && (
+                <tr>
+                  <td colSpan={isAdmin ? 8 : 7} className="py-8 text-wine-400 text-lg">주문이 없습니다.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
+        {/* 페이지네이션 컨트롤 */}
+        {totalPages > 1 && (
+          <div className="flex justify-center items-center gap-2 mt-6">
+            <button
+              className="px-3 py-1 rounded bg-ivory-200 text-wine-700 font-bold disabled:opacity-50"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              이전
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => (
+              <button
+                key={i + 1}
+                className={`px-3 py-1 rounded font-bold ${currentPage === i + 1 ? 'bg-wine-600 text-ivory-50' : 'bg-ivory-100 text-wine-700'}`}
+                onClick={() => setCurrentPage(i + 1)}
+              >
+                {i + 1}
+              </button>
+            ))}
+            <button
+              className="px-3 py-1 rounded bg-ivory-200 text-wine-700 font-bold disabled:opacity-50"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              다음
+            </button>
+          </div>
+        )}
       </main>
 
       {/* 새 주문 알림 배너 (관리자만) */}
