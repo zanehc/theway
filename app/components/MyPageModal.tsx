@@ -22,7 +22,15 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
   const [churchGroup, setChurchGroup] = useState('');
   const [loading, setLoading] = useState(false);
   const [orderHistory, setOrderHistory] = useState<UserOrderHistory | null>(null);
-  const [activeTab, setActiveTab] = useState<'profile' | 'orders'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'orders' | 'password'>('profile');
+  
+  // 비밀번호 변경 관련 상태
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -86,6 +94,59 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
     window.location.replace('/'); // 항상 첫화면으로 이동
   };
 
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError('');
+    setPasswordSuccess('');
+    
+    if (newPassword !== confirmPassword) {
+      setPasswordError('새 비밀번호가 일치하지 않습니다.');
+      return;
+    }
+    
+    if (newPassword.length < 6) {
+      setPasswordError('새 비밀번호는 최소 6자 이상이어야 합니다.');
+      return;
+    }
+    
+    setPasswordLoading(true);
+    try {
+      // 현재 비밀번호 확인
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user?.email || '',
+        password: currentPassword,
+      });
+      
+      if (signInError) {
+        setPasswordError('현재 비밀번호가 올바르지 않습니다.');
+        return;
+      }
+      
+      // 새 비밀번호로 변경
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+      
+      if (updateError) {
+        setPasswordError('비밀번호 변경에 실패했습니다: ' + updateError.message);
+        return;
+      }
+      
+      setPasswordSuccess('비밀번호가 성공적으로 변경되었습니다.');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      
+      // 3초 후 성공 메시지 제거
+      setTimeout(() => setPasswordSuccess(''), 3000);
+      
+    } catch (error) {
+      setPasswordError('비밀번호 변경 중 오류가 발생했습니다.');
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
   const getStatusLabel = (status: string) => {
     const statusMap: { [key: string]: string } = {
       'pending': '대기',
@@ -111,8 +172,8 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-none flex items-center justify-center p-3 sm:p-4 z-50">
-      <div className="bg-white rounded-xl sm:rounded-2xl shadow-large p-4 sm:p-8 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-none flex items-center justify-center p-3 sm:p-4 z-[60000]">
+      <div className="bg-white rounded-xl sm:rounded-2xl shadow-large p-4 sm:p-8 w-full max-w-4xl max-h-[85vh] overflow-y-auto mt-16">
         <div className="flex justify-between items-center mb-4 sm:mb-6">
           <h2 className="text-xl sm:text-2xl font-black text-wine-800">마이페이지</h2>
           <button
@@ -136,6 +197,16 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
             }`}
           >
             프로필
+          </button>
+          <button
+            onClick={() => setActiveTab('password')}
+            className={`flex-1 py-2 sm:py-3 px-3 sm:px-4 rounded-lg font-bold transition-colors text-sm sm:text-base ${
+              activeTab === 'password'
+                ? 'bg-white text-wine-800 shadow-sm'
+                : 'text-wine-600 hover:text-wine-800'
+            }`}
+          >
+            비밀번호
           </button>
           <button
             onClick={() => setActiveTab('orders')}
@@ -218,6 +289,73 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
                 로그아웃
               </button>
             </div>
+          </form>
+        )}
+
+        {activeTab === 'password' && (
+          <form onSubmit={handlePasswordChange} className="space-y-4 sm:space-y-6">
+            <div>
+              <label className="block text-xs sm:text-sm font-bold text-wine-700 mb-1 sm:mb-2">
+                현재 비밀번호
+              </label>
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-ivory-300 rounded-lg text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300"
+                placeholder="현재 비밀번호를 입력하세요"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs sm:text-sm font-bold text-wine-700 mb-1 sm:mb-2">
+                새 비밀번호
+              </label>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-ivory-300 rounded-lg text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300"
+                placeholder="새 비밀번호를 입력하세요 (최소 6자)"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs sm:text-sm font-bold text-wine-700 mb-1 sm:mb-2">
+                새 비밀번호 확인
+              </label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-ivory-300 rounded-lg text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300"
+                placeholder="새 비밀번호를 다시 입력하세요"
+                required
+              />
+            </div>
+
+            {/* 오류 및 성공 메시지 */}
+            {passwordError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-red-600 text-sm font-medium">{passwordError}</p>
+              </div>
+            )}
+
+            {passwordSuccess && (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-green-600 text-sm font-medium">{passwordSuccess}</p>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={passwordLoading}
+              className="w-full bg-gradient-wine text-black py-2 sm:py-3 px-3 sm:px-4 rounded-lg font-bold hover:shadow-wine transition-all duration-300 shadow-medium disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+            >
+              {passwordLoading ? '변경 중...' : '비밀번호 변경'}
+            </button>
           </form>
         )}
 
