@@ -327,16 +327,17 @@ export default function Orders() {
             .eq('id', updatedOrder.id)
             .single();
           if (orderWithItems) {
-            setOrders((prevOrders: any[]) =>
-              prevOrders.map((order: any) =>
+            // prevOrder를 setOrders 이전에 찾는다
+            let prevOrder: any = null;
+            setOrders((prevOrders: any[]) => {
+              prevOrder = prevOrders.find((o: any) => o.id === updatedOrder.id);
+              return prevOrders.map((order: any) =>
                 order.id === updatedOrder.id ? orderWithItems : order
-              )
-            );
+              );
+            });
             // 상태변경 팝업 알림 (고객)
-            if (userRoleState === 'customer' && user?.id === orderWithItems.user_id) {
-              // 이전 상태와 현재 상태 비교
-              const prevOrder = orders.find((o: any) => o.id === updatedOrder.id);
-              const prevStatus = prevOrder?.status;
+            if (userRoleState === 'customer' && user?.id === orderWithItems.user_id && prevOrder) {
+              const prevStatus = prevOrder.status;
               const currStatus = orderWithItems.status;
               let alertMsg = '';
               let alertStatus: OrderStatus | null = null;
@@ -349,7 +350,11 @@ export default function Orders() {
               } else if (prevStatus === 'ready' && currStatus === 'completed') {
                 alertMsg = '주문하신 주문이 픽업되었습니다';
                 alertStatus = 'completed';
-              } else if (prevStatus === 'completed' && orderWithItems.payment_status === 'confirmed' && prevOrder?.payment_status !== 'confirmed') {
+              } else if (
+                prevStatus === 'completed' &&
+                orderWithItems.payment_status === 'confirmed' &&
+                prevOrder.payment_status !== 'confirmed'
+              ) {
                 alertMsg = '주문하신 주문이 결제완료되었습니다';
                 alertStatus = 'completed';
               }
