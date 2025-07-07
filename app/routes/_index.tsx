@@ -1,7 +1,7 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, Link } from "@remix-run/react";
-import { getMenus, getOrders, getSalesStatistics, getOrdersByUserId } from "~/lib/database";
+import { getMenus, getOrders, getSalesStatistics, getOrdersByUserId, getTodayOrdersByStatus, getWeeklySalesForLast4Weeks, getTodayOrderStatusStats } from "~/lib/database";
 import Header from "~/components/Header";
 import { useEffect, useState } from 'react';
 import { supabase } from '~/lib/supabase';
@@ -49,11 +49,23 @@ export async function loader({ request }: LoaderFunctionArgs) {
     // 오늘의 매출 통계 조회
     const salesStats = await getSalesStatistics('today');
 
+    // 오늘의 현재 주문 상태 통계 조회
+    const todayStatusStats = await getTodayOrderStatusStats();
+
+    // 최근 4주간 주간매출 조회
+    const weeklySales = await getWeeklySalesForLast4Weeks();
+
     // 로그인한 사용자 주문만 recentOrders로
-    let recentOrders = [];
+    let recentOrders: any[] = [];
     if (userId) {
       recentOrders = await getOrdersByUserId(userId, 5);
     }
+
+    // 오늘의 대기중 주문과 제조완료 주문 가져오기
+    const [todayPendingOrders, todayReadyOrders] = await Promise.all([
+      getTodayOrdersByStatus('pending'),
+      getTodayOrdersByStatus('ready')
+    ]);
 
     return json({
       menuStats,
@@ -65,6 +77,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
       error,
       success,
       salesStats,
+      todayStatusStats,
+      weeklySales,
+      todayPendingOrders,
+      todayReadyOrders,
     });
   } catch (error) {
     console.error('Dashboard loader error:', error);
@@ -92,12 +108,23 @@ export async function loader({ request }: LoaderFunctionArgs) {
           cancelled: 0,
         }
       },
+      todayStatusStats: {
+        pending: 0,
+        preparing: 0,
+        ready: 0,
+        completed: 0,
+        cancelled: 0,
+        confirmedOrders: 0
+      },
+      weeklySales: [],
+      todayPendingOrders: [],
+      todayReadyOrders: [],
     });
   }
 }
 
 export default function Index() {
-  const { menuStats, orderStats, recentOrders, totalMenus, totalOrders, menus, error, success, salesStats } = useLoaderData<typeof loader>();
+  const { menuStats, orderStats, recentOrders, totalMenus, totalOrders, menus, error, success, salesStats, todayStatusStats, weeklySales, todayPendingOrders, todayReadyOrders } = useLoaderData<typeof loader>();
   
   // 로그인 상태 및 권한 확인
   const [user, setUser] = useState<any>(null);
@@ -187,7 +214,7 @@ export default function Index() {
                   <svg className="w-5 h-5 sm:w-8 sm:h-8 text-wine-600 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <h3 className="text-xl sm:text-2xl font-black text-wine-700 mb-1">{salesStats.statusStats.pending}</h3>
+                  <h3 className="text-xl sm:text-2xl font-black text-wine-700 mb-1">{todayStatusStats.pending}</h3>
                   <p className="text-xs sm:text-sm text-wine-600 font-bold">대기중</p>
                 </div>
               </div>
@@ -197,18 +224,18 @@ export default function Index() {
                   <svg className="w-5 h-5 sm:w-8 sm:h-8 text-wine-600 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                   </svg>
-                  <h3 className="text-xl sm:text-2xl font-black text-wine-700 mb-1">{salesStats.statusStats.preparing}</h3>
+                  <h3 className="text-xl sm:text-2xl font-black text-wine-700 mb-1">{todayStatusStats.preparing}</h3>
                   <p className="text-xs sm:text-sm text-wine-600 font-bold">제조중</p>
                 </div>
               </div>
-              {/* 주문완료(픽업완료) */}
+              {/* 제조완료 */}
               <div className="bg-ivory-50 rounded-xl shadow-soft p-2 sm:p-4 text-center border border-wine-200 min-w-0">
                 <div className="flex flex-col items-center">
                   <svg className="w-5 h-5 sm:w-8 sm:h-8 text-wine-600 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <h3 className="text-xl sm:text-2xl font-black text-wine-700 mb-1">{salesStats.statusStats.completed}</h3>
-                  <p className="text-xs sm:text-sm text-wine-600 font-bold">주문완료</p>
+                  <h3 className="text-xl sm:text-2xl font-black text-wine-700 mb-1">{todayStatusStats.ready}</h3>
+                  <p className="text-xs sm:text-sm text-wine-600 font-bold">제조완료</p>
                 </div>
               </div>
               {/* 결제완료 */}
@@ -218,64 +245,79 @@ export default function Index() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 20h9" />
                     <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth={2} fill="none" />
                   </svg>
-                  <h3 className="text-xl sm:text-2xl font-black text-wine-700 mb-1">{salesStats.confirmedOrders}</h3>
+                  <h3 className="text-xl sm:text-2xl font-black text-wine-700 mb-1">{todayStatusStats.confirmedOrders}</h3>
                   <p className="text-xs sm:text-sm text-wine-600 font-bold">결제완료</p>
                 </div>
               </div>
             </div>
           </div>
+          
           {/* 하단 2행 2열: 대기중/제조완료 주문 */}
           <div className="grid grid-cols-2 gap-4 mt-6">
             {/* 대기중 주문 */}
             <div className="bg-ivory-50 rounded-xl border border-wine-200 p-3 sm:p-4">
               <h4 className="text-base sm:text-lg font-bold text-wine-700 mb-2">오늘 대기중 주문</h4>
-              <div className="space-y-2 max-h-40 overflow-y-auto">
-                {Array.isArray(recentOrders) && recentOrders.filter(o => {
-                  if (!o) return false;
-                  const today = new Date();
-                  const d = new Date(o.created_at);
-                  return o.status === 'pending' && d.toDateString() === today.toDateString();
-                }).filter(o => o).map(o => (
-                  <div key={o!.id} className="text-xs sm:text-sm">
-                    <span className="font-bold text-wine-800">{o!.customer_name}</span>
-                    <span className="ml-2 text-wine-600">{o!.church_group || '-'}</span>
-                    <span className="ml-2 text-wine-700">{o!.order_items?.map(i => `${i.menu?.name} x${i.quantity}`).join(', ')}</span>
-                  </div>
-                ))}
-                {Array.isArray(recentOrders) && recentOrders.filter(o => {
-                  if (!o) return false;
-                  const today = new Date();
-                  const d = new Date(o.created_at);
-                  return o.status === 'pending' && d.toDateString() === today.toDateString();
-                }).length === 0 && (
-                  <div className="text-wine-400">대기중 주문 없음</div>
-                )}
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-center border-separate border-spacing-y-1">
+                  <thead>
+                    <tr className="bg-ivory-100 text-wine-700 text-xs">
+                      <th className="px-1 py-1">연번</th>
+                      <th className="px-1 py-1">주문목장</th>
+                      <th className="px-1 py-1">주문잔수</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {todayPendingOrders && todayPendingOrders.length > 0 ? (
+                      todayPendingOrders.map((order, idx) => {
+                        const totalQuantity = order.order_items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+                        return (
+                          <tr key={order.id} className="bg-ivory-50 text-xs">
+                            <td className="font-bold text-wine-700 px-1 py-1">{idx + 1}</td>
+                            <td className="text-wine-800 px-1 py-1">{order.church_group || '-'}</td>
+                            <td className="text-wine-700 px-1 py-1">{totalQuantity}잔</td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={3} className="text-wine-400 text-xs py-2">대기중 주문 없음</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
             {/* 제조완료(ready) 주문 */}
             <div className="bg-ivory-50 rounded-xl border border-wine-200 p-3 sm:p-4">
               <h4 className="text-base sm:text-lg font-bold text-wine-700 mb-2">오늘 제조완료 주문</h4>
-              <div className="space-y-2 max-h-40 overflow-y-auto">
-                {Array.isArray(recentOrders) && recentOrders.filter(o => {
-                  if (!o) return false;
-                  const today = new Date();
-                  const d = new Date(o.created_at);
-                  return o.status === 'ready' && d.toDateString() === today.toDateString();
-                }).filter(o => o).map(o => (
-                  <div key={o!.id} className="text-xs sm:text-sm">
-                    <span className="font-bold text-wine-800">{o!.customer_name}</span>
-                    <span className="ml-2 text-wine-600">{o!.church_group || '-'}</span>
-                    <span className="ml-2 text-wine-700">{o!.order_items?.map(i => `${i.menu?.name} x${i.quantity}`).join(', ')}</span>
-                  </div>
-                ))}
-                {Array.isArray(recentOrders) && recentOrders.filter(o => {
-                  if (!o) return false;
-                  const today = new Date();
-                  const d = new Date(o.created_at);
-                  return o.status === 'ready' && d.toDateString() === today.toDateString();
-                }).length === 0 && (
-                  <div className="text-wine-400">제조완료 주문 없음</div>
-                )}
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-center border-separate border-spacing-y-1">
+                  <thead>
+                    <tr className="bg-ivory-100 text-wine-700 text-xs">
+                      <th className="px-1 py-1">연번</th>
+                      <th className="px-1 py-1">주문목장</th>
+                      <th className="px-1 py-1">주문잔수</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {todayReadyOrders && todayReadyOrders.length > 0 ? (
+                      todayReadyOrders.map((order, idx) => {
+                        const totalQuantity = order.order_items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+                        return (
+                          <tr key={order.id} className="bg-ivory-50 text-xs">
+                            <td className="font-bold text-wine-700 px-1 py-1">{idx + 1}</td>
+                            <td className="text-wine-800 px-1 py-1">{order.church_group || '-'}</td>
+                            <td className="text-wine-700 px-1 py-1">{totalQuantity}잔</td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={3} className="text-wine-400 text-xs py-2">제조완료 주문 없음</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
@@ -283,11 +325,27 @@ export default function Index() {
 
         {/* 매출 정보 */}
         {user && userRole === 'admin' && (
-          <div className="grid grid-cols-1 lg:grid-cols-1 gap-4 sm:gap-6 mb-8">
-            {/* 총 매출 */}
-            <div className="bg-gradient-ivory rounded-xl shadow-soft p-4 sm:p-6 text-center">
-              <h3 className="text-lg sm:text-xl font-black text-wine-800 mb-2">오늘의 매출</h3>
-              <p className="text-2xl sm:text-3xl font-black text-wine-600">₩{salesStats.totalRevenue.toLocaleString()}</p>
+          <div className="mb-8">
+            {/* 최근 4주간 주간매출 */}
+            <div className="bg-gradient-ivory rounded-xl shadow-soft p-4 sm:p-6">
+              <h3 className="text-lg sm:text-xl font-black text-wine-800 mb-4 text-center">최근 4주간 주간매출</h3>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {weeklySales.map((week) => (
+                  <div key={week.weekNumber} className="bg-white rounded-xl p-4 text-center border border-wine-200">
+                    <h4 className="text-sm font-bold text-wine-700 mb-2">{week.label}</h4>
+                    <div className="space-y-2">
+                      <div>
+                        <p className="text-xs text-wine-600">주문완료</p>
+                        <p className="text-lg font-black text-wine-800">₩{week.orderCompletedRevenue.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-wine-600">결제완료</p>
+                        <p className="text-lg font-black text-wine-800">₩{week.paymentConfirmedRevenue.toLocaleString()}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -454,25 +512,27 @@ export default function Index() {
                 </div>
               </>
             ) : (
-              <p className="text-center text-wine-400 py-8">주문 내역이 없습니다.</p>
+              <div className="text-center py-8">
+                <p className="text-wine-400">주문 내역이 없습니다.</p>
+              </div>
             )}
           </div>
         )}
 
-        {/* 로그인 안내 */}
-        {!user && (
-          <div className="bg-gradient-ivory rounded-xl shadow-soft p-6 sm:p-8 text-center">
-            <h3 className="text-xl sm:text-2xl font-black text-wine-800 mb-4">주문을 하시려면 로그인이 필요합니다</h3>
-            <p className="text-lg text-wine-600 mb-6">로그인 후 주문 현황과 새 주문을 이용하실 수 있습니다.</p>
-            <button
-              onClick={() => {
-                const headerLoginBtn = document.querySelector('header button, header [data-login-button]');
-                if (headerLoginBtn) (headerLoginBtn as HTMLElement).click();
-              }}
-              className="px-6 sm:px-8 py-3 sm:py-4 bg-gradient-wine text-ivory-50 rounded-xl text-lg sm:text-xl font-bold hover:shadow-wine transition-all duration-300 shadow-medium hover:shadow-large transform hover:-translate-y-1"
+        {/* 빠른 액션 - 관리자만 매출 보고서 */}
+        {user && userRole === 'admin' && (
+          <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-1 gap-4 sm:gap-6">
+            <Link
+              to="/reports"
+              className="bg-gradient-wine text-ivory-50 rounded-xl p-4 sm:p-6 text-center hover:shadow-wine transition-all duration-300 shadow-medium hover:shadow-large transform hover:-translate-y-1"
             >
-              로그인하기
-            </button>
+              <div className="flex flex-col items-center">
+                <svg className="w-8 h-8 sm:w-12 sm:h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                <h3 className="font-bold text-sm sm:text-base">매출 보고서</h3>
+              </div>
+            </Link>
           </div>
         )}
       </div>

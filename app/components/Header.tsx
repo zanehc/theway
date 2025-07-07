@@ -24,10 +24,8 @@ export default function Header() {
     const getUser = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        console.log('Current user:', user);
         setUser(user);
         if (user) {
-          // users 테이블에서 role 조회
           const { data: userData } = await supabase
             .from('users')
             .select('role')
@@ -38,19 +36,15 @@ export default function Header() {
           setUserRole(null);
         }
       } catch (error) {
-        console.error('Error getting user:', error);
         setUserRole(null);
       } finally {
         setLoading(false);
       }
     };
-
     getUser();
-
     // 인증 상태 변경 리스너
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state changed:', event, session?.user);
         setUser(session?.user ?? null);
         if (session?.user) {
           const { data: userData } = await supabase
@@ -65,11 +59,17 @@ export default function Header() {
         setLoading(false);
       }
     );
+    return () => {
+      subscription.unsubscribe();
+      if (notifTimeout.current) clearTimeout(notifTimeout.current);
+    };
+  }, []);
 
-    // 알림 실시간 구독 (로그인한 사용자)
+  // 알림 구독은 user가 있을 때만 실행
+  useEffect(() => {
+    if (!user) return;
     let notifChannel: any = null;
     if (typeof window !== 'undefined') {
-      console.log('🔔 Setting up notification channel for user:', user?.id);
       notifChannel = supabase
         .channel('user-notifications')
         .on('postgres_changes', {
@@ -78,11 +78,8 @@ export default function Header() {
           table: 'notifications',
         }, payload => {
           const notif = payload.new;
-          console.log('📨 Notification received:', notif);
           if (user && notif.user_id === user.id) {
-            console.log('✅ Notification matches current user, showing alert');
             setUserNotification({ message: notif.message });
-            // 사운드: 알림 메시지 음성
             if ('speechSynthesis' in window) {
               const utter = new window.SpeechSynthesisUtterance(notif.message);
               utter.lang = 'ko-KR';
@@ -90,40 +87,24 @@ export default function Header() {
             }
             if (notifTimeout.current) clearTimeout(notifTimeout.current);
             notifTimeout.current = setTimeout(() => setUserNotification(null), 7000);
-          } else {
-            console.log('❌ Notification does not match current user:', { 
-              notificationUserId: notif.user_id, 
-              currentUserId: user?.id 
-            });
           }
         })
-        .subscribe((status) => {
-          console.log('🔔 Notification channel status:', status);
-          if (status === 'SUBSCRIBED') {
-            console.log('✅ Notification channel subscribed successfully');
-          } else if (status === 'CHANNEL_ERROR') {
-            console.error('❌ Notification channel subscription failed');
-          }
-        });
+        .subscribe();
     }
     return () => {
-      subscription.unsubscribe();
       if (notifChannel) notifChannel.unsubscribe();
       if (notifTimeout.current) clearTimeout(notifTimeout.current);
     };
-  }, []);
+  }, [user]);
 
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
       window.location.replace('/');
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
+    } catch (error) {}
   };
 
   const handleLoginClick = () => {
-    console.log('Login button clicked, setting showLogin to true');
     setShowLogin(true);
   };
 
@@ -276,6 +257,7 @@ export default function Header() {
       <MyPageModal 
         isOpen={showMyPage} 
         onClose={() => setShowMyPage(false)} 
+        user={user}
       />
 
       {/* 사용자 알림 배너 */}

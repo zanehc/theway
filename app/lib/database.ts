@@ -34,6 +34,8 @@ export async function getMenusByCategory(category: string) {
 
 // Order queries
 export async function getOrders(status?: string) {
+  console.log('🔍 getOrders called with status:', status);
+  
   let query = supabase
     .from('orders')
     .select(`
@@ -46,14 +48,20 @@ export async function getOrders(status?: string) {
     .order('created_at', { ascending: false });
 
   if (status) {
+    console.log('🔍 Adding status filter:', status);
     query = query.eq('status', status);
   }
 
+  console.log('🔍 Executing query...');
   const { data, error } = await query;
+  
   if (error) {
     console.error('Get orders error:', error);
     return [];
   }
+  
+  console.log('🔍 getOrders result:', data);
+  console.log('🔍 getOrders result length:', data?.length || 0);
   return data as OrderWithItems[];
 }
 
@@ -77,6 +85,33 @@ export async function getOrdersByUserId(userId: string, limit?: number) {
   const { data, error } = await query;
   if (error) {
     console.error('Get orders by user id error:', error);
+    return [];
+  }
+  return data as OrderWithItems[];
+}
+
+export async function getTodayOrdersByStatus(status: string) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const { data, error } = await supabase
+    .from('orders')
+    .select(`
+      *,
+      order_items (
+        *,
+        menu:menus (*)
+      )
+    `)
+    .eq('status', status)
+    .gte('created_at', today.toISOString())
+    .lt('created_at', tomorrow.toISOString())
+    .order('created_at', { ascending: true }); // 오래된 순으로 정렬
+
+  if (error) {
+    console.error('Get today orders by status error:', error);
     return [];
   }
   return data as OrderWithItems[];
@@ -343,6 +378,134 @@ export async function getUsersByRole(role: string) {
     return [];
   }
   return data as User[];
+}
+
+// 오늘의 현재 주문 상태 통계 조회
+export async function getTodayOrderStatusStats() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const { data: orders, error } = await supabase
+    .from('orders')
+    .select('*')
+    .gte('created_at', today.toISOString())
+    .lt('created_at', tomorrow.toISOString());
+
+  if (error) {
+    console.error('Get today order status stats error:', error);
+    return {
+      pending: 0,
+      preparing: 0,
+      ready: 0,
+      completed: 0,
+      cancelled: 0,
+      confirmedOrders: 0
+    };
+  }
+
+  const statusStats = {
+    pending: 0,
+    preparing: 0,
+    ready: 0,
+    completed: 0,
+    cancelled: 0,
+  };
+  let confirmedOrders = 0;
+
+  orders?.forEach((order: any) => {
+    // 현재 상태별 통계
+    statusStats[order.status as keyof typeof statusStats]++;
+    
+    // 결제완료 주문 수
+    if (order.payment_status === 'confirmed') {
+      confirmedOrders++;
+    }
+  });
+
+  return {
+    ...statusStats,
+    confirmedOrders
+  };
+}
+
+// 최근 4주간 주간매출 조회
+export async function getWeeklySalesForLast4Weeks() {
+  const now = new Date();
+  const weeks = [];
+  
+  // 현재 날짜에서 가장 가까운 일요일 찾기
+  const currentDay = now.getDay(); // 0: 일요일, 1: 월요일, ..., 6: 토요일
+  const daysToSunday = currentDay === 0 ? 0 : 7 - currentDay; // 다음 일요일까지의 일수
+  
+  // 가장 가까운 일요일 계산
+  const nearestSunday = new Date(now);
+  nearestSunday.setDate(nearestSunday.getDate() + daysToSunday);
+  nearestSunday.setHours(23, 59, 59, 999);
+  
+  // 최근 4주간의 주간 데이터 생성 (가장 가까운 일요일부터 역순으로)
+  for (let i = 0; i < 4; i++) {
+    const weekEnd = new Date(nearestSunday);
+    weekEnd.setDate(weekEnd.getDate() - (i * 7));
+    weekEnd.setHours(23, 59, 59, 999);
+    
+    const weekStart = new Date(weekEnd);
+    weekStart.setDate(weekStart.getDate() - 6);
+    weekStart.setHours(0, 0, 0, 0);
+    
+    weeks.push({
+      weekNumber: 4 - i,
+      startDate: weekStart,
+      endDate: weekEnd,
+      label: `${weekStart.getMonth() + 1}/${weekStart.getDate()}`
+    });
+  }
+  
+  const weeklyStats = [];
+  
+  for (const week of weeks) {
+    const { data: orders, error } = await supabase
+      .from('orders')
+      .select('*')
+      .gte('created_at', week.startDate.toISOString())
+      .lte('created_at', week.endDate.toISOString());
+    
+    if (error) {
+      console.error('Get weekly sales error:', error);
+      weeklyStats.push({
+        weekNumber: week.weekNumber,
+        label: week.label,
+        orderCompletedRevenue: 0,
+        paymentConfirmedRevenue: 0
+      });
+      continue;
+    }
+    
+    let orderCompletedRevenue = 0;
+    let paymentConfirmedRevenue = 0;
+    
+    orders?.forEach((order: any) => {
+      // 주문완료 상태인 주문의 매출
+      if (order.status === 'completed') {
+        orderCompletedRevenue += order.total_amount;
+      }
+      
+      // 결제완료 상태인 주문의 매출
+      if (order.payment_status === 'confirmed') {
+        paymentConfirmedRevenue += order.total_amount;
+      }
+    });
+    
+    weeklyStats.push({
+      weekNumber: week.weekNumber,
+      label: week.label,
+      orderCompletedRevenue,
+      paymentConfirmedRevenue
+    });
+  }
+  
+  return weeklyStats;
 }
 
 // 알림 생성
