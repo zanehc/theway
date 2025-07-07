@@ -289,6 +289,11 @@ export default function Orders() {
             customer: newOrder.customer_name,
             church: newOrder.church_group || '',
           });
+        } else if (userRoleState === 'customer' && newOrder.user_id === user?.id) {
+          setNewOrderAlert({
+            customer: newOrder.customer_name,
+            church: newOrder.church_group || '',
+          });
         }
         try {
           const { data: orderWithItems } = await supabase
@@ -463,7 +468,6 @@ export default function Orders() {
   const handlePaymentConfirm = async (order: any) => {
     try {
       console.log('💳 Payment confirm:', { orderId: order.id, hasUserId: !!order.user_id });
-      
       // 결제 상태 업데이트
       const { error } = await supabase
         .from('orders')
@@ -478,7 +482,6 @@ export default function Orders() {
         alert('결제 상태 업데이트에 실패했습니다.');
         return;
       }
-      
       // 즉시 로컬 상태 업데이트
       setOrders((prevOrders: any[]) => {
         const updatedOrders = prevOrders.map((o: any) => 
@@ -489,34 +492,32 @@ export default function Orders() {
         console.log('Immediately updated payment status:', updatedOrders);
         return updatedOrders;
       });
-      
-      // 결제완료 알림 생성
+      // 결제완료 알림 생성 (실패해도 팝업 띄우지 않음)
       if (order.user_id) {
-        console.log('📱 Creating payment notification for user:', order.user_id);
-        
-        const orderTime = new Date(order.created_at).toLocaleString('ko-KR', {
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit'
-        });
-        
-        const menuNames = order.order_items?.map((item: any) => 
-          `${item.menu?.name} ${item.quantity}개`
-        ).join(', ') || '주문 메뉴';
-        
-        const message = `${order.customer_name}이/가 ${orderTime}에 주문하신 ${menuNames}가 결제완료 상태입니다`;
-        
-        console.log('📝 Payment notification message:', message);
-        
-        await createNotification({
-          user_id: order.user_id,
-          order_id: order.id,
-          type: 'order_payment_confirmed',
-          message
-        });
-        
-        console.log('✅ Payment notification completed');
+        try {
+          console.log('📱 Creating payment notification for user:', order.user_id);
+          const orderTime = new Date(order.created_at).toLocaleString('ko-KR', {
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+          const menuNames = order.order_items?.map((item: any) => 
+            `${item.menu?.name} ${item.quantity}개`
+          ).join(', ') || '주문 메뉴';
+          const message = `${order.customer_name}이/가 ${orderTime}에 주문하신 ${menuNames}가 결제완료 상태입니다`;
+          console.log('📝 Payment notification message:', message);
+          await createNotification({
+            user_id: order.user_id,
+            order_id: order.id,
+            type: 'order_payment_confirmed',
+            message
+          });
+          console.log('✅ Payment notification completed');
+        } catch (notificationError) {
+          console.error('❌ Payment notification creation failed:', notificationError);
+          // 알림 생성 실패는 팝업 띄우지 않음
+        }
       } else {
         console.log('⚠️ No payment notification created - user_id missing');
       }
@@ -854,19 +855,18 @@ export default function Orders() {
         )}
       </main>
 
-      {/* 새 주문 알림 배너 (관리자만) */}
+      {/* 새 주문 알림 배너 (관리자/고객) */}
       {newOrderAlert && (
         <div
-          className="fixed top-4 left-1/2 -translate-x-1/2 z-[99999] bg-wine-600 text-ivory-50 px-6 py-4 rounded-xl shadow-2xl font-bold text-lg flex items-center gap-4 cursor-pointer animate-fade-in"
-          onClick={() => {
-            setNewOrderAlert(null);
-            window.location.href = '/orders?status=pending';
-          }}
+          className={`fixed top-4 left-1/2 -translate-x-1/2 z-[99999] px-6 py-4 rounded-xl shadow-2xl font-bold text-lg flex items-center gap-4 cursor-pointer animate-fade-in ${getStatusBgColor('pending')} ${getStatusColor('pending')}`}
+          onClick={() => setNewOrderAlert(null)}
         >
           <span>🛎️</span>
           <span>
-            <span className="text-yellow-200">{newOrderAlert.church || '새'}</span> 주문이 들어왔습니다!<br />
-            <span className="text-sm text-ivory-200">(클릭 시 대기중 주문으로 이동)</span>
+            <span className="text-yellow-700 font-bold">{newOrderAlert.church || '새'}</span> 주문이 들어왔습니다!<br />
+            {isAdmin && (
+              <span className="text-sm text-ivory-200">(클릭 시 대기중 주문으로 이동)</span>
+            )}
           </span>
         </div>
       )}
