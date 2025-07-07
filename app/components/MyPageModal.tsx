@@ -172,19 +172,20 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-none flex items-center justify-center p-3 sm:p-4 z-[60000]">
-      <div className="bg-white rounded-xl sm:rounded-2xl shadow-large p-4 sm:p-8 w-full max-w-4xl max-h-[85vh] overflow-y-auto mt-16">
-        <div className="flex justify-between items-center mb-4 sm:mb-6">
-          <h2 className="text-xl sm:text-2xl font-black text-wine-800">마이페이지</h2>
-          <button
-            onClick={onClose}
-            className="text-wine-600 hover:text-wine-800 transition-colors"
-          >
-            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+    <div className="fixed inset-0 bg-black/60 z-[50000]" onClick={onClose}>
+      <div 
+        className="fixed left-1/2 top-1/2 z-[50001] -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl p-6 shadow-2xl w-full max-w-xs sm:max-w-4xl"
+        onClick={e => e.stopPropagation()}
+        style={{ maxHeight: '90vh', overflowY: 'auto' }}
+      >
+        <button
+          className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-xl font-bold z-10"
+          onClick={onClose}
+          aria-label="닫기"
+        >
+          ×
+        </button>
+        <h2 className="text-xl font-black text-wine-800 mb-4 text-center">마이페이지</h2>
 
         {/* 탭 네비게이션 */}
         <div className="flex space-x-1 mb-4 sm:mb-6 bg-ivory-100 p-1 rounded-lg">
