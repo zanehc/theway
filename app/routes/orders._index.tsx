@@ -835,14 +835,28 @@ export default function Orders() {
                         onClick={async () => {
                           if (window.confirm('정말로 이 주문을 완전히 삭제하시겠습니까? (이 작업은 되돌릴 수 없습니다)')) {
                             try {
-                              const { error } = await supabase
+                              // 먼저 order_items 삭제
+                              const { error: itemsError } = await supabase
+                                .from('order_items')
+                                .delete()
+                                .eq('order_id', order.id);
+                              
+                              if (itemsError) {
+                                alert('주문 아이템 삭제에 실패했습니다: ' + itemsError.message);
+                                return;
+                              }
+                              
+                              // 그 다음 orders 삭제
+                              const { error: orderError } = await supabase
                                 .from('orders')
                                 .delete()
                                 .eq('id', order.id);
-                              if (error) {
-                                alert('삭제에 실패했습니다: ' + error.message);
+                              
+                              if (orderError) {
+                                alert('주문 삭제에 실패했습니다: ' + orderError.message);
                               } else {
                                 setOrders(prev => prev.filter(o => o.id !== order.id));
+                                alert('주문이 성공적으로 삭제되었습니다.');
                               }
                             } catch (err) {
                               alert('삭제 중 오류 발생: ' + err);

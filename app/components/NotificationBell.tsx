@@ -83,6 +83,8 @@ export default function NotificationBell({ userId }: NotificationBellProps) {
       { notificationId, intent: 'markAsRead' },
       { method: 'post', action: '/api/notifications' }
     );
+    // 알림 팝업 닫기
+    setIsOpen(false);
   };
 
   const formatTime = (dateString: string) => {
