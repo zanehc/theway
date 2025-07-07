@@ -110,6 +110,7 @@ export default function Orders() {
   const ORDERS_PER_PAGE = 10;
   const totalPages = Math.ceil(filteredOrders.length / ORDERS_PER_PAGE);
   const paginatedOrders = filteredOrders.slice((currentPage - 1) * ORDERS_PER_PAGE, currentPage * ORDERS_PER_PAGE);
+  const channelRef = useRef<any>(null);
 
   // URL 파라미터 동기화
   useEffect(() => {
@@ -254,142 +255,120 @@ export default function Orders() {
 
   // Supabase Realtime: 주문 실시간 업데이트 (관리자: 전체, 고객: 본인 주문만)
   useEffect(() => {
-    console.log('🔄 Realtime useEffect triggered');
-    console.log('🔄 Loading state:', loading);
-    console.log('🔄 UserRole state:', userRole);
-    console.log('🔄 User state:', user);
-    
-    if (loading) {
-      console.log('🔄 Skipping realtime setup - still loading');
-      return;
-    }
-    if (!userRole) {
-      console.log('🔄 Skipping realtime setup - no userRole');
-      return;
-    }
-    if (!user && userRole !== 'admin') {
-      console.log('🔄 Skipping realtime setup - no user and not admin');
+    if (loading || !userRoleState || (!user && userRoleState !== 'admin')) {
+      // 구독 해제
+      if (channelRef.current) {
+        channelRef.current.unsubscribe();
+        channelRef.current = null;
+        console.log('🔌 Realtime subscription cleaned up (조건 불충족)');
+      }
       return;
     }
 
-    console.log('🔄 Setting up realtime subscription...', { userRole, userId: user?.id });
+    // 기존 구독 해제
+    if (channelRef.current) {
+      channelRef.current.unsubscribe();
+      channelRef.current = null;
+      console.log('🔌 Realtime subscription cleaned up (재설정)');
+    }
 
-    // 실시간 구독 설정
-    const setupRealtime = async () => {
-      const channel = supabase
-        .channel(`orders-realtime-${userRole}-${user?.id || 'admin'}`)
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'orders',
-          filter: userRole !== 'admin' ? `user_id=eq.${user.id}` : undefined,
-        }, async (payload) => {
-          console.log('📦 New order received:', payload.new);
-          const newOrder = payload.new;
-          
-          // 새 주문 알림 (관리자만)
-          if (userRole === 'admin') {
-            setNewOrderAlert({
-              customer: newOrder.customer_name,
-              church: newOrder.church_group || '',
+    console.log('🔄 Setting up realtime subscription...', { userRole: userRoleState, userId: user?.id });
+
+    const channel = supabase
+      .channel(`orders-realtime-${userRoleState}-${user?.id || 'admin'}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'orders',
+        filter: userRoleState !== 'admin' ? `user_id=eq.${user.id}` : undefined,
+      }, async (payload) => {
+        console.log('📦 New order received:', payload.new);
+        const newOrder = payload.new;
+        if (userRoleState === 'admin') {
+          setNewOrderAlert({
+            customer: newOrder.customer_name,
+            church: newOrder.church_group || '',
+          });
+        }
+        try {
+          const { data: orderWithItems } = await supabase
+            .from('orders')
+            .select(`*, order_items (*, menu:menus (*))`)
+            .eq('id', newOrder.id)
+            .single();
+          if (orderWithItems) {
+            setOrders((prevOrders: any[]) => {
+              const exists = prevOrders.find(o => o.id === orderWithItems.id);
+              if (exists) return prevOrders;
+              return [orderWithItems, ...prevOrders];
             });
           }
-          
-          try {
-            const { data: orderWithItems } = await supabase
-              .from('orders')
-              .select(`*, order_items (*, menu:menus (*))`)
-              .eq('id', newOrder.id)
-              .single();
-            
-            if (orderWithItems) {
-              console.log('✅ Adding new order to state:', orderWithItems);
-              setOrders((prevOrders: any[]) => {
-                // 중복 방지
-                const exists = prevOrders.find(o => o.id === orderWithItems.id);
-                if (exists) {
-                  console.log('⚠️ Order already exists in state, skipping');
-                  return prevOrders;
-                }
-                return [orderWithItems, ...prevOrders];
-              });
-            }
-          } catch (error) {
-            console.error('❌ Error fetching new order details:', error);
-          }
-        })
-        .on('postgres_changes', {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'orders',
-          filter: userRole !== 'admin' ? `user_id=eq.${user.id}` : undefined,
-        }, async (payload) => {
-          console.log('🔄 Order updated:', payload.new);
-          const updatedOrder = payload.new;
-          
-          try {
-            const { data: orderWithItems } = await supabase
-              .from('orders')
-              .select(`*, order_items (*, menu:menus (*))`)
-              .eq('id', updatedOrder.id)
-              .single();
-            
-            if (orderWithItems) {
-              console.log('✅ Updating order in state:', orderWithItems);
-              setOrders((prevOrders: any[]) =>
-                prevOrders.map((order: any) =>
-                  order.id === updatedOrder.id ? orderWithItems : order
-                )
-              );
-            }
-          } catch (error) {
-            console.error('❌ Error fetching updated order details:', error);
-            // 폴백: 기본 업데이트
+        } catch (error) {
+          console.error('❌ Error fetching new order details:', error);
+        }
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'orders',
+        filter: userRoleState !== 'admin' ? `user_id=eq.${user.id}` : undefined,
+      }, async (payload) => {
+        console.log('🔄 Order updated:', payload.new);
+        const updatedOrder = payload.new;
+        try {
+          const { data: orderWithItems } = await supabase
+            .from('orders')
+            .select(`*, order_items (*, menu:menus (*))`)
+            .eq('id', updatedOrder.id)
+            .single();
+          if (orderWithItems) {
             setOrders((prevOrders: any[]) =>
               prevOrders.map((order: any) =>
-                order.id === updatedOrder.id ? { ...order, ...updatedOrder } : order
+                order.id === updatedOrder.id ? orderWithItems : order
               )
             );
           }
-        })
-        .on('postgres_changes', {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'orders',
-          filter: userRole !== 'admin' ? `user_id=eq.${user.id}` : undefined,
-        }, (payload) => {
-          console.log('🗑️ Order deleted:', payload.old);
-          const deletedOrderId = payload.old.id;
+        } catch (error) {
+          console.error('❌ Error fetching updated order details:', error);
           setOrders((prevOrders: any[]) =>
-            prevOrders.filter((order: any) => order.id !== deletedOrderId)
-          );
-        });
-
-      channel.subscribe((status) => {
-        console.log('📡 Realtime subscription status:', status);
-        if (status === 'SUBSCRIBED') {
-          console.log('✅ Realtime subscription active');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('❌ Realtime subscription failed');
+            prevOrders.map((order: any) =>
+              order.id === updatedOrder.id ? { ...order, ...updatedOrder } : order
+          ));
         }
+      })
+      .on('postgres_changes', {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'orders',
+        filter: userRoleState !== 'admin' ? `user_id=eq.${user.id}` : undefined,
+      }, (payload) => {
+        console.log('🗑️ Order deleted:', payload.old);
+        const deletedOrderId = payload.old.id;
+        setOrders((prevOrders: any[]) =>
+          prevOrders.filter((order: any) => order.id !== deletedOrderId)
+        );
       });
 
-      return channel;
-    };
-
-    let channel: any = null;
-    setupRealtime().then(ch => {
-      channel = ch;
+    channel.subscribe((status) => {
+      console.log('📡 Realtime subscription status:', status);
+      if (status === 'SUBSCRIBED') {
+        console.log('✅ Realtime subscription active');
+      } else if (status === 'CHANNEL_ERROR') {
+        console.error('❌ Realtime subscription failed');
+      }
     });
 
+    channelRef.current = channel;
+
     return () => {
-      console.log('🔌 Cleaning up realtime subscription');
-      if (channel) {
-        channel.unsubscribe();
+      if (channelRef.current) {
+        channelRef.current.unsubscribe();
+        channelRef.current = null;
+        console.log('🔌 Realtime subscription cleaned up (useEffect cleanup)');
       }
       if (alertTimeout.current) clearTimeout(alertTimeout.current);
     };
-  }, [userRole, user, loading]);
+  }, [userRoleState, user, loading]);
 
   // Debug: Log current orders state
   useEffect(() => {
