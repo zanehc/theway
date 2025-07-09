@@ -50,6 +50,10 @@ export async function getOrders(status?: string) {
   if (status) {
     console.log('🔍 Adding status filter:', status);
     query = query.eq('status', status);
+    // 픽업완료 필터일 때 결제완료 제외
+    if (status === 'completed') {
+      query = query.neq('payment_status', 'confirmed');
+    }
   }
 
   console.log('🔍 Executing query...');

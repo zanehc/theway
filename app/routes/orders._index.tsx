@@ -102,6 +102,10 @@ export default function Orders() {
     if (currentPaymentStatus === 'confirmed') {
       return order.payment_status === 'confirmed';
     }
+    // 픽업완료 필터: 결제완료가 아닌 completed만
+    if (selectedStatus === 'completed') {
+      return order.status === 'completed' && order.payment_status !== 'confirmed';
+    }
     // 상태 필터링
     if (selectedStatus) {
       return order.status === selectedStatus;
