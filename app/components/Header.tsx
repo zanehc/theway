@@ -17,6 +17,7 @@ export default function Header() {
   const [loading, setLoading] = useState(true);
   const [loginSuccess, setLoginSuccess] = useState(false);
   const [userNotification, setUserNotification] = useState<{message: string} | null>(null);
+  const [loginRequiredMessage, setLoginRequiredMessage] = useState(false);
   const notifTimeout = useRef<NodeJS.Timeout | null>(null);
   const [orderStats, setOrderStats] = useState({ pending: 0, preparing: 0, ready: 0, completed: 0, cancelled: 0, confirmedOrders: 0 });
 
@@ -135,6 +136,14 @@ export default function Header() {
     window.location.reload();
   };
 
+  const handleNewOrderClick = (e: React.MouseEvent) => {
+    if (!isLoggedIn) {
+      e.preventDefault();
+      setLoginRequiredMessage(true);
+      setTimeout(() => setLoginRequiredMessage(false), 3000);
+    }
+  };
+
   const isLoggedIn = !!user;
 
   if (loading) {
@@ -178,6 +187,7 @@ export default function Header() {
           <div className="flex-1 flex justify-center">
             <Link
               to="/orders/new"
+              onClick={handleNewOrderClick}
               className="inline-flex items-center px-4 py-2 bg-gradient-wine text-white rounded-xl font-bold text-sm sm:text-base shadow-medium hover:shadow-wine transition-all duration-300 transform hover:-translate-y-1"
             >
               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -301,6 +311,17 @@ export default function Header() {
         >
           <span>🔔</span>
           <span>{userNotification.message}</span>
+        </div>
+      )}
+
+      {/* 로그인 필요 메시지 */}
+      {loginRequiredMessage && (
+        <div
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-[99999] bg-wine-600 text-ivory-50 px-6 py-4 rounded-xl shadow-2xl font-bold text-lg flex items-center gap-4 cursor-pointer animate-fade-in"
+          onClick={() => setLoginRequiredMessage(false)}
+        >
+          <span>⚠️</span>
+          <span>주문을 하려면 로그인이 필요합니다</span>
         </div>
       )}
     </header>
