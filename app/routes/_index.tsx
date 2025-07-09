@@ -174,18 +174,39 @@ export default function Index() {
     const channel = supabase
       .channel('orders-realtime-dashboard')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, async () => {
-        // 주문 데이터 새로고침
+        // 오늘 날짜 계산
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        // 오늘 주문 데이터 새로고침
         const [pending, ready] = await Promise.all([
-          supabase.from('orders').select('*, order_items(*)').eq('status', 'pending'),
-          supabase.from('orders').select('*, order_items(*)').eq('status', 'ready'),
+          supabase
+            .from('orders')
+            .select('*, order_items(*)')
+            .eq('status', 'pending')
+            .gte('created_at', today.toISOString())
+            .lt('created_at', tomorrow.toISOString()),
+          supabase
+            .from('orders')
+            .select('*, order_items(*)')
+            .eq('status', 'ready')
+            .gte('created_at', today.toISOString())
+            .lt('created_at', tomorrow.toISOString()),
         ]);
         setPendingOrders(pending.data || []);
         setReadyOrders(ready.data || []);
 
-        // 상태별 통계 새로고침
-        const { data: allOrders } = await supabase.from('orders').select('status, payment_status');
+        // 오늘 상태별 통계 새로고침
+        const { data: todayOrders } = await supabase
+          .from('orders')
+          .select('status, payment_status')
+          .gte('created_at', today.toISOString())
+          .lt('created_at', tomorrow.toISOString());
+        
         const stats = { pending: 0, preparing: 0, ready: 0, completed: 0, cancelled: 0, confirmedOrders: 0 };
-        allOrders?.forEach((order: any) => {
+        todayOrders?.forEach((order: any) => {
           if (!order) return;
           const status = String(order.status) as keyof typeof stats;
           if (status in stats) stats[status] = (stats[status] || 0) + 1;
