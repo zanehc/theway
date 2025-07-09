@@ -98,9 +98,11 @@ export default function Orders() {
   const navigate = useNavigate();
   const location = useLocation();
   const filteredOrders = orders.filter(order => {
+    // 결제완료 필터가 우선순위가 높음
     if (currentPaymentStatus === 'confirmed') {
       return order.payment_status === 'confirmed';
     }
+    // 상태 필터링
     if (selectedStatus) {
       return order.status === selectedStatus;
     }
@@ -117,8 +119,18 @@ export default function Orders() {
     const params = new URLSearchParams(location.search);
     const status = params.get('status') as OrderStatus | '';
     const paymentStatus = params.get('payment_status') || '';
-    setSelectedStatus(status || '');
-    setCurrentPaymentStatus(paymentStatus || '');
+    
+    // 결제완료 필터와 상태 필터는 서로 배타적
+    if (paymentStatus === 'confirmed') {
+      setSelectedStatus('');
+      setCurrentPaymentStatus('confirmed');
+    } else if (status) {
+      setSelectedStatus(status);
+      setCurrentPaymentStatus('');
+    } else {
+      setSelectedStatus('');
+      setCurrentPaymentStatus('');
+    }
   }, [location.search]);
 
   // 클라이언트 사이드에서 사용자 정보와 주문 불러오기
@@ -284,19 +296,7 @@ export default function Orders() {
       }, async (payload) => {
         console.log('📦 New order received:', payload.new);
         const newOrder = payload.new;
-        if (userRoleState === 'admin') {
-          setNewOrderAlert({
-            customer: newOrder.customer_name,
-            church: newOrder.church_group || '',
-          });
-        } else if (userRoleState === 'customer' && newOrder.user_id === user?.id) {
-          setNewOrderAlert({
-            customer: newOrder.customer_name,
-            church: newOrder.church_group || '',
-            message: '주문이 완료되었습니다',
-            status: 'pending'
-          });
-        }
+        // 전역 알림을 사용하므로 중복 알림 제거
         try {
           const { data: orderWithItems } = await supabase
             .from('orders')
@@ -337,40 +337,7 @@ export default function Orders() {
                 order.id === updatedOrder.id ? orderWithItems : order
               );
             });
-            // 상태변경 팝업 알림 (고객)
-            if (userRoleState === 'customer' && user?.id === orderWithItems.user_id && prevOrder) {
-              const prevStatus = prevOrder.status;
-              const currStatus = orderWithItems.status;
-              let alertMsg = '';
-              let alertStatus: OrderStatus | null = null;
-              if (prevStatus === 'pending' && currStatus === 'preparing') {
-                alertMsg = '주문하신 주문이 제조중입니다';
-                alertStatus = 'preparing';
-              } else if (prevStatus === 'preparing' && currStatus === 'ready') {
-                alertMsg = '주문하신 주문이 제조완료되었습니다';
-                alertStatus = 'ready';
-              } else if (prevStatus === 'ready' && currStatus === 'completed') {
-                alertMsg = '주문하신 주문이 픽업되었습니다';
-                alertStatus = 'completed';
-              } else if (
-                prevStatus === 'completed' &&
-                orderWithItems.payment_status === 'confirmed' &&
-                prevOrder.payment_status !== 'confirmed'
-              ) {
-                alertMsg = '주문하신 주문이 결제완료되었습니다';
-                alertStatus = 'completed';
-              }
-              if (alertMsg && alertStatus) {
-                setNewOrderAlert({
-                  customer: '',
-                  church: '',
-                  message: alertMsg,
-                  status: alertStatus
-                });
-                if (alertTimeout.current) clearTimeout(alertTimeout.current);
-                alertTimeout.current = setTimeout(() => setNewOrderAlert(null), 5000);
-              }
-            }
+            // 주문현황 페이지에서는 전역 알림을 사용하므로 중복 알림 제거
           }
         } catch (error) {
           console.error('❌ Error fetching updated order details:', error);
@@ -625,12 +592,15 @@ export default function Orders() {
   const handleFilterClick = (btn: typeof statusButtons[number]) => {
     if (btn.key === 'payment_confirmed') {
       setSelectedStatus('');
+      setCurrentPaymentStatus('confirmed');
       navigate('?payment_status=confirmed');
     } else if (btn.key === 'all') {
       setSelectedStatus('');
+      setCurrentPaymentStatus('');
       navigate('');
     } else {
       setSelectedStatus(btn.key === 'cancelled' ? 'cancelled' : btn.key as OrderStatus);
+      setCurrentPaymentStatus('');
       navigate('?status=' + btn.key);
     }
   };

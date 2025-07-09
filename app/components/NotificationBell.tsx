@@ -12,22 +12,36 @@ export default function NotificationBell({ userId }: NotificationBellProps) {
   const [isOpen, setIsOpen] = useState(false);
   const fetcher = useFetcher();
 
-  // 알림 데이터 로드
+  // 알림 데이터 로드 - 최적화된 버전
   useEffect(() => {
     if (userId) {
       console.log('🔔 Loading notifications for user:', userId);
+      // 캐시된 알림이 있는지 확인
+      const cachedNotifications = sessionStorage.getItem(`notifications_${userId}`);
+      if (cachedNotifications) {
+        try {
+          const parsed = JSON.parse(cachedNotifications);
+          setNotifications(parsed);
+        } catch (error) {
+          console.error('Failed to parse cached notifications:', error);
+        }
+      }
       fetcher.load(`/api/notifications?userId=${userId}`);
     }
   }, [userId]);
 
-  // fetcher 데이터가 업데이트되면 notifications 상태 업데이트
+  // fetcher 데이터가 업데이트되면 notifications 상태 업데이트 - 최적화된 버전
   useEffect(() => {
     if (fetcher.data && typeof fetcher.data === 'object' && 'notifications' in fetcher.data) {
       const newNotifications = fetcher.data.notifications as Notification[];
       console.log('📨 Notifications loaded:', newNotifications.length, 'notifications');
       setNotifications(newNotifications);
+      // 캐시에 저장
+      if (userId) {
+        sessionStorage.setItem(`notifications_${userId}`, JSON.stringify(newNotifications));
+      }
     }
-  }, [fetcher.data]);
+  }, [fetcher.data, userId]);
 
   // 실시간 알림 업데이트
   useEffect(() => {

@@ -89,7 +89,7 @@ export default function NewOrder() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerName, setCustomerName] = useState('');
   const [churchGroup, setChurchGroup] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('cash');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('transfer');
   const [notes, setNotes] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ice coffee');
 
@@ -121,7 +121,7 @@ export default function NewOrder() {
         const reorder = JSON.parse(reorderRaw);
         setCustomerName(reorder.customerName || '');
         setChurchGroup(reorder.churchGroup || '');
-        setPaymentMethod(reorder.paymentMethod || 'cash');
+        setPaymentMethod(reorder.paymentMethod || 'transfer');
         setNotes(reorder.notes || '');
         // 메뉴 id로 메뉴 객체 매칭
         if (Array.isArray(reorder.items)) {

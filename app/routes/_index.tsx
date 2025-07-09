@@ -1,7 +1,7 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, Link } from "@remix-run/react";
-import { getMenus, getOrders, getSalesStatistics, getOrdersByUserId, getTodayOrdersByStatus, getWeeklySalesForLast4Weeks, getTodayOrderStatusStats } from "~/lib/database";
+import { getMenus, getOrders, getSalesStatistics, getOrdersByUserId, getTodayOrdersByStatus, getWeeklySalesForLast4Weeks, getTodayOrderStatusStats, getDailySales } from "~/lib/database";
 import Header from "~/components/Header";
 import { useEffect, useState } from 'react';
 import { supabase } from '~/lib/supabase';
@@ -55,6 +55,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
     // 최근 4주간 주간매출 조회
     const weeklySales = await getWeeklySalesForLast4Weeks();
 
+    // 일별 매출 조회
+    const dailySales = await getDailySales();
+
     // 로그인한 사용자 주문만 recentOrders로
     let recentOrders: any[] = [];
     if (userId) {
@@ -79,6 +82,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       salesStats,
       todayStatusStats,
       weeklySales,
+      dailySales,
       todayPendingOrders,
       todayReadyOrders,
     });
@@ -117,6 +121,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
         confirmedOrders: 0
       },
       weeklySales: [],
+      dailySales: [],
       todayPendingOrders: [],
       todayReadyOrders: [],
     });
@@ -124,7 +129,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 
 export default function Index() {
-  const { menuStats, orderStats, recentOrders, totalMenus, totalOrders, menus, error, success, salesStats, todayStatusStats, weeklySales, todayPendingOrders, todayReadyOrders } = useLoaderData<typeof loader>();
+  const { menuStats, orderStats, recentOrders, totalMenus, totalOrders, menus, error, success, salesStats, todayStatusStats, weeklySales, dailySales, todayPendingOrders, todayReadyOrders } = useLoaderData<typeof loader>();
   
   // 로그인 상태 및 권한 확인
   const [user, setUser] = useState<any>(null);
@@ -134,6 +139,11 @@ export default function Index() {
   const [pendingOrders, setPendingOrders] = useState(todayPendingOrders);
   const [readyOrders, setReadyOrders] = useState(todayReadyOrders);
   const [statusStats, setStatusStats] = useState(todayStatusStats);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [filteredDailySales, setFilteredDailySales] = useState(dailySales);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const ITEMS_PER_PAGE = 10;
 
   useEffect(() => {
     const getUser = async () => {
@@ -213,14 +223,34 @@ export default function Index() {
           if(order.payment_status === 'confirmed') stats.confirmedOrders += 1;
         });
         setStatusStats(stats);
+
+        // 일별 매출 데이터 새로고침
+        const updatedDailySales = await getDailySales(startDate || undefined, endDate || undefined);
+        setFilteredDailySales(updatedDailySales);
       })
       .subscribe();
     return () => { channel.unsubscribe(); };
-  }, []);
+  }, [startDate, endDate]);
 
   // 타입 안전성을 위한 문자열 변환
   const errorMessage = error ? String(error) : null;
   const successMessage = success ? String(success) : null;
+
+  // 기간 필터링 함수
+  const handleFilterSales = async () => {
+    const filteredSales = await getDailySales(startDate || undefined, endDate || undefined);
+    setFilteredDailySales(filteredSales);
+    setCurrentPage(1); // 페이지를 첫 페이지로 리셋
+  };
+
+  // 필터 초기화 함수
+  const handleResetFilter = async () => {
+    setStartDate('');
+    setEndDate('');
+    const allSales = await getDailySales();
+    setFilteredDailySales(allSales);
+    setCurrentPage(1);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-warm">
@@ -373,26 +403,118 @@ export default function Index() {
         {/* 매출 정보 */}
         {user && userRole === 'admin' && (
           <div className="mb-8">
-            {/* 최근 4주간 주간매출 */}
+            {/* 최근 매출 */}
             <div className="bg-gradient-ivory rounded-xl shadow-soft p-4 sm:p-6">
-              <h3 className="text-lg sm:text-xl font-black text-wine-800 mb-4 text-center">최근 4주간 주간매출</h3>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                {weeklySales.map((week) => week ? (
-                  <div key={week.weekNumber} className="bg-white rounded-xl p-4 text-center border border-wine-200">
-                    <h4 className="text-sm font-bold text-wine-700 mb-2">{week.label}</h4>
-                    <div className="space-y-2">
-                      <div>
-                        <p className="text-xs text-wine-600">주문완료</p>
-                        <p className="text-lg font-black text-wine-800">₩{week.orderCompletedRevenue.toLocaleString()}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-wine-600">결제완료</p>
-                        <p className="text-lg font-black text-wine-800">₩{week.paymentConfirmedRevenue.toLocaleString()}</p>
-                      </div>
-                    </div>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
+                <h3 className="text-lg sm:text-xl font-black text-wine-800 text-center sm:text-left">역대 매출</h3>
+                
+                {/* 기간 필터 */}
+                <div className="flex flex-col sm:flex-row gap-2 mt-4 sm:mt-0">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="px-3 py-2 border border-wine-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-wine-500"
+                      placeholder="시작일"
+                    />
+                    <span className="text-wine-600 font-bold">~</span>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="px-3 py-2 border border-wine-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-wine-500"
+                      placeholder="종료일"
+                    />
                   </div>
-                ) : null)}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleFilterSales}
+                      className="px-4 py-2 bg-gradient-wine text-white rounded-lg font-bold text-sm hover:shadow-wine transition-all duration-300"
+                    >
+                      필터
+                    </button>
+                    <button
+                      onClick={handleResetFilter}
+                      className="px-4 py-2 bg-wine-100 text-wine-700 rounded-lg font-bold text-sm hover:bg-wine-200 transition-all duration-300"
+                    >
+                      초기화
+                    </button>
+                  </div>
+                </div>
               </div>
+              
+              {filteredDailySales && filteredDailySales.length > 0 ? (
+                <>
+                  {/* 테이블 */}
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-center border-separate border-spacing-y-2">
+                      <thead>
+                        <tr className="bg-ivory-100 text-wine-700 text-sm sm:text-base">
+                          <th className="px-4 py-3">연번</th>
+                          <th className="px-4 py-3">일자</th>
+                          <th className="px-4 py-3">주문완료 금액</th>
+                          <th className="px-4 py-3">결제완료 금액</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredDailySales
+                          .slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+                          .map((day, idx) => (
+                          <tr key={day.date} className="bg-white border border-wine-200">
+                            <td className="px-4 py-3 font-bold text-wine-700">
+                              {(currentPage - 1) * ITEMS_PER_PAGE + idx + 1}
+                            </td>
+                            <td className="px-4 py-3 text-wine-800">
+                              {new Date(day.date).toLocaleDateString('ko-KR', {
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric',
+                                weekday: 'long'
+                              })}
+                            </td>
+                            <td className="px-4 py-3 font-bold text-wine-800">
+                              ₩{day.orderCompletedRevenue.toLocaleString()}
+                            </td>
+                            <td className="px-4 py-3 font-bold text-wine-800">
+                              ₩{day.paymentConfirmedRevenue.toLocaleString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* 페이지네이션 */}
+                  {filteredDailySales.length > ITEMS_PER_PAGE && (
+                    <div className="flex justify-center items-center gap-2 mt-6">
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1}
+                        className="px-3 py-2 bg-wine-100 text-wine-700 rounded-lg font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-wine-200 transition-all duration-300"
+                      >
+                        이전
+                      </button>
+                      
+                      <span className="px-4 py-2 text-wine-700 font-bold">
+                        {currentPage} / {Math.ceil(filteredDailySales.length / ITEMS_PER_PAGE)}
+                      </span>
+                      
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.min(Math.ceil(filteredDailySales.length / ITEMS_PER_PAGE), prev + 1))}
+                        disabled={currentPage === Math.ceil(filteredDailySales.length / ITEMS_PER_PAGE)}
+                        className="px-3 py-2 bg-wine-100 text-wine-700 rounded-lg font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-wine-200 transition-all duration-300"
+                      >
+                        다음
+                      </button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-center text-wine-600 py-8">
+                  매출 데이터가 없습니다.
+                </div>
+              )}
             </div>
           </div>
         )}

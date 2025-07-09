@@ -9,8 +9,10 @@ import ModalPortal from './ModalPortal';
 import NotificationBell from './NotificationBell';
 
 export default function Header() {
+  // user는 세션에서 즉시, userRole은 비동기로
   const [user, setUser] = useState<any>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [roleLoading, setRoleLoading] = useState(true);
   const [showLogin, setShowLogin] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
   const [showMyPage, setShowMyPage] = useState(false);
@@ -22,25 +24,34 @@ export default function Header() {
   const [orderStats, setOrderStats] = useState({ pending: 0, preparing: 0, ready: 0, completed: 0, cancelled: 0, confirmedOrders: 0 });
 
   useEffect(() => {
-    // 현재 사용자 상태 확인
+    // 최초 user 정보 가져오기
     const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+      if (user) getUserRole(user.id);
+      else setUserRole(null);
+    };
+    const getUserRole = async (userId: string) => {
+      setRoleLoading(true);
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        setUser(user);
-        if (user) {
+        const cachedRole = sessionStorage.getItem(`user_role_${userId}`);
+        if (cachedRole) {
+          setUserRole(cachedRole);
+          setRoleLoading(false);
+        } else {
           const { data: userData } = await supabase
             .from('users')
             .select('role')
-            .eq('id', user.id)
+            .eq('id', userId)
             .single();
-          setUserRole(userData?.role || null);
-        } else {
-          setUserRole(null);
+          const role = userData?.role || null;
+          setUserRole(role);
+          if (role) sessionStorage.setItem(`user_role_${userId}`, role);
+          setRoleLoading(false);
         }
-      } catch (error) {
+      } catch {
         setUserRole(null);
-      } finally {
-        setLoading(false);
+        setRoleLoading(false);
       }
     };
     getUser();
@@ -48,23 +59,15 @@ export default function Header() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         setUser(session?.user ?? null);
-        if (session?.user) {
-          const { data: userData } = await supabase
-            .from('users')
-            .select('role')
-            .eq('id', session.user.id)
-            .single();
-          setUserRole(userData?.role || null);
-        } else {
-          setUserRole(null);
-        }
-        setLoading(false);
+        if (session?.user) getUserRole(session.user.id);
+        else setUserRole(null);
       }
     );
     return () => {
       subscription.unsubscribe();
       if (notifTimeout.current) clearTimeout(notifTimeout.current);
     };
+    // eslint-disable-next-line
   }, []);
 
   // 알림 구독은 user가 있을 때만 실행
@@ -100,11 +103,17 @@ export default function Header() {
   }, [user]);
 
   useEffect(() => {
-    // 주문 상태별 숫자 실시간 구독
-    const channel = supabase
-      .channel('orders-realtime-header')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, async () => {
+    // 주문 상태별 숫자 실시간 구독 - 최적화된 버전
+    let isSubscribed = true;
+    let debounceTimer: NodeJS.Timeout;
+    
+    const updateStats = async () => {
+      if (!isSubscribed) return;
+      
+      try {
         const { data: allOrders } = await supabase.from('orders').select('status, payment_status');
+        if (!isSubscribed) return;
+        
         const stats = { pending: 0, preparing: 0, ready: 0, completed: 0, cancelled: 0, confirmedOrders: 0 };
         allOrders?.forEach((order: any) => {
           if (!order) return;
@@ -113,9 +122,28 @@ export default function Header() {
           if(order.payment_status === 'confirmed') stats.confirmedOrders += 1;
         });
         setOrderStats(stats);
+      } catch (error) {
+        console.error('Failed to update order stats:', error);
+      }
+    };
+    
+    // 초기 통계 로드
+    updateStats();
+    
+    const channel = supabase
+      .channel('orders-realtime-header')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        // 디바운싱으로 성능 최적화
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(updateStats, 500);
       })
       .subscribe();
-    return () => { channel.unsubscribe(); };
+      
+    return () => { 
+      isSubscribed = false;
+      clearTimeout(debounceTimer);
+      channel.unsubscribe(); 
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -137,7 +165,7 @@ export default function Header() {
   };
 
   const handleNewOrderClick = (e: React.MouseEvent) => {
-    if (!isLoggedIn) {
+    if (!user) { // isLoggedIn 대신 user 체크
       e.preventDefault();
       setLoginRequiredMessage(true);
       setTimeout(() => setLoginRequiredMessage(false), 3000);
@@ -146,24 +174,11 @@ export default function Header() {
 
   const isLoggedIn = !!user;
 
-  if (loading) {
-    return (
-      <header className="bg-gradient-ivory shadow-soft border-b border-ivory-200/50 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-3 sm:px-8 lg:px-12">
-          <div className="flex justify-between items-center py-4 sm:py-6">
-            <div className="animate-pulse bg-wine-200 h-8 w-64 rounded"></div>
-            <div className="animate-pulse bg-wine-200 h-8 w-32 rounded"></div>
-          </div>
-        </div>
-      </header>
-    );
-  }
-
   return (
     <header className="bg-gradient-ivory shadow-soft border-b border-ivory-200/50 backdrop-blur-sm">
       <div className="max-w-7xl mx-auto px-3 sm:px-8 lg:px-12">
         <div className="flex justify-between items-center py-4 sm:py-6">
-          {/* 로고 & 타이틀 */}
+          {/* 로고 & 타이틀 - 항상 표시 */}
           <Link to="/" className="flex items-center space-x-2 sm:space-x-4 group animate-fade-in">
             <div className="w-8 h-8 sm:w-12 sm:h-12 bg-gradient-wine rounded-xl sm:rounded-2xl flex items-center justify-center shadow-wine transition-all duration-300 group-hover:scale-110 group-hover:shadow-large">
               <svg className="w-4 h-4 sm:w-7 sm:h-7 text-ivory-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -197,28 +212,26 @@ export default function Header() {
             </Link>
           </div>
 
-          {/* 우측 버튼들 */}
+          {/* 우측 버튼들 - user만 있으면 즉시 렌더, userRole은 관리자 메뉴만 동적으로 */}
           <div className="flex items-center space-x-2 sm:space-x-4 animate-slide-up">
-            {/* 고객일 때만 알림 벨 표시 */}
-            {isLoggedIn && userRole === 'customer' && (
-              <NotificationBell userId={user.id} />
-            )}
-            
-            {/* 회원명 표시 */}
-            {isLoggedIn && (
-              <div className="hidden sm:block text-wine-700 font-bold text-sm sm:text-base">
-                {user.email?.split('@')[0]}님 안녕하세요
-              </div>
-            )}
-            
-            {/* 햄버거 메뉴 또는 로그인 버튼 */}
-            {isLoggedIn ? (
-              <HamburgerMenu 
-                user={user} 
-                userRole={userRole} 
-                onLogout={handleLogout}
-                onMyPageClick={() => setShowMyPage(true)}
-              />
+            {user ? (
+              <>
+                {/* 고객일 때만 알림 벨 표시 */}
+                {userRole === 'customer' && (
+                  <NotificationBell userId={user.id} />
+                )}
+                {/* 회원명 표시 */}
+                <div className="hidden sm:block text-wine-700 font-bold text-sm sm:text-base">
+                  {user.email?.split('@')[0]}님 안녕하세요
+                </div>
+                {/* 햄버거 메뉴 - userRole이 오기 전엔 일반 사용자 메뉴만, 오면 관리자 메뉴 동적 추가 */}
+                <HamburgerMenu 
+                  user={user} 
+                  userRole={userRole ?? 'customer'} 
+                  onLogout={handleLogout}
+                  onMyPageClick={() => setShowMyPage(true)}
+                />
+              </>
             ) : (
               <button
                 className="bg-wine-100 hover:bg-wine-200 text-wine-700 px-3 sm:px-6 py-2 sm:py-3 rounded-lg sm:rounded-xl font-bold transition-all duration-300 shadow-soft hover:shadow-medium transform hover:-translate-y-1 text-xs sm:text-sm"

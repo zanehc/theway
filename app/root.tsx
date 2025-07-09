@@ -10,6 +10,7 @@ import {
   useLoaderData,
 } from "@remix-run/react";
 import tailwindHref from "./tailwind.css?url";
+import { NotificationProvider } from "./contexts/NotificationContext";
 
 export const links: LinksFunction = () => [
   { rel: "stylesheet", href: tailwindHref },
@@ -48,7 +49,9 @@ export default function App() {
         <Links />
       </head>
       <body className="h-full min-h-screen bg-ivory-50">
-        <Outlet />
+        <NotificationProvider>
+          <Outlet />
+        </NotificationProvider>
         <div id="modal-root" />
         <ScrollRestoration />
         <Scripts />

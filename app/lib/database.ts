@@ -508,6 +508,65 @@ export async function getWeeklySalesForLast4Weeks() {
   return weeklyStats;
 }
 
+// 일별 매출 조회 (주문이 일어난 일자들만)
+export async function getDailySales(startDate?: string, endDate?: string) {
+  let query = supabase
+    .from('orders')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  // 기간 필터링 적용
+  if (startDate) {
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    query = query.gte('created_at', start.toISOString());
+  }
+  
+  if (endDate) {
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+    query = query.lte('created_at', end.toISOString());
+  }
+
+  const { data: orders, error } = await query;
+
+  if (error) {
+    console.error('Get daily sales error:', error);
+    return [];
+  }
+
+  // 일별로 그룹화
+  const dailyMap = new Map();
+  
+  orders?.forEach((order: any) => {
+    const orderDate = new Date(order.created_at);
+    const dateKey = orderDate.toISOString().split('T')[0]; // YYYY-MM-DD 형식
+    
+    if (!dailyMap.has(dateKey)) {
+      dailyMap.set(dateKey, {
+        date: dateKey,
+        orderCompletedRevenue: 0,
+        paymentConfirmedRevenue: 0
+      });
+    }
+    
+    const daily = dailyMap.get(dateKey);
+    
+    // 주문완료 상태인 주문의 매출
+    if (order.status === 'completed') {
+      daily.orderCompletedRevenue += order.total_amount;
+    }
+    
+    // 결제완료 상태인 주문의 매출
+    if (order.payment_status === 'confirmed') {
+      daily.paymentConfirmedRevenue += order.total_amount;
+    }
+  });
+
+  // 날짜순으로 정렬 (최신순)
+  return Array.from(dailyMap.values()).sort((a, b) => b.date.localeCompare(a.date));
+}
+
 // 알림 생성
 export async function createNotification({ user_id, order_id, type, message }: { user_id: string, order_id: string, type: string, message: string }) {
   console.log('🔔 Creating notification:', { user_id, order_id, type, message });
