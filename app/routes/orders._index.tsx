@@ -664,13 +664,11 @@ export default function Orders() {
         <div className="overflow-x-auto animate-slide-up">
           <table className="min-w-full text-center border-separate border-spacing-y-1 bg-white">
             <thead>
-              <tr className="bg-ivory-100 text-wine-700 text-sm">
+              <tr className="bg-wine-700 text-ivory-50">
                 <th className="px-2 py-2">연번</th>
                 <th className="px-2 py-2">주문자</th>
-                <th className="px-2 py-2">상태</th>
-                <th className="px-2 py-2">주문시간</th>
+                <th className="px-2 py-2">주문정보</th>
                 <th className="px-2 py-2">주문메뉴</th>
-                <th className="px-2 py-2">총금액</th>
                 {isAdmin && <th className="px-2 py-2">상태변경</th>}
                 <th className="px-2 py-2">취소</th>
                 {isAdmin && <th className="px-2 py-2">삭제</th>}
@@ -678,41 +676,47 @@ export default function Orders() {
             </thead>
             <tbody>
               {paginatedOrders.map((order, idx) => (
-                <tr key={order.id} className="bg-ivory-50 border-b-4 border-dashed border-wine-600">
+                <tr key={order.id} className="bg-ivory-50">
                   {/* 연번 */}
-                  <td className="align-middle font-bold text-wine-700">{(currentPage - 1) * ORDERS_PER_PAGE + idx + 1}</td>
+                  <td className="align-middle font-bold text-wine-700 border-b-2" style={{ borderBottom: '2px dashed #e6bfc9' }}>{(currentPage - 1) * ORDERS_PER_PAGE + idx + 1}</td>
                   {/* 주문자 */}
-                  <td className="align-middle">
+                  <td className="align-middle border-b-2" style={{ borderBottom: '2px dashed #e6bfc9' }}>
                     <div className="font-bold text-wine-800">{order.customer_name}</div>
                     {order.church_group && (
                       <div className="text-xs text-wine-600">{order.church_group}</div>
                     )}
                   </td>
-                  {/* 상태뱃지 */}
-                  <td className="align-middle">
-                    <span className={`px-2 py-1 rounded text-xs font-bold ${
-                      order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                      order.status === 'preparing' ? 'bg-blue-100 text-blue-800' :
-                      order.status === 'ready' ? 'bg-green-100 text-green-800' :
-                      order.status === 'completed' ? 'bg-wine-100 text-wine-800' :
-                      order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {order.status === 'pending' ? '대기' :
-                       order.status === 'preparing' ? '제조중' :
-                       order.status === 'ready' ? '제조완료' :
-                       order.status === 'completed' && order.payment_status === 'confirmed' ? '결제완료' :
-                       order.status === 'completed' ? '픽업완료' :
-                       order.status === 'cancelled' ? '취소' : order.status}
-                    </span>
+                  {/* 주문정보: 1줄-날짜시간, 2줄-상태뱃지 */}
+                  <td className="align-middle border-b-2" style={{ borderBottom: '2px dashed #e6bfc9' }}>
+                    <div className="text-xs text-gray-600">
+                      {new Date(order.created_at).toLocaleString('ko-KR', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </div>
+                    <div className="mt-1">
+                      <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${
+                        order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                        order.status === 'preparing' ? 'bg-blue-100 text-blue-800' :
+                        order.status === 'ready' ? 'bg-green-100 text-green-800' :
+                        order.status === 'completed' ? 'bg-wine-100 text-wine-800' :
+                        order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {order.status === 'pending' ? '대기' :
+                         order.status === 'preparing' ? '제조중' :
+                         order.status === 'ready' ? '제조완료' :
+                         order.status === 'completed' ? '픽업완료' :
+                         order.status === 'cancelled' ? '취소' :
+                         order.status}
+                      </span>
+                    </div>
                   </td>
-                  {/* 주문시간 */}
-                  <td className="align-middle text-xs text-wine-700">
-                    <div>{new Date(order.created_at).toLocaleDateString('ko-KR')}</div>
-                    <div>{new Date(order.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</div>
-                  </td>
-                  {/* 주문메뉴(여러 행) */}
-                  <td className="align-middle">
+                  {/* 주문메뉴: 1줄-주문메뉴, 2줄-총금액 */}
+                  <td className="align-middle border-b-2" style={{ borderBottom: '2px dashed #e6bfc9' }}>
                     <div className="flex flex-col gap-1 items-center">
                       {order.order_items?.map((item: any) => (
                         <div key={item.id} className="text-xs text-wine-700">
@@ -720,14 +724,13 @@ export default function Orders() {
                         </div>
                       ))}
                     </div>
-                  </td>
-                  {/* 총금액 */}
-                  <td className="align-middle font-bold text-wine-800">
-                    ₩{order.total_amount.toLocaleString()}
+                    <div className="mt-1 text-base sm:text-lg font-bold text-wine-800">
+                      ₩{order.total_amount.toLocaleString()}
+                    </div>
                   </td>
                   {/* 상태표시버튼 */}
                   {isAdmin && (
-                    <td className="align-middle">
+                    <td className="align-middle border-b-2" style={{ borderBottom: '2px dashed #e6bfc9' }}>
                       <div className="flex flex-col gap-1">
                         {order.status === 'pending' && (
                           <button
@@ -768,7 +771,7 @@ export default function Orders() {
                     </td>
                   )}
                   {/* 주문취소버튼 */}
-                  <td className="align-middle">
+                  <td className="align-middle border-b-2" style={{ borderBottom: '2px dashed #e6bfc9' }}>
                     {/* 관리자: 대기 상태 주문만 취소 가능 */}
                     {isAdmin && order.status === 'pending' && (
                       <button
@@ -802,7 +805,7 @@ export default function Orders() {
                   </td>
                   {/* 삭제 버튼 (관리자만) */}
                   {isAdmin && (
-                    <td className="align-middle">
+                    <td className="align-middle border-b-2" style={{ borderBottom: '2px dashed #e6bfc9' }}>
                       <button
                         className="px-2 py-1 bg-red-400 text-white rounded-full text-xs font-bold hover:bg-red-600 transition"
                         title="주문 강제 삭제"
