@@ -678,16 +678,16 @@ export default function Orders() {
               {paginatedOrders.map((order, idx) => (
                 <tr key={order.id} className="bg-ivory-50">
                   {/* 연번 */}
-                  <td className="align-middle font-bold text-wine-700 border-b-2" style={{ borderBottom: '2px dashed #e6bfc9' }}>{(currentPage - 1) * ORDERS_PER_PAGE + idx + 1}</td>
+                  <td className="align-middle font-bold text-wine-700 border-b-2 text-xs sm:text-base whitespace-nowrap" style={{ borderBottom: '2px dashed #e6bfc9' }}>{(currentPage - 1) * ORDERS_PER_PAGE + idx + 1}</td>
                   {/* 주문자 */}
-                  <td className="align-middle border-b-2" style={{ borderBottom: '2px dashed #e6bfc9' }}>
+                  <td className="align-middle border-b-2 text-xs sm:text-base whitespace-nowrap" style={{ borderBottom: '2px dashed #e6bfc9' }}>
                     <div className="font-bold text-wine-800">{order.customer_name}</div>
                     {order.church_group && (
                       <div className="text-xs text-wine-600">{order.church_group}</div>
                     )}
                   </td>
                   {/* 주문정보: 1줄-날짜시간, 2줄-상태뱃지 */}
-                  <td className="align-middle border-b-2" style={{ borderBottom: '2px dashed #e6bfc9' }}>
+                  <td className="align-middle border-b-2 text-xs sm:text-base whitespace-nowrap" style={{ borderBottom: '2px dashed #e6bfc9' }}>
                     <div className="text-xs text-gray-600">
                       {new Date(order.created_at).toLocaleString('ko-KR', {
                         year: 'numeric',
@@ -716,7 +716,7 @@ export default function Orders() {
                     </div>
                   </td>
                   {/* 주문메뉴: 1줄-주문메뉴, 2줄-총금액 */}
-                  <td className="align-middle border-b-2" style={{ borderBottom: '2px dashed #e6bfc9' }}>
+                  <td className="align-middle border-b-2 text-xs sm:text-base whitespace-nowrap" style={{ borderBottom: '2px dashed #e6bfc9' }}>
                     <div className="flex flex-col gap-1 items-center">
                       {order.order_items?.map((item: any) => (
                         <div key={item.id} className="text-xs text-wine-700">
