@@ -51,8 +51,8 @@ export default function App() {
       <body className="h-full min-h-screen bg-ivory-50">
         <NotificationProvider>
           <Outlet />
+          <div id="modal-root" />
         </NotificationProvider>
-        <div id="modal-root" />
         <ScrollRestoration />
         <Scripts />
         <script

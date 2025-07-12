@@ -208,6 +208,30 @@ export async function createOrder(orderData: {
 
     if (itemsError) throw itemsError;
 
+    // 주문 생성 후 알림 전송
+    if (orderData.user_id) {
+      try {
+        const menuNames = orderData.items.map(item => {
+          // 메뉴 이름을 가져오기 위해 메뉴 정보 조회
+          return `${item.menu_id} x${item.quantity}`;
+        }).join(', ');
+        
+        const message = `${orderData.customer_name}이/가 ${menuNames}를 주문했습니다.`;
+        
+        await createNotification({
+          user_id: orderData.user_id,
+          order_id: order.id,
+          type: 'new_order',
+          message: message
+        });
+        
+        console.log('📱 New order notification sent to user:', orderData.user_id);
+      } catch (notificationError) {
+        console.error('Failed to send notification:', notificationError);
+        // 알림 실패는 주문 생성에 영향을 주지 않도록 함
+      }
+    }
+
     return order;
   } catch (error) {
     console.error('Create order error:', error);

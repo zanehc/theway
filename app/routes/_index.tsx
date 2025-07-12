@@ -5,6 +5,7 @@ import { getMenus, getOrders, getSalesStatistics, getOrdersByUserId, getTodayOrd
 import Header from "~/components/Header";
 import { useEffect, useState } from 'react';
 import { supabase } from '~/lib/supabase';
+import { useNotification } from '~/contexts/NotificationContext';
 
 // Leaflet 타입 선언
 declare global {
@@ -20,15 +21,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const success = url.searchParams.get('success');
 
   try {
-    // 로그인 사용자 정보 가져오기
-    const cookie = request.headers.get('cookie');
-    let userId: string | undefined = undefined;
-    if (cookie) {
-      // supabase 세션에서 user id 추출
-      const match = cookie.match(/sb-user-id=([^;]+)/);
-      if (match) userId = decodeURIComponent(match[1]);
-    }
-
     const [menus, orders] = await Promise.all([
       getMenus(),
       getOrders()
@@ -58,11 +50,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
     // 일별 매출 조회
     const dailySales = await getDailySales();
 
-    // 로그인한 사용자 주문만 recentOrders로
-    let recentOrders: any[] = [];
-    if (userId) {
-      recentOrders = await getOrdersByUserId(userId, 5);
-    }
+    // 서버에서는 최근 주문을 빈 배열로 시작 (클라이언트에서 로드)
+    const recentOrders: any[] = [];
 
     // 오늘의 대기중 주문과 제조완료 주문 가져오기
     const [todayPendingOrders, todayReadyOrders] = await Promise.all([
@@ -130,6 +119,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 export default function Index() {
   const { menuStats, orderStats, recentOrders, totalMenus, totalOrders, menus, error, success, salesStats, todayStatusStats, weeklySales, dailySales, todayPendingOrders, todayReadyOrders } = useLoaderData<typeof loader>();
+  const { showNotification } = useNotification();
   
   // 로그인 상태 및 권한 확인
   const [user, setUser] = useState<any>(null);
@@ -143,6 +133,7 @@ export default function Index() {
   const [filteredDailySales, setFilteredDailySales] = useState(dailySales);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [userRecentOrders, setUserRecentOrders] = useState<any[]>([]);
   const ITEMS_PER_PAGE = 10;
 
   useEffect(() => {
@@ -150,29 +141,52 @@ export default function Index() {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
       if (user) {
+        console.log('🔍 Getting user role for:', user.id);
         const { data: userData } = await supabase
           .from('users')
           .select('role')
           .eq('id', user.id)
           .single();
-        setUserRole(userData?.role || null);
+        console.log('🔍 User data from DB:', userData);
+        const role = userData?.role || null;
+        console.log('🔍 Setting user role to:', role);
+        setUserRole(role);
+        
+        // 사용자의 최근 주문 로드
+        const { getOrdersByUserId } = await import('~/lib/database');
+        const recentOrders = await getOrdersByUserId(user.id, 5);
+        setUserRecentOrders(recentOrders);
       } else {
+        console.log('🔍 No user found, setting role to null');
         setUserRole(null);
+        setUserRecentOrders([]);
       }
       setLoading(false);
     };
     getUser();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('🔍 Auth state changed:', event, session?.user?.id);
       setUser(session?.user ?? null);
       if (session?.user) {
-        supabase
+        console.log('🔍 Getting user role for auth change:', session.user.id);
+        const { data: userData } = await supabase
           .from('users')
           .select('role')
           .eq('id', session.user.id)
-          .single()
-          .then(({ data }) => setUserRole(data?.role || null));
+          .single();
+        console.log('🔍 User data from DB (auth change):', userData);
+        const role = userData?.role || null;
+        console.log('🔍 Setting user role to (auth change):', role);
+        setUserRole(role);
+        
+        // 사용자의 최근 주문 로드
+        const { getOrdersByUserId } = await import('~/lib/database');
+        const recentOrders = await getOrdersByUserId(session.user.id, 5);
+        setUserRecentOrders(recentOrders);
       } else {
+        console.log('🔍 No user in session, setting role to null');
         setUserRole(null);
+        setUserRecentOrders([]);
       }
       setLoading(false);
     });
@@ -180,10 +194,54 @@ export default function Index() {
   }, []);
 
   useEffect(() => {
+    console.log('🔍 Dashboard realtime useEffect triggered:', {
+      userRole,
+      userId: user?.id,
+      loading
+    });
+    
+    if (loading) {
+      console.log('🔌 Dashboard realtime subscription skipped - loading');
+      return;
+    }
+
     // 실시간 구독
     const channel = supabase
       .channel('orders-realtime-dashboard')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, async () => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, async (payload) => {
+        console.log('📦 New order received on dashboard:', payload.new);
+        const newOrder = payload.new;
+        
+        // 관리자에게 새 주문 알림 표시
+        if (userRole === 'admin') {
+          const customerName = newOrder.customer_name || '새 고객';
+          const churchGroup = newOrder.church_group || '';
+          const message = churchGroup 
+            ? `${customerName}(${churchGroup}) 님의 주문이 들어왔습니다!`
+            : `${customerName} 님의 주문이 들어왔습니다!`;
+          console.log('🔔 Admin notification triggered:', message);
+          showNotification(message, 'pending');
+        }
+        
+        // 고객에게 본인 주문 알림 표시
+        console.log('🔔 Customer notification check:', {
+          userRole,
+          orderUserId: newOrder.user_id,
+          currentUserId: user?.id,
+          isCustomer: userRole === 'customer',
+          isOwnOrder: newOrder.user_id === user?.id
+        });
+        
+        if (userRole === 'customer' && newOrder.user_id === user?.id) {
+          const message = '주문이 성공적으로 접수되었습니다!';
+          console.log('🔔 Customer notification triggered:', message);
+          showNotification(message, 'pending');
+        } else {
+          console.log('🔔 Customer notification skipped - conditions not met');
+        }
+        
+
+        
         // 오늘 날짜 계산
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -228,9 +286,140 @@ export default function Index() {
         const updatedDailySales = await getDailySales(startDate || undefined, endDate || undefined);
         setFilteredDailySales(updatedDailySales);
       })
-      .subscribe();
-    return () => { channel.unsubscribe(); };
-  }, [startDate, endDate]);
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, async (payload) => {
+        console.log('🔄 Order updated on dashboard:', payload.new);
+        const updatedOrder = payload.new;
+        const oldOrder = payload.old;
+        
+        // 고객에게 주문 상태 변경 알림 (본인 주문만)
+        if (oldOrder && updatedOrder && userRole === 'customer' && updatedOrder.user_id === user?.id) {
+          const prevStatus = oldOrder.status;
+          const currStatus = updatedOrder.status;
+          const prevPaymentStatus = oldOrder.payment_status;
+          const currPaymentStatus = updatedOrder.payment_status;
+          
+          console.log('🔔 Customer status update on dashboard:', {
+            prevStatus,
+            currStatus,
+            prevPaymentStatus,
+            currPaymentStatus,
+            orderUserId: updatedOrder.user_id,
+            currentUserId: user?.id,
+            isOwnOrder: updatedOrder.user_id === user?.id
+          });
+          
+          let statusAlertMsg = '';
+          let statusAlertStatus: any = null;
+
+          // 주문 상태 변경 알림
+          if (prevStatus !== currStatus) {
+            if (prevStatus === 'pending' && currStatus === 'preparing') {
+              statusAlertMsg = '주문하신 주문이 제조중입니다';
+              statusAlertStatus = 'preparing';
+            } else if (prevStatus === 'preparing' && currStatus === 'ready') {
+              statusAlertMsg = '주문하신 주문이 제조완료되었습니다';
+              statusAlertStatus = 'ready';
+            } else if (prevStatus === 'ready' && currStatus === 'completed') {
+              statusAlertMsg = '주문하신 주문이 픽업되었습니다';
+              statusAlertStatus = 'completed';
+            } else if (prevStatus === 'pending' && currStatus === 'cancelled') {
+              statusAlertMsg = '주문하신 주문이 취소되었습니다';
+              statusAlertStatus = 'cancelled';
+            }
+          }
+          
+          // 결제 상태 변경 알림
+          if (prevPaymentStatus !== currPaymentStatus) {
+            if (prevPaymentStatus !== 'confirmed' && currPaymentStatus === 'confirmed') {
+              statusAlertMsg = '주문하신 주문이 결제완료되었습니다';
+              statusAlertStatus = 'completed';
+            }
+          }
+
+          // 알림 표시
+          if (statusAlertMsg && statusAlertStatus) {
+            console.log('🔔 Showing customer notification on dashboard:', statusAlertMsg, statusAlertStatus);
+            showNotification(statusAlertMsg, statusAlertStatus);
+          }
+        }
+        
+        // 관리자에게 주문 상태 변경 알림
+        if (oldOrder && updatedOrder && userRole === 'admin') {
+          const prevStatus = oldOrder.status;
+          const currStatus = updatedOrder.status;
+          
+          // 주문 상태가 변경된 경우에만 알림
+          if (prevStatus !== currStatus) {
+            const statusLabels: Record<string, string> = {
+              'preparing': '제조중',
+              'ready': '제조완료', 
+              'completed': '픽업완료',
+              'cancelled': '취소'
+            };
+            
+            if (statusLabels[currStatus]) {
+              const message = `${updatedOrder.customer_name}의 주문이 ${statusLabels[currStatus]} 상태로 변경되었습니다`;
+              showNotification(message, currStatus);
+            }
+          }
+        }
+        
+        // 오늘 날짜 계산
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        // 오늘 주문 데이터 새로고침
+        const [pending, ready] = await Promise.all([
+          supabase
+            .from('orders')
+            .select('*, order_items(*)')
+            .eq('status', 'pending')
+            .gte('created_at', today.toISOString())
+            .lt('created_at', tomorrow.toISOString()),
+          supabase
+            .from('orders')
+            .select('*, order_items(*)')
+            .eq('status', 'ready')
+            .gte('created_at', today.toISOString())
+            .lt('created_at', tomorrow.toISOString()),
+        ]);
+        setPendingOrders(pending.data || []);
+        setReadyOrders(ready.data || []);
+
+        // 오늘 상태별 통계 새로고침
+        const { data: todayOrders } = await supabase
+          .from('orders')
+          .select('status, payment_status')
+          .gte('created_at', today.toISOString())
+          .lt('created_at', tomorrow.toISOString());
+        
+        const stats = { pending: 0, preparing: 0, ready: 0, completed: 0, cancelled: 0, confirmedOrders: 0 };
+        todayOrders?.forEach((order: any) => {
+          if (!order) return;
+          const status = String(order.status) as keyof typeof stats;
+          if (status in stats) stats[status] = (stats[status] || 0) + 1;
+          if(order.payment_status === 'confirmed') stats.confirmedOrders += 1;
+        });
+        setStatusStats(stats);
+
+        // 일별 매출 데이터 새로고침
+        const updatedDailySales = await getDailySales(startDate || undefined, endDate || undefined);
+        setFilteredDailySales(updatedDailySales);
+      })
+      .subscribe((status) => {
+        console.log('📡 Dashboard realtime subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Dashboard realtime subscription active');
+        }
+      });
+      
+    return () => { 
+      console.log('🔌 Dashboard realtime subscription cleaned up');
+      channel.unsubscribe(); 
+    };
+  }, [startDate, endDate, userRole, user, loading, showNotification]);
 
   // 타입 안전성을 위한 문자열 변환
   const errorMessage = error ? String(error) : null;
@@ -525,44 +714,28 @@ export default function Index() {
             <div className="mb-4">
               <h3 className="text-xl sm:text-2xl font-black text-wine-800">최근 주문</h3>
             </div>
-            {recentOrders.length > 0 ? (
+            {userRecentOrders.length > 0 ? (
               <>
                 {/* 모바일: 카드형 */}
                 <div className="block sm:hidden space-y-3">
-                  {recentOrders.slice(0, 5).map((order: any, idx: number) => order && (
-                    <div key={order.id} className="bg-ivory-50 rounded-xl border border-wine-100 p-3 flex flex-col gap-1">
-                      <div className="flex items-center justify-between mb-1">
+                  {userRecentOrders.slice(0, 5).map((order: any, idx: number) => order && (
+                    <div key={order.id} className="bg-ivory-50 rounded-xl border border-wine-100 p-3 flex flex-col gap-2">
+                      <div className="flex items-center justify-between">
                         <span className="text-xs text-wine-400">#{idx + 1}</span>
                         <span className="font-bold text-wine-800">₩{order.total_amount.toLocaleString()}</span>
                       </div>
                       <div className="font-bold text-wine-800 text-sm">{order.customer_name}</div>
-                      <div className="text-xs text-wine-600">{order.church_group || '-'}</div>
+                      <div className="text-xs text-wine-600">
+                        {new Date(order.created_at).toLocaleDateString('ko-KR', {
+                          year: 'numeric',
+                          month: '2-digit',
+                          day: '2-digit'
+                        })}
+                      </div>
                       <div className="flex flex-wrap gap-1 text-xs text-wine-700">
                         {order.order_items?.map((item: any) => (
                           <span key={item.id}>{item.menu?.name} x{item.quantity}</span>
                         ))}
-                      </div>
-                      <div className="flex flex-row flex-wrap gap-1 mt-1">
-                        <span className={`px-2 py-1 rounded text-xs font-bold ${
-                          order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                          order.status === 'preparing' ? 'bg-blue-100 text-blue-800' :
-                          order.status === 'ready' ? 'bg-green-100 text-green-800' :
-                          order.status === 'completed' ? 'bg-wine-100 text-wine-800' :
-                          order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {order.status === 'pending' ? '대기' :
-                           order.status === 'preparing' ? '제조중' :
-                           order.status === 'ready' ? '제조완료' :
-                           order.status === 'completed' ? '주문완료' :
-                           order.status === 'cancelled' ? '취소' : order.status}
-                        </span>
-                        <span className={`px-2 py-1 rounded text-xs font-bold ${
-                          order.payment_status === 'confirmed' ? 'bg-green-100 text-green-800' :
-                          'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {order.payment_status === 'confirmed' ? '결제완료' : '결제대기'}
-                        </span>
                       </div>
                       <button
                         className="mt-2 px-3 py-2 bg-gradient-wine text-ivory-50 rounded-lg text-xs font-bold hover:shadow-wine transition-all duration-300 shadow-medium hover:shadow-large transform hover:-translate-y-1"
@@ -583,7 +756,7 @@ export default function Index() {
                           window.location.href = '/orders/new';
                         }}
                       >
-                        같은메뉴 재주문
+                        빠른주문
                       </button>
                     </div>
                   ))}
@@ -595,13 +768,14 @@ export default function Index() {
                       <tr className="bg-ivory-100 text-wine-700 text-sm sm:text-base">
                         <th className="px-2 py-2">연번</th>
                         <th className="px-2 py-2">주문인</th>
+                        <th className="px-2 py-2">주문날짜</th>
                         <th className="px-2 py-2">주문메뉴</th>
-                        <th className="px-2 py-2">총액</th>
-                        <th className="px-2 py-2">재주문</th>
+                        <th className="px-2 py-2">주문금액</th>
+                        <th className="px-2 py-2">빠른주문</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {recentOrders.slice(0, 5).map((order: any, idx: number) => (
+                      {userRecentOrders.slice(0, 5).map((order: any, idx: number) => (
                         order ? (
                           <tr key={order.id} className="bg-ivory-50">
                             {/* 연번 */}
@@ -609,7 +783,16 @@ export default function Index() {
                             {/* 주문인 */}
                             <td className="align-middle">
                               <div className="font-bold text-wine-800">{order.customer_name}</div>
-                              <div className="text-xs text-wine-600">{order.church_group || '-'}</div>
+                            </td>
+                            {/* 주문날짜 */}
+                            <td className="align-middle">
+                              <div className="text-wine-700">
+                                {new Date(order.created_at).toLocaleDateString('ko-KR', {
+                                  year: 'numeric',
+                                  month: '2-digit',
+                                  day: '2-digit'
+                                })}
+                              </div>
                             </td>
                             {/* 주문메뉴 */}
                             <td className="align-middle">
@@ -621,35 +804,11 @@ export default function Index() {
                                 ))}
                               </div>
                             </td>
-                            {/* 총액(상태/결제 뱃지) */}
+                            {/* 주문금액 */}
                             <td className="align-middle">
                               <div className="font-bold text-wine-800">₩{order.total_amount.toLocaleString()}</div>
-                              <div className="flex flex-row flex-wrap gap-1 justify-center mt-1">
-                                {/* 주문 상태 뱃지 */}
-                                <span className={`px-2 py-1 rounded text-xs font-bold ${
-                                  order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                  order.status === 'preparing' ? 'bg-blue-100 text-blue-800' :
-                                  order.status === 'ready' ? 'bg-green-100 text-green-800' :
-                                  order.status === 'completed' ? 'bg-wine-100 text-wine-800' :
-                                  order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                                  'bg-gray-100 text-gray-800'
-                                }`}>
-                                  {order.status === 'pending' ? '대기' :
-                                   order.status === 'preparing' ? '제조중' :
-                                   order.status === 'ready' ? '제조완료' :
-                                   order.status === 'completed' ? '주문완료' :
-                                   order.status === 'cancelled' ? '취소' : order.status}
-                                </span>
-                                {/* 결제 상태 뱃지 */}
-                                <span className={`px-2 py-1 rounded text-xs font-bold ${
-                                  order.payment_status === 'confirmed' ? 'bg-green-100 text-green-800' :
-                                  'bg-yellow-100 text-yellow-800'
-                                }`}>
-                                  {order.payment_status === 'confirmed' ? '결제완료' : '결제대기'}
-                                </span>
-                              </div>
                             </td>
-                            {/* 재주문 버튼 */}
+                            {/* 빠른주문 버튼 */}
                             <td className="align-middle">
                               <button
                                 className="px-3 py-2 bg-gradient-wine text-ivory-50 rounded-lg text-xs sm:text-sm font-bold hover:shadow-wine transition-all duration-300 shadow-medium hover:shadow-large transform hover:-translate-y-1"
@@ -659,7 +818,7 @@ export default function Index() {
                                     churchGroup: order.church_group,
                                     paymentMethod: order.payment_method,
                                     notes: order.notes,
-                                    items: order.order_items?.map(item => ({
+                                    items: order.order_items?.map((item: any) => ({
                                       menu_id: item.menu?.id,
                                       quantity: item.quantity,
                                       unit_price: item.menu?.price,
@@ -670,7 +829,7 @@ export default function Index() {
                                   window.location.href = '/orders/new';
                                 }}
                               >
-                                같은메뉴 재주문
+                                빠른주문
                               </button>
                             </td>
                           </tr>

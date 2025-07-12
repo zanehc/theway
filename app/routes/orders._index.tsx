@@ -268,19 +268,9 @@ export default function Orders() {
       loading,
       userRoleState,
       hasUser: !!user,
-      userRoleStateType: typeof userRoleState
+      userId: user?.id
     });
     
-    // 조건 체크를 더 자세히 로그
-    console.log('🔍 Realtime conditions check:', {
-      loading,
-      hasUserRoleState: !!userRoleState,
-      hasUser: !!user,
-      isAdminWithoutUser: userRoleState === 'admin' && !user,
-      shouldReturn: loading || !userRoleState || (!user && userRoleState !== 'admin')
-    });
-    
-    // 조건을 일시적으로 완화해서 테스트
     if (loading) {
       console.log('🔌 Realtime subscription skipped - loading');
       return;
@@ -290,22 +280,18 @@ export default function Orders() {
     if (channelRef.current) {
       channelRef.current.unsubscribe();
       channelRef.current = null;
-      console.log('🔌 Realtime subscription cleaned up (재설정)');
+      console.log('🔌 Realtime subscription cleaned up');
     }
 
     console.log('🔄 Setting up realtime subscription...', { 
       userRole: userRoleState, 
       userId: user?.id,
       isAdmin: userRoleState === 'admin',
-      isCustomer: userRoleState === 'customer',
-      filter: 'no filter (all orders)'
+      isCustomer: userRoleState === 'customer'
     });
 
-    // 더 안정적인 채널 이름 사용
-    const channelName = `orders-realtime-${userRoleState || 'unknown'}-${user?.id || 'anonymous'}-${Date.now()}`;
-    
     const channel = supabase
-      .channel(channelName)
+      .channel('orders-realtime')
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
@@ -316,7 +302,11 @@ export default function Orders() {
         
         // 관리자에게 새 주문 알림 표시
         if (userRoleState === 'admin') {
-          const message = `${newOrder.customer_name || '새 고객'}의 주문이 들어왔습니다!`;
+          const customerName = newOrder.customer_name || '새 고객';
+          const churchGroup = newOrder.church_group || '';
+          const message = churchGroup 
+            ? `${customerName}(${churchGroup}) 님의 주문이 들어왔습니다!`
+            : `${customerName} 님의 주문이 들어왔습니다!`;
           showNotification(message, 'pending');
         }
         
@@ -359,48 +349,47 @@ export default function Orders() {
             prevPaymentStatus,
             currPaymentStatus,
             userRole: userRoleState,
-            isCustomer: userRoleState === 'customer',
-            isAdmin: userRoleState === 'admin',
             orderUserId: updatedOrder.user_id,
             currentUserId: user?.id,
             isOwnOrder: updatedOrder.user_id === user?.id
           });
           
-          let statusAlertMsg = '';
-          let statusAlertStatus: OrderStatus | null = null;
-          let paymentAlertMsg = '';
-          let paymentAlertStatus: OrderStatus | null = null;
+          let alertMsg = '';
+          let alertStatus: OrderStatus | null = null;
 
-          // 고객에게 주문 상태 변경 알림 (본인 주문만)
+          // 고객에게 본인 주문 상태 변경 알림
           if (userRoleState === 'customer' && updatedOrder.user_id === user?.id) {
+            console.log('🔔 Customer notification check - own order');
             // 주문 상태 변경 알림
             if (prevStatus !== currStatus) {
               if (prevStatus === 'pending' && currStatus === 'preparing') {
-                statusAlertMsg = '주문하신 주문이 제조중입니다';
-                statusAlertStatus = 'preparing';
+                alertMsg = '주문하신 주문이 제조중입니다';
+                alertStatus = 'preparing';
               } else if (prevStatus === 'preparing' && currStatus === 'ready') {
-                statusAlertMsg = '주문하신 주문이 제조완료되었습니다';
-                statusAlertStatus = 'ready';
+                alertMsg = '주문하신 주문이 제조완료되었습니다';
+                alertStatus = 'ready';
               } else if (prevStatus === 'ready' && currStatus === 'completed') {
-                statusAlertMsg = '주문하신 주문이 픽업되었습니다';
-                statusAlertStatus = 'completed';
+                alertMsg = '주문하신 주문이 픽업되었습니다';
+                alertStatus = 'completed';
               } else if (prevStatus === 'pending' && currStatus === 'cancelled') {
-                statusAlertMsg = '주문하신 주문이 취소되었습니다';
-                statusAlertStatus = 'cancelled';
+                alertMsg = '주문하신 주문이 취소되었습니다';
+                alertStatus = 'cancelled';
               }
             }
             
             // 결제 상태 변경 알림
             if (prevPaymentStatus !== currPaymentStatus) {
               if (prevPaymentStatus !== 'confirmed' && currPaymentStatus === 'confirmed') {
-                paymentAlertMsg = '주문하신 주문이 결제완료되었습니다';
-                paymentAlertStatus = 'completed';
+                alertMsg = '주문하신 주문이 결제완료되었습니다';
+                alertStatus = 'completed';
               }
             }
           }
           
-          // 관리자에게 상태 변경 알림 (모든 주문)
+          // 관리자에게 주문 상태 변경 알림
           if (userRoleState === 'admin') {
+            console.log('🔔 Admin notification check');
+            // 주문 상태 변경 알림
             if (prevStatus !== currStatus) {
               const statusLabels: Record<string, string> = {
                 'preparing': '제조중',
@@ -410,22 +399,16 @@ export default function Orders() {
               };
               
               if (statusLabels[currStatus]) {
-                statusAlertMsg = `${updatedOrder.customer_name}의 주문이 ${statusLabels[currStatus]} 상태로 변경되었습니다`;
-                statusAlertStatus = currStatus;
+                alertMsg = `${updatedOrder.customer_name}의 주문이 ${statusLabels[currStatus]} 상태로 변경되었습니다`;
+                alertStatus = currStatus;
               }
             }
           }
 
-          // 주문 상태 변경 알림 표시
-          if (statusAlertMsg && statusAlertStatus) {
-            console.log('🔔 Showing status notification:', statusAlertMsg, statusAlertStatus);
-            showNotification(statusAlertMsg, statusAlertStatus);
-          }
-          
-          // 결제 상태 변경 알림 표시
-          if (paymentAlertMsg && paymentAlertStatus) {
-            console.log('🔔 Showing payment notification:', paymentAlertMsg, paymentAlertStatus);
-            showNotification(paymentAlertMsg, paymentAlertStatus);
+          // 알림 표시
+          if (alertMsg && alertStatus) {
+            console.log('🔔 Showing notification:', alertMsg, alertStatus);
+            showNotification(alertMsg, alertStatus);
           }
         }
         
@@ -454,7 +437,6 @@ export default function Orders() {
         event: 'DELETE',
         schema: 'public',
         table: 'orders',
-        filter: undefined, // 모든 주문 삭제를 받도록 필터 제거
       }, (payload) => {
         console.log('🗑️ Order deleted:', payload.old);
         const deletedOrderId = payload.old.id;
@@ -482,7 +464,7 @@ export default function Orders() {
       }
       if (alertTimeout.current) clearTimeout(alertTimeout.current);
     };
-  }, [userRoleState, user, loading, orders.length]); // orders.length를 의존성에 추가
+  }, [userRoleState, user, loading, showNotification]);
 
   // Debug: Log current orders state
   useEffect(() => {
@@ -629,7 +611,7 @@ export default function Orders() {
         const menuNames = order.order_items?.map((item: any) => 
           `${item.menu?.name} ${item.quantity}개`
         ).join(', ') || '주문 메뉴';
-        const message = `${order.customer_name}이/가 ${orderTime}에 주문하신 ${menuNames}가 결제완료 상태입니다`;
+        const message = `${order.customer_name}이/가 ${orderTime}에 주문하신 ${menuNames}가 결제완료되었습니다`;
         console.log('📝 Payment notification message:', message);
         
         // 즉시 알림 표시 (DB 저장 없이)
@@ -789,13 +771,17 @@ export default function Orders() {
                       <div className="text-xs text-wine-600">{order.church_group}</div>
                     )}
                   </td>
-                  {/* 주문정보: 1줄-날짜시간, 2줄-상태뱃지 */}
+                  {/* 주문정보: 1줄-주문날짜, 2줄-주문시각, 3줄-주문상태뱃지 */}
                   <td className="align-middle border-b-2 text-xs sm:text-base whitespace-nowrap" style={{ borderBottom: '2px dashed #e6bfc9' }}>
                     <div className="text-xs text-gray-600">
-                      {new Date(order.created_at).toLocaleString('ko-KR', {
+                      {new Date(order.created_at).toLocaleDateString('ko-KR', {
                         year: 'numeric',
                         month: '2-digit',
-                        day: '2-digit',
+                        day: '2-digit'
+                      })}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">
+                      {new Date(order.created_at).toLocaleTimeString('ko-KR', {
                         hour: '2-digit',
                         minute: '2-digit'
                       })}
@@ -1013,3 +999,4 @@ export default function Orders() {
     </div>
   );
 } 
+
