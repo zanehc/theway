@@ -359,7 +359,14 @@ export default function Orders() {
 
           // 고객에게 본인 주문 상태 변경 알림
           if (userRoleState === 'customer' && updatedOrder.user_id === user?.id) {
-            console.log('🔔 Customer notification check - own order');
+            console.log('🔔 Customer notification check - own order', {
+              prevStatus,
+              currStatus,
+              prevPaymentStatus,
+              currPaymentStatus,
+              orderId: updatedOrder.id
+            });
+            
             // 주문 상태 변경 알림
             if (prevStatus !== currStatus) {
               if (prevStatus === 'pending' && currStatus === 'preparing') {
@@ -375,6 +382,13 @@ export default function Orders() {
                 alertMsg = '주문하신 주문이 취소되었습니다';
                 alertStatus = 'cancelled';
               }
+              
+              console.log('🔔 Customer status change notification:', {
+                alertMsg,
+                alertStatus,
+                prevStatus,
+                currStatus
+              });
             }
             
             // 결제 상태 변경 알림
@@ -382,6 +396,7 @@ export default function Orders() {
               if (prevPaymentStatus !== 'confirmed' && currPaymentStatus === 'confirmed') {
                 alertMsg = '주문하신 주문이 결제완료되었습니다';
                 alertStatus = 'completed';
+                console.log('🔔 Customer payment confirmation notification:', alertMsg);
               }
             }
           }
@@ -407,7 +422,13 @@ export default function Orders() {
 
           // 알림 표시
           if (alertMsg && alertStatus) {
-            console.log('🔔 Showing notification:', alertMsg, alertStatus);
+            console.log('🔔 Showing notification:', {
+              message: alertMsg,
+              status: alertStatus,
+              userRole: userRoleState,
+              orderId: updatedOrder.id,
+              isOwnOrder: updatedOrder.user_id === user?.id
+            });
             showNotification(alertMsg, alertStatus);
           }
         }
@@ -634,12 +655,18 @@ export default function Orders() {
   // 상태 변경 핸들러 (알림 포함)
   const handleStatusChangeWithNotification = async (order: any, newStatus: OrderStatus) => {
     try {
-      console.log('🔄 Status change with notification:', { orderId: order.id, newStatus, hasUserId: !!order.user_id });
+      console.log('🔄 Status change with notification:', { 
+        orderId: order.id, 
+        newStatus, 
+        hasUserId: !!order.user_id,
+        userRole: userRoleState,
+        orderUserId: order.user_id
+      });
       
       // 상태 변경 수행
       await handleStatusChange(order.id, newStatus);
       
-      // 고객에게 상태 변경 알림 표시 (DB 저장 없이)
+      // 관리자가 상태 변경할 때 고객에게 알림 표시
       if (order.user_id && userRoleState === 'admin') {
         const statusMessages: Record<string, string> = {
           'preparing': '제조중',
@@ -648,25 +675,22 @@ export default function Orders() {
           'cancelled': '취소'
         };
         
-        const orderTime = new Date(order.created_at).toLocaleString('ko-KR', {
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit'
-        });
-        
         const menuNames = order.order_items?.map((item: any) => 
           `${item.menu?.name} ${item.quantity}개`
         ).join(', ') || '주문 메뉴';
         
         const message = `주문하신 ${menuNames}가 ${statusMessages[newStatus]} 상태로 변경되었습니다`;
         
-        console.log('📝 Status change notification message:', message);
+        console.log('📝 Status change notification for customer:', {
+          message,
+          orderUserId: order.user_id,
+          newStatus
+        });
         
-        // 즉시 알림 표시 (DB 저장 없이)
+        // 고객에게 알림 표시 (DB 저장 없이)
         showNotification(message, newStatus);
         
-        console.log('✅ Status change notification displayed');
+        console.log('✅ Status change notification displayed for customer');
       }
       
       console.log('✅ Status change completed with notification');
