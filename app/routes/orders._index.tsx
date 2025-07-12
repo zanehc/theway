@@ -2,11 +2,12 @@ import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useFetcher, Link, useNavigate, useLocation } from "@remix-run/react";
 import { useState, useEffect, useRef } from "react";
-import { getOrders, updateOrderStatus, createNotification, getOrdersByUserId } from "~/lib/database";
+import { getOrders, updateOrderStatus, getOrdersByUserId } from "~/lib/database";
 import { supabase } from "~/lib/supabase";
 import Header from "~/components/Header";
 import type { OrderStatus } from "~/types";
 import React from 'react';
+import { useNotification } from '~/contexts/NotificationContext';
 
 export async function loader({ request }: LoaderFunctionArgs) {
   try {
@@ -66,7 +67,7 @@ export async function action({ request }: ActionFunctionArgs) {
 const statusOptions: { value: OrderStatus; label: string; color: string; bgColor: string }[] = [
   { value: 'pending', label: '대기', color: 'text-yellow-800', bgColor: 'bg-yellow-100' },
   { value: 'preparing', label: '제조중', color: 'text-blue-800', bgColor: 'bg-blue-100' },
-  { value: 'ready', label: '완료', color: 'text-green-800', bgColor: 'bg-green-100' },
+  { value: 'ready', label: '제조완료', color: 'text-green-800', bgColor: 'bg-green-100' },
   { value: 'completed', label: '픽업완료', color: 'text-wine-800', bgColor: 'bg-wine-100' },
   { value: 'cancelled', label: '취소', color: 'text-red-800', bgColor: 'bg-red-100' },
 ];
@@ -97,6 +98,7 @@ export default function Orders() {
   const [currentPaymentStatus, setCurrentPaymentStatus] = useState<string>('');
   const navigate = useNavigate();
   const location = useLocation();
+  const { showNotification } = useNotification();
   const filteredOrders = orders.filter(order => {
     // 결제완료 필터가 우선순위가 높음
     if (currentPaymentStatus === 'confirmed') {
@@ -226,38 +228,29 @@ export default function Orders() {
         return updatedOrders;
       });
       
-      // 취소 알림 생성 (고객에게만) - 별도 try-catch로 감싸기
+      // 취소 알림 표시 (DB 저장 없이)
       if (order.user_id) {
-        try {
-          console.log('📱 Creating cancellation notification for user:', order.user_id);
-          
-          const orderTime = new Date(order.created_at).toLocaleString('ko-KR', {
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit'
-          });
-          
-          const menuNames = order.order_items?.map((item: any) => 
-            `${item.menu?.name} ${item.quantity}개`
-          ).join(', ') || '주문 메뉴';
-          
-          const message = `${order.customer_name}이/가 ${orderTime}에 주문하신 ${menuNames}가 취소되었습니다`;
-          
-          console.log('📝 Cancellation notification message:', message);
-          
-          await createNotification({
-            user_id: order.user_id,
-            order_id: order.id,
-            type: 'order_cancelled',
-            message
-          });
-          
-          console.log('✅ Cancellation notification completed');
-        } catch (notificationError) {
-          console.error('❌ Notification creation failed:', notificationError);
-          // 알림 생성 실패는 주문 취소 실패로 처리하지 않음
-        }
+        console.log('📱 Creating cancellation notification for user:', order.user_id);
+        
+        const orderTime = new Date(order.created_at).toLocaleString('ko-KR', {
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        
+        const menuNames = order.order_items?.map((item: any) => 
+          `${item.menu?.name} ${item.quantity}개`
+        ).join(', ') || '주문 메뉴';
+        
+        const message = `${order.customer_name}이/가 ${orderTime}에 주문하신 ${menuNames}가 취소되었습니다`;
+        
+        console.log('📝 Cancellation notification message:', message);
+        
+        // 즉시 알림 표시 (DB 저장 없이)
+        showNotification(message, 'cancelled');
+        
+        console.log('✅ Cancellation notification displayed');
       }
       
       // 주문 취소 성공 메시지
@@ -271,13 +264,25 @@ export default function Orders() {
 
   // Supabase Realtime: 주문 실시간 업데이트 (관리자: 전체, 고객: 본인 주문만)
   useEffect(() => {
-    if (loading || !userRoleState || (!user && userRoleState !== 'admin')) {
-      // 구독 해제
-      if (channelRef.current) {
-        channelRef.current.unsubscribe();
-        channelRef.current = null;
-        console.log('🔌 Realtime subscription cleaned up (조건 불충족)');
-      }
+    console.log('🔍 Realtime useEffect triggered:', {
+      loading,
+      userRoleState,
+      hasUser: !!user,
+      userRoleStateType: typeof userRoleState
+    });
+    
+    // 조건 체크를 더 자세히 로그
+    console.log('🔍 Realtime conditions check:', {
+      loading,
+      hasUserRoleState: !!userRoleState,
+      hasUser: !!user,
+      isAdminWithoutUser: userRoleState === 'admin' && !user,
+      shouldReturn: loading || !userRoleState || (!user && userRoleState !== 'admin')
+    });
+    
+    // 조건을 일시적으로 완화해서 테스트
+    if (loading) {
+      console.log('🔌 Realtime subscription skipped - loading');
       return;
     }
 
@@ -288,19 +293,33 @@ export default function Orders() {
       console.log('🔌 Realtime subscription cleaned up (재설정)');
     }
 
-    console.log('🔄 Setting up realtime subscription...', { userRole: userRoleState, userId: user?.id });
+    console.log('🔄 Setting up realtime subscription...', { 
+      userRole: userRoleState, 
+      userId: user?.id,
+      isAdmin: userRoleState === 'admin',
+      isCustomer: userRoleState === 'customer',
+      filter: 'no filter (all orders)'
+    });
 
+    // 더 안정적인 채널 이름 사용
+    const channelName = `orders-realtime-${userRoleState || 'unknown'}-${user?.id || 'anonymous'}-${Date.now()}`;
+    
     const channel = supabase
-      .channel(`orders-realtime-${userRoleState}-${user?.id || 'admin'}`)
+      .channel(channelName)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'orders',
-        filter: userRoleState !== 'admin' ? `user_id=eq.${user.id}` : undefined,
       }, async (payload) => {
         console.log('📦 New order received:', payload.new);
         const newOrder = payload.new;
-        // 전역 알림을 사용하므로 중복 알림 제거
+        
+        // 관리자에게 새 주문 알림 표시
+        if (userRoleState === 'admin') {
+          const message = `${newOrder.customer_name || '새 고객'}의 주문이 들어왔습니다!`;
+          showNotification(message, 'pending');
+        }
+        
         try {
           const { data: orderWithItems } = await supabase
             .from('orders')
@@ -322,10 +341,94 @@ export default function Orders() {
         event: 'UPDATE',
         schema: 'public',
         table: 'orders',
-        filter: userRoleState !== 'admin' ? `user_id=eq.${user.id}` : undefined,
       }, async (payload) => {
         console.log('🔄 Order updated:', payload.new);
         const updatedOrder = payload.new;
+        const oldOrder = payload.old;
+        
+        // 주문 상태 변경 알림 표시
+        if (oldOrder && updatedOrder) {
+          const prevStatus = oldOrder.status;
+          const currStatus = updatedOrder.status;
+          const prevPaymentStatus = oldOrder.payment_status;
+          const currPaymentStatus = updatedOrder.payment_status;
+          
+          console.log('🔔 Status comparison:', {
+            prevStatus,
+            currStatus,
+            prevPaymentStatus,
+            currPaymentStatus,
+            userRole: userRoleState,
+            isCustomer: userRoleState === 'customer',
+            isAdmin: userRoleState === 'admin',
+            orderUserId: updatedOrder.user_id,
+            currentUserId: user?.id,
+            isOwnOrder: updatedOrder.user_id === user?.id
+          });
+          
+          let statusAlertMsg = '';
+          let statusAlertStatus: OrderStatus | null = null;
+          let paymentAlertMsg = '';
+          let paymentAlertStatus: OrderStatus | null = null;
+
+          // 고객에게 주문 상태 변경 알림 (본인 주문만)
+          if (userRoleState === 'customer' && updatedOrder.user_id === user?.id) {
+            // 주문 상태 변경 알림
+            if (prevStatus !== currStatus) {
+              if (prevStatus === 'pending' && currStatus === 'preparing') {
+                statusAlertMsg = '주문하신 주문이 제조중입니다';
+                statusAlertStatus = 'preparing';
+              } else if (prevStatus === 'preparing' && currStatus === 'ready') {
+                statusAlertMsg = '주문하신 주문이 제조완료되었습니다';
+                statusAlertStatus = 'ready';
+              } else if (prevStatus === 'ready' && currStatus === 'completed') {
+                statusAlertMsg = '주문하신 주문이 픽업되었습니다';
+                statusAlertStatus = 'completed';
+              } else if (prevStatus === 'pending' && currStatus === 'cancelled') {
+                statusAlertMsg = '주문하신 주문이 취소되었습니다';
+                statusAlertStatus = 'cancelled';
+              }
+            }
+            
+            // 결제 상태 변경 알림
+            if (prevPaymentStatus !== currPaymentStatus) {
+              if (prevPaymentStatus !== 'confirmed' && currPaymentStatus === 'confirmed') {
+                paymentAlertMsg = '주문하신 주문이 결제완료되었습니다';
+                paymentAlertStatus = 'completed';
+              }
+            }
+          }
+          
+          // 관리자에게 상태 변경 알림 (모든 주문)
+          if (userRoleState === 'admin') {
+            if (prevStatus !== currStatus) {
+              const statusLabels: Record<string, string> = {
+                'preparing': '제조중',
+                'ready': '제조완료', 
+                'completed': '픽업완료',
+                'cancelled': '취소'
+              };
+              
+              if (statusLabels[currStatus]) {
+                statusAlertMsg = `${updatedOrder.customer_name}의 주문이 ${statusLabels[currStatus]} 상태로 변경되었습니다`;
+                statusAlertStatus = currStatus;
+              }
+            }
+          }
+
+          // 주문 상태 변경 알림 표시
+          if (statusAlertMsg && statusAlertStatus) {
+            console.log('🔔 Showing status notification:', statusAlertMsg, statusAlertStatus);
+            showNotification(statusAlertMsg, statusAlertStatus);
+          }
+          
+          // 결제 상태 변경 알림 표시
+          if (paymentAlertMsg && paymentAlertStatus) {
+            console.log('🔔 Showing payment notification:', paymentAlertMsg, paymentAlertStatus);
+            showNotification(paymentAlertMsg, paymentAlertStatus);
+          }
+        }
+        
         try {
           const { data: orderWithItems } = await supabase
             .from('orders')
@@ -333,15 +436,11 @@ export default function Orders() {
             .eq('id', updatedOrder.id)
             .single();
           if (orderWithItems) {
-            // prevOrder를 setOrders 이전에 찾는다
-            let prevOrder: any = null;
             setOrders((prevOrders: any[]) => {
-              prevOrder = prevOrders.find((o: any) => o.id === updatedOrder.id);
               return prevOrders.map((order: any) =>
                 order.id === updatedOrder.id ? orderWithItems : order
               );
             });
-            // 주문현황 페이지에서는 전역 알림을 사용하므로 중복 알림 제거
           }
         } catch (error) {
           console.error('❌ Error fetching updated order details:', error);
@@ -355,7 +454,7 @@ export default function Orders() {
         event: 'DELETE',
         schema: 'public',
         table: 'orders',
-        filter: userRoleState !== 'admin' ? `user_id=eq.${user.id}` : undefined,
+        filter: undefined, // 모든 주문 삭제를 받도록 필터 제거
       }, (payload) => {
         console.log('🗑️ Order deleted:', payload.old);
         const deletedOrderId = payload.old.id;
@@ -383,7 +482,7 @@ export default function Orders() {
       }
       if (alertTimeout.current) clearTimeout(alertTimeout.current);
     };
-  }, [userRoleState, user, loading]);
+  }, [userRoleState, user, loading, orders.length]); // orders.length를 의존성에 추가
 
   // Debug: Log current orders state
   useEffect(() => {
@@ -393,13 +492,13 @@ export default function Orders() {
     console.log('User info:', { 
       userId: user?.id, 
       userEmail: user?.email,
-      userRole,
-      isAdmin: userRole === 'admin'
+      userRole: userRoleState,
+      isAdmin: userRoleState === 'admin'
     });
     
     // 각 주문의 취소 가능 여부 확인
     filteredOrders.forEach(order => {
-      const isAdminUser = userRole === 'admin';
+      const isAdminUser = userRoleState === 'admin';
       const isOwnOrder = order.user_id === user?.id;
       const canCancel = order.status === 'pending' && (
         isAdminUser || (!isAdminUser && isOwnOrder)
@@ -436,13 +535,24 @@ export default function Orders() {
     return statusOptions.find(option => option.value === status)?.bgColor || 'bg-gray-100';
   };
 
-  const getStatusLabel = (status: OrderStatus) => {
+  const getStatusLabel = (status: OrderStatus, paymentStatus?: string) => {
+    // 결제완료 상태가 우선순위가 높음
+    if (paymentStatus === 'confirmed') {
+      return '결제완료';
+    }
     return statusOptions.find(option => option.value === status)?.label || status;
   };
 
   const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
     try {
       console.log('Updating order status:', orderId, 'to', newStatus);
+      
+      // 현재 주문 정보 가져오기
+      const currentOrder = orders.find(order => order.id === orderId);
+      if (!currentOrder) {
+        console.error('Order not found:', orderId);
+        return;
+      }
       
       const { error } = await supabase
         .from('orders')
@@ -458,7 +568,7 @@ export default function Orders() {
       } else {
         console.log('Status updated successfully:', orderId, 'to', newStatus);
         
-        // 실시간 업데이트 대신 즉시 로컬 상태 업데이트
+        // 즉시 로컬 상태 업데이트
         setOrders((prevOrders: any[]) => {
           const updatedOrders = prevOrders.map((order: any) => 
             order.id === orderId 
@@ -468,6 +578,8 @@ export default function Orders() {
           console.log('Immediately updated orders state:', updatedOrders);
           return updatedOrders;
         });
+        
+
       }
     } catch (error) {
       console.error('Status change error:', error);
@@ -478,6 +590,7 @@ export default function Orders() {
   const handlePaymentConfirm = async (order: any) => {
     try {
       console.log('💳 Payment confirm:', { orderId: order.id, hasUserId: !!order.user_id });
+      
       // 결제 상태 업데이트
       const { error } = await supabase
         .from('orders')
@@ -492,7 +605,8 @@ export default function Orders() {
         alert('결제 상태 업데이트에 실패했습니다.');
         return;
       }
-      // 즉시 로컬 상태 업데이트
+
+      // 즉시 로컬 상태 업데이트 (실시간 구독이 작동하지 않을 경우를 대비)
       setOrders((prevOrders: any[]) => {
         const updatedOrders = prevOrders.map((o: any) => 
           o.id === order.id 
@@ -502,35 +616,33 @@ export default function Orders() {
         console.log('Immediately updated payment status:', updatedOrders);
         return updatedOrders;
       });
-      // 결제완료 알림 생성 (실패해도 팝업 띄우지 않음)
+
+      // 결제완료 알림 표시 (DB 저장 없이)
       if (order.user_id) {
-        try {
-          console.log('📱 Creating payment notification for user:', order.user_id);
-          const orderTime = new Date(order.created_at).toLocaleString('ko-KR', {
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit'
-          });
-          const menuNames = order.order_items?.map((item: any) => 
-            `${item.menu?.name} ${item.quantity}개`
-          ).join(', ') || '주문 메뉴';
-          const message = `${order.customer_name}이/가 ${orderTime}에 주문하신 ${menuNames}가 결제완료 상태입니다`;
-          console.log('📝 Payment notification message:', message);
-          await createNotification({
-            user_id: order.user_id,
-            order_id: order.id,
-            type: 'order_payment_confirmed',
-            message
-          });
-          console.log('✅ Payment notification completed');
-        } catch (notificationError) {
-          console.error('❌ Payment notification creation failed:', notificationError);
-          // 알림 생성 실패는 팝업 띄우지 않음
-        }
+        console.log('📱 Creating payment notification for user:', order.user_id);
+        const orderTime = new Date(order.created_at).toLocaleString('ko-KR', {
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        const menuNames = order.order_items?.map((item: any) => 
+          `${item.menu?.name} ${item.quantity}개`
+        ).join(', ') || '주문 메뉴';
+        const message = `${order.customer_name}이/가 ${orderTime}에 주문하신 ${menuNames}가 결제완료 상태입니다`;
+        console.log('📝 Payment notification message:', message);
+        
+        // 즉시 알림 표시 (DB 저장 없이)
+        showNotification(message, 'completed');
+        
+        console.log('✅ Payment notification displayed');
       } else {
         console.log('⚠️ No payment notification created - user_id missing');
       }
+
+      // 성공 메시지
+      alert('결제 상태가 성공적으로 업데이트되었습니다.');
+      
     } catch (error) {
       console.error('Payment confirm with notification error:', error);
       alert('결제 상태 업데이트에 실패했습니다.');
@@ -542,16 +654,16 @@ export default function Orders() {
     try {
       console.log('🔄 Status change with notification:', { orderId: order.id, newStatus, hasUserId: !!order.user_id });
       
+      // 상태 변경 수행
       await handleStatusChange(order.id, newStatus);
       
-      // 알림 생성 (고객에게만)
-      if (order.user_id && ['preparing', 'ready', 'completed'].includes(newStatus)) {
-        console.log('📱 Creating notification for user:', order.user_id);
-        
+      // 고객에게 상태 변경 알림 표시 (DB 저장 없이)
+      if (order.user_id && userRoleState === 'admin') {
         const statusMessages: Record<string, string> = {
           'preparing': '제조중',
           'ready': '제조완료',
-          'completed': '픽업완료'
+          'completed': '픽업완료',
+          'cancelled': '취소'
         };
         
         const orderTime = new Date(order.created_at).toLocaleString('ko-KR', {
@@ -561,30 +673,21 @@ export default function Orders() {
           minute: '2-digit'
         });
         
-        // 주문 메뉴 목록 생성
         const menuNames = order.order_items?.map((item: any) => 
           `${item.menu?.name} ${item.quantity}개`
         ).join(', ') || '주문 메뉴';
         
-        const message = `${order.customer_name}이/가 ${orderTime}에 주문하신 ${menuNames}가 ${statusMessages[newStatus]} 상태입니다`;
+        const message = `주문하신 ${menuNames}가 ${statusMessages[newStatus]} 상태로 변경되었습니다`;
         
-        console.log('📝 Notification message:', message);
+        console.log('📝 Status change notification message:', message);
         
-        await createNotification({
-          user_id: order.user_id,
-          order_id: order.id,
-          type: `order_${newStatus}`,
-          message
-        });
+        // 즉시 알림 표시 (DB 저장 없이)
+        showNotification(message, newStatus);
         
-        console.log('✅ Status change notification completed');
-      } else {
-        console.log('⚠️ No notification created - user_id missing or status not eligible:', { 
-          hasUserId: !!order.user_id, 
-          status: newStatus, 
-          eligibleStatuses: ['preparing', 'ready', 'completed'] 
-        });
+        console.log('✅ Status change notification displayed');
       }
+      
+      console.log('✅ Status change completed with notification');
     } catch (error) {
       console.error('❌ Status change with notification error:', error);
     }
@@ -706,12 +809,7 @@ export default function Orders() {
                         order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
-                        {order.status === 'pending' ? '대기' :
-                         order.status === 'preparing' ? '제조중' :
-                         order.status === 'ready' ? '제조완료' :
-                         order.status === 'completed' ? '픽업완료' :
-                         order.status === 'cancelled' ? '취소' :
-                         order.status}
+                        {getStatusLabel(order.status, order.payment_status)}
                       </span>
                     </div>
                   </td>
@@ -735,7 +833,10 @@ export default function Orders() {
                         {order.status === 'pending' && (
                           <button
                             className="px-3 py-2 bg-blue-600 text-white rounded text-xs font-bold hover:bg-blue-700 transition"
-                            onClick={() => handleStatusChangeWithNotification(order, 'preparing')}
+                            onClick={() => {
+                              console.log('🔘 제조시작 버튼 클릭됨:', order.id);
+                              handleStatusChangeWithNotification(order, 'preparing');
+                            }}
                           >
                             제조시작
                           </button>
@@ -743,7 +844,10 @@ export default function Orders() {
                         {order.status === 'preparing' && (
                           <button
                             className="px-3 py-2 bg-green-600 text-white rounded text-xs font-bold hover:bg-green-700 transition"
-                            onClick={() => handleStatusChangeWithNotification(order, 'ready')}
+                            onClick={() => {
+                              console.log('🔘 제조완료 버튼 클릭됨:', order.id);
+                              handleStatusChangeWithNotification(order, 'ready');
+                            }}
                           >
                             제조완료
                           </button>
@@ -751,7 +855,10 @@ export default function Orders() {
                         {order.status === 'ready' && (
                           <button
                             className="px-3 py-2 bg-wine-600 text-white rounded text-xs font-bold hover:bg-wine-700 transition"
-                            onClick={() => handleStatusChangeWithNotification(order, 'completed')}
+                            onClick={() => {
+                              console.log('🔘 픽업완료 버튼 클릭됨:', order.id);
+                              handleStatusChangeWithNotification(order, 'completed');
+                            }}
                           >
                             픽업완료
                           </button>

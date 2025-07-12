@@ -160,7 +160,11 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
     }
   };
 
-  const getStatusLabel = (status: string) => {
+  const getStatusLabel = (status: string, paymentStatus?: string) => {
+    // 결제완료 상태가 우선순위가 높음
+    if (paymentStatus === 'confirmed') {
+      return '결제완료';
+    }
     const statusMap: { [key: string]: string } = {
       'pending': '대기',
       'preparing': '제조중',
@@ -414,7 +418,7 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
                               })}
                             </span>
                             <span className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm font-bold ${getStatusColor(order.status)}`}>
-                              {getStatusLabel(order.status)}
+                              {getStatusLabel(order.status, order.payment_status)}
                             </span>
                             <span className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm font-bold ${
                               order.payment_status === 'confirmed' 

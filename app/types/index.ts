@@ -86,6 +86,7 @@ export interface Notification {
   id: string;
   user_id: string;
   order_id: string;
+  type: string;
   message: string;
   status: NotificationStatus;
   created_at: string;

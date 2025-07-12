@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { supabase } from '~/lib/supabase';
 import type { OrderStatus } from '~/types';
 
 interface NotificationContextType {
@@ -36,105 +35,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
   };
 
-  // 전역 주문 알림 구독
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: userData } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-      const role = userData?.role;
-
-      // 관리자용 새 주문 알림 구독
-      if (role === 'admin') {
-        console.log('🔔 Setting up admin new order notifications');
-        const adminChannel = supabase
-          .channel('admin-new-order-notifications')
-          .on('postgres_changes', {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'orders',
-          }, (payload) => {
-            console.log('🔔 Admin received new order:', payload.new);
-            const newOrder = payload.new;
-            const message = `${newOrder.church_group || '새'} 주문이 들어왔습니다!`;
-            showNotification(message, 'pending');
-          })
-          .subscribe((status) => {
-            console.log('🔔 Admin notification channel status:', status);
-          });
-
-        return () => {
-          console.log('🔔 Cleaning up admin notification channel');
-          adminChannel.unsubscribe();
-        };
-      }
-
-      // 고객용 주문 상태 변경 알림 구독
-      if (role === 'customer') {
-        console.log('🔔 Setting up customer order status notifications');
-        const customerChannel = supabase
-          .channel('customer-order-status-notifications')
-          .on('postgres_changes', {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'orders',
-            filter: `user_id=eq.${user.id}`,
-          }, async (payload) => {
-            console.log('🔔 Customer received order update:', payload);
-            const updatedOrder = payload.new;
-            const oldOrder = payload.old;
-            
-            if (!oldOrder || !updatedOrder) return;
-
-            const prevStatus = oldOrder.status;
-            const currStatus = updatedOrder.status;
-            
-            let alertMsg = '';
-            let alertStatus: OrderStatus | null = null;
-
-            if (prevStatus === 'pending' && currStatus === 'preparing') {
-              alertMsg = '주문하신 주문이 제조중입니다';
-              alertStatus = 'preparing';
-            } else if (prevStatus === 'preparing' && currStatus === 'ready') {
-              alertMsg = '주문하신 주문이 제조완료되었습니다';
-              alertStatus = 'ready';
-            } else if (prevStatus === 'ready' && currStatus === 'completed') {
-              alertMsg = '주문하신 주문이 픽업되었습니다';
-              alertStatus = 'completed';
-            } else if (
-              prevStatus === 'completed' &&
-              updatedOrder.payment_status === 'confirmed' &&
-              oldOrder.payment_status !== 'confirmed'
-            ) {
-              alertMsg = '주문하신 주문이 결제완료되었습니다';
-              alertStatus = 'completed';
-            }
-
-            if (alertMsg && alertStatus) {
-              console.log('🔔 Showing customer notification:', alertMsg, alertStatus);
-              showNotification(alertMsg, alertStatus);
-            }
-          })
-          .subscribe((status) => {
-            console.log('🔔 Customer notification channel status:', status);
-          });
-
-        return () => {
-          console.log('🔔 Cleaning up customer notification channel');
-          customerChannel.unsubscribe();
-        };
-      }
-    };
-
-    getUser();
-  }, []);
-
   // 컴포넌트 언마운트 시 타임아웃 클리어
   useEffect(() => {
     return () => {
@@ -155,14 +55,30 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             notification.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
             notification.status === 'preparing' ? 'bg-blue-100 text-blue-800' :
             notification.status === 'ready' ? 'bg-green-100 text-green-800' :
-            notification.status === 'completed' ? 'bg-wine-100 text-wine-800' :
+            notification.status === 'completed' ? 'bg-purple-100 text-purple-800' :
             notification.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-            'bg-wine-100 text-wine-800'
+            'bg-gray-100 text-gray-800'
           }`}
           onClick={hideNotification}
         >
-          <span>🛎️</span>
-          <span>{notification.message}</span>
+          <div className="flex items-center gap-2">
+            {notification.status === 'pending' && <span>⏳</span>}
+            {notification.status === 'preparing' && <span>👨‍🍳</span>}
+            {notification.status === 'ready' && <span>✅</span>}
+            {notification.status === 'completed' && <span>🎉</span>}
+            {notification.status === 'cancelled' && <span>❌</span>}
+            {!notification.status && <span>🔔</span>}
+            <span>{notification.message}</span>
+          </div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              hideNotification();
+            }}
+            className="text-gray-500 hover:text-gray-700 text-xl"
+          >
+            ×
+          </button>
         </div>
       )}
     </NotificationContext.Provider>
