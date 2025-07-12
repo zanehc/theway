@@ -8,6 +8,7 @@ import Header from "~/components/Header";
 import type { OrderStatus } from "~/types";
 import React from 'react';
 import { useNotification } from '~/contexts/NotificationContext';
+import { sendOrderStatusNotification, sendNewOrderNotification } from '~/lib/pushNotification';
 
 export async function loader({ request }: LoaderFunctionArgs) {
   try {
@@ -308,6 +309,14 @@ export default function Orders() {
             ? `${customerName}(${churchGroup}) 님의 주문이 들어왔습니다!`
             : `${customerName} 님의 주문이 들어왔습니다!`;
           showNotification(message, 'pending');
+          
+          // 관리자에게 푸시 알림 전송
+          try {
+            await sendNewOrderNotification(user?.id, newOrder);
+            console.log('📱 Push notification sent to admin for new order');
+          } catch (pushError) {
+            console.error('📱 Error sending push notification to admin:', pushError);
+          }
         }
         
         try {
@@ -364,7 +373,8 @@ export default function Orders() {
               currStatus,
               prevPaymentStatus,
               currPaymentStatus,
-              orderId: updatedOrder.id
+              orderId: updatedOrder.id,
+              customerName: updatedOrder.customer_name
             });
             
             // 주문 상태 변경 알림
@@ -387,7 +397,8 @@ export default function Orders() {
                 alertMsg,
                 alertStatus,
                 prevStatus,
-                currStatus
+                currStatus,
+                orderId: updatedOrder.id
               });
             }
             
@@ -396,7 +407,10 @@ export default function Orders() {
               if (prevPaymentStatus !== 'confirmed' && currPaymentStatus === 'confirmed') {
                 alertMsg = '주문하신 주문이 결제완료되었습니다';
                 alertStatus = 'completed';
-                console.log('🔔 Customer payment confirmation notification:', alertMsg);
+                console.log('🔔 Customer payment confirmation notification:', {
+                  alertMsg,
+                  orderId: updatedOrder.id
+                });
               }
             }
           }
@@ -430,6 +444,16 @@ export default function Orders() {
               isOwnOrder: updatedOrder.user_id === user?.id
             });
             showNotification(alertMsg, alertStatus);
+            
+            // 고객에게 푸시 알림 전송 (본인 주문인 경우)
+            if (userRoleState === 'customer' && updatedOrder.user_id === user?.id) {
+              try {
+                await sendOrderStatusNotification(user.id, updatedOrder, currStatus, prevStatus);
+                console.log('📱 Push notification sent to customer for status change');
+              } catch (pushError) {
+                console.error('📱 Error sending push notification to customer:', pushError);
+              }
+            }
           }
         }
         
@@ -688,9 +712,17 @@ export default function Orders() {
         });
         
         // 고객에게 알림 표시 (DB 저장 없이)
-        showNotification(message, newStatus);
+        // showNotification(message, newStatus); // 이 부분을 주석 처리 - 실시간 알림이 처리함
         
-        console.log('✅ Status change notification displayed for customer');
+        // 푸시 알림 전송 (고객에게)
+        try {
+          await sendOrderStatusNotification(order.user_id, order, newStatus);
+          console.log('📱 Push notification sent to customer for status change');
+        } catch (pushError) {
+          console.error('📱 Error sending push notification:', pushError);
+        }
+        
+        console.log('✅ Status change notification will be handled by realtime');
       }
       
       console.log('✅ Status change completed with notification');

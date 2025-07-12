@@ -3,6 +3,7 @@ import { supabase } from '~/lib/supabase';
 import { getUserOrderHistory } from '~/lib/database';
 import type { UserOrderHistory } from '~/types';
 import ModalPortal from './ModalPortal';
+import PushNotificationSettings from './PushNotificationSettings';
 
 interface User {
   id: string;
@@ -23,7 +24,7 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
   const [churchGroup, setChurchGroup] = useState('');
   const [loading, setLoading] = useState(false);
   const [orderHistory, setOrderHistory] = useState<UserOrderHistory | null>(null);
-  const [activeTab, setActiveTab] = useState<'profile' | 'orders' | 'password'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'orders' | 'password' | 'notifications'>('profile');
   
   // 비밀번호 변경 관련 상태
   const [currentPassword, setCurrentPassword] = useState('');
@@ -236,6 +237,16 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
               }`}
             >
               주문 내역
+            </button>
+            <button
+              onClick={() => setActiveTab('notifications')}
+              className={`flex-1 py-2 sm:py-3 px-3 sm:px-4 rounded-lg font-bold transition-colors text-sm sm:text-base ${
+                activeTab === 'notifications'
+                  ? 'bg-white text-wine-800 shadow-sm'
+                  : 'text-wine-600 hover:text-wine-800'
+              }`}
+            >
+              알림 설정
             </button>
           </div>
 
@@ -523,6 +534,12 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {activeTab === 'notifications' && user && (
+            <div className="space-y-4 sm:space-y-6">
+              <PushNotificationSettings userId={user.id} />
             </div>
           )}
         </div>
