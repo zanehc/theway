@@ -152,50 +152,63 @@ export default function Orders() {
         console.log('🔍 Current auth user:', user);
         
         if (user) {
-          const { data: userData } = await supabase
-            .from('users')
-            .select('role, name, email')
-            .eq('id', user.id)
-            .single();
-          console.log('🔍 User data from database:', userData);
-          
-          const role = userData?.role || null;
-          console.log('🔍 Setting userRole to:', role);
-          setUserRole(role);
-          
-          // 주문 불러오기
-          if (role === 'admin') {
-            console.log('🔍 Loading all orders for admin');
-            console.log('🔍 currentStatus:', currentStatus);
-            const allOrders = await getOrders(currentStatus || undefined);
-            console.log('🔍 All orders loaded for admin:', allOrders);
-            console.log('🔍 Orders length:', allOrders?.length || 0);
-            setOrders(allOrders || []);
-          } else if (role === 'customer' || role === null) {
-            console.log('🔍 Loading orders for user:', user.id);
-            const userOrders = await getOrdersByUserId(user.id);
-            console.log('🔍 User orders loaded:', userOrders);
+          try {
+            const { data: userData, error: userError } = await supabase
+              .from('users')
+              .select('role, name, email')
+              .eq('id', user.id)
+              .single();
             
-            // 상태 필터링
-            let filteredOrders = userOrders;
-            if (currentStatus) {
-              filteredOrders = userOrders.filter(order => order.status === currentStatus);
+            if (userError) {
+              console.error('🔍 Error fetching user data:', userError);
+              setUserRole(null);
+            } else {
+              console.log('🔍 User data from database:', userData);
+              
+              const role = userData?.role || null;
+              console.log('🔍 Setting userRole to:', role);
+              setUserRole(role);
+              
+              // 주문 불러오기
+              if (role === 'admin') {
+                console.log('🔍 Loading all orders for admin');
+                console.log('🔍 currentStatus:', currentStatus);
+                const allOrders = await getOrders(currentStatus || undefined);
+                console.log('🔍 All orders loaded for admin:', allOrders);
+                console.log('🔍 Orders length:', allOrders?.length || 0);
+                setOrders(allOrders || []);
+              } else if (role === 'customer' || role === null) {
+                console.log('🔍 Loading orders for user:', user.id);
+                const userOrders = await getOrdersByUserId(user.id);
+                console.log('🔍 User orders loaded:', userOrders);
+                
+                // 상태 필터링
+                let filteredOrders = userOrders;
+                if (currentStatus) {
+                  filteredOrders = userOrders.filter(order => order.status === currentStatus);
+                }
+                setOrders(filteredOrders);
+              } else {
+                console.log('🔍 Unknown role:', role);
+              }
             }
-            setOrders(filteredOrders);
-          } else {
-            console.log('🔍 Unknown role:', role);
+          } catch (userDataError) {
+            console.error('🔍 Error in user data fetch:', userDataError);
+            setUserRole(null);
           }
         } else {
           console.log('🔍 No user found in useEffect');
+          setUserRole(null);
         }
       } catch (error) {
         console.error('Error getting user and orders:', error);
+        setUserRole(null);
       } finally {
         setLoading(false);
       }
     };
     getUserAndOrders();
-  }, []); // 의존성 배열을 비워서 한 번만 실행
+  }, [currentStatus]); // currentStatus가 변경될 때마다 실행
 
   // 주문 취소 핸들러
   const handleOrderCancel = async (order: any) => {

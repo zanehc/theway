@@ -4,6 +4,7 @@ import { useLoaderData, Link } from "@remix-run/react";
 import { getMenus, getOrders, getSalesStatistics, getOrdersByUserId, getTodayOrdersByStatus, getWeeklySalesForLast4Weeks, getTodayOrderStatusStats, getDailySales } from "~/lib/database";
 import Header from "~/components/Header";
 import { useEffect, useState } from 'react';
+import { createServerClient } from '@supabase/ssr';
 import { supabase } from '~/lib/supabase';
 import { useNotification } from '~/contexts/NotificationContext';
 
@@ -19,6 +20,48 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const error = url.searchParams.get('error');
   const success = url.searchParams.get('success');
+
+  // 서버 사이드에서 Supabase 클라이언트 생성
+  const response = new Response();
+  const supabase = createServerClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.headers.get('cookie')?.split(';').map(cookie => {
+            const [name, value] = cookie.trim().split('=');
+            return { name, value };
+          }) || [];
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => {
+            response.headers.append('Set-Cookie', `${name}=${value}`);
+          });
+        },
+      },
+    }
+  );
+
+  // 서버에서 사용자 정보 가져오기
+  const { data: { user } } = await supabase.auth.getUser();
+  let userRole = null;
+  let userRecentOrders: any[] = [];
+
+  if (user) {
+    console.log('🔍 Server: Getting user role for:', user.id);
+    const { data: userData } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    console.log('🔍 Server: User data from DB:', userData);
+    userRole = userData?.role || null;
+    console.log('🔍 Server: User role set to:', userRole);
+    
+    // 사용자의 최근 주문 로드
+    userRecentOrders = await getOrdersByUserId(user.id, 5);
+  }
 
   try {
     const [menus, orders] = await Promise.all([
@@ -74,6 +117,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
       dailySales,
       todayPendingOrders,
       todayReadyOrders,
+      user,
+      userRole,
+      userRecentOrders,
     });
   } catch (error) {
     console.error('Dashboard loader error:', error);
@@ -113,18 +159,22 @@ export async function loader({ request }: LoaderFunctionArgs) {
       dailySales: [],
       todayPendingOrders: [],
       todayReadyOrders: [],
+      user,
+      userRole,
+      userRecentOrders,
     });
   }
 }
 
 export default function Index() {
-  const { menuStats, orderStats, recentOrders, totalMenus, totalOrders, menus, error, success, salesStats, todayStatusStats, weeklySales, dailySales, todayPendingOrders, todayReadyOrders } = useLoaderData<typeof loader>();
+  const { menuStats, orderStats, recentOrders, totalMenus, totalOrders, menus, error, success, salesStats, todayStatusStats, weeklySales, dailySales, todayPendingOrders, todayReadyOrders, user: serverUser, userRole: serverUserRole, userRecentOrders: serverUserRecentOrders } = useLoaderData<typeof loader>();
   const { showNotification } = useNotification();
   
   // 로그인 상태 및 권한 확인
-  const [user, setUser] = useState<any>(null);
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<any>(serverUser);
+  const [userRole, setUserRole] = useState<string | null>(serverUserRole);
+  const [loading, setLoading] = useState(false);
+  const [isClient, setIsClient] = useState(false);
 
   const [pendingOrders, setPendingOrders] = useState(todayPendingOrders);
   const [readyOrders, setReadyOrders] = useState(todayReadyOrders);
@@ -133,37 +183,18 @@ export default function Index() {
   const [filteredDailySales, setFilteredDailySales] = useState(dailySales);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [userRecentOrders, setUserRecentOrders] = useState<any[]>([]);
+  const [userRecentOrders, setUserRecentOrders] = useState<any[]>(serverUserRecentOrders || []);
   const ITEMS_PER_PAGE = 10;
 
+  // 클라이언트 사이드 렌더링 확인
   useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-      if (user) {
-        console.log('🔍 Getting user role for:', user.id);
-        const { data: userData } = await supabase
-          .from('users')
-          .select('role')
-          .eq('id', user.id)
-          .single();
-        console.log('🔍 User data from DB:', userData);
-        const role = userData?.role || null;
-        console.log('🔍 Setting user role to:', role);
-        setUserRole(role);
-        
-        // 사용자의 최근 주문 로드
-        const { getOrdersByUserId } = await import('~/lib/database');
-        const recentOrders = await getOrdersByUserId(user.id, 5);
-        setUserRecentOrders(recentOrders);
-      } else {
-        console.log('🔍 No user found, setting role to null');
-        setUserRole(null);
-        setUserRecentOrders([]);
-      }
-      setLoading(false);
-    };
-    getUser();
+    setIsClient(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isClient) return; // 서버 사이드에서는 실행하지 않음
+    
+    // 서버에서 이미 사용자 정보를 가져왔으므로 클라이언트에서는 인증 상태 변경만 감지
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('🔍 Auth state changed:', event, session?.user?.id);
       setUser(session?.user ?? null);
@@ -191,9 +222,11 @@ export default function Index() {
       setLoading(false);
     });
     return () => subscription.unsubscribe();
-  }, []);
+  }, [isClient]);
 
   useEffect(() => {
+    if (!isClient) return; // 서버 사이드에서는 실행하지 않음
+    
     console.log('🔍 Dashboard realtime useEffect triggered:', {
       userRole,
       userId: user?.id,
@@ -419,7 +452,7 @@ export default function Index() {
       console.log('🔌 Dashboard realtime subscription cleaned up');
       channel.unsubscribe(); 
     };
-  }, [startDate, endDate, userRole, user, loading, showNotification]);
+  }, [startDate, endDate, userRole, user, loading, showNotification, isClient]);
 
   // 타입 안전성을 위한 문자열 변환
   const errorMessage = error ? String(error) : null;

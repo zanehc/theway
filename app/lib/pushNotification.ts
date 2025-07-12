@@ -9,8 +9,13 @@ interface PushNotificationData {
 }
 
 // VAPID 키 (실제 구현 시 환경 변수에서 가져와야 함)
-const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || 'YOUR_VAPID_PUBLIC_KEY';
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || 'YOUR_VAPID_PRIVATE_KEY';
+// 클라이언트 사이드에서는 window 객체를 통해 접근하거나, 서버에서만 사용
+const VAPID_PUBLIC_KEY = typeof window !== 'undefined' 
+  ? (window as any).VAPID_PUBLIC_KEY || 'YOUR_VAPID_PUBLIC_KEY'
+  : process.env.VAPID_PUBLIC_KEY || 'YOUR_VAPID_PUBLIC_KEY';
+const VAPID_PRIVATE_KEY = typeof window !== 'undefined'
+  ? (window as any).VAPID_PRIVATE_KEY || 'YOUR_VAPID_PRIVATE_KEY'
+  : process.env.VAPID_PRIVATE_KEY || 'YOUR_VAPID_PRIVATE_KEY';
 
 // 웹 푸시 알림 전송
 export async function sendPushNotification(
