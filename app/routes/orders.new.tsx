@@ -168,11 +168,10 @@ export default function NewOrder() {
     if (actionData?.error) {
       alert(actionData.error);
     } else if (actionData?.success) {
-      console.log('✅ Order created successfully, redirecting to orders page...');
+      console.log('✅ Order created successfully, redirecting to home...');
       alert('주문이 성공적으로 생성되었습니다!');
-      
-      // 주문 현황 페이지로 이동 (실시간 업데이트가 작동하도록)
-      window.location.href = '/orders?status=pending';
+      // 주문 완료 후 홈탭으로 이동
+      window.location.href = '/';
     }
   }, [actionData]);
 

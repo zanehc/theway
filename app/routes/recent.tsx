@@ -235,6 +235,20 @@ export default function RecentPage() {
             const allOrders = await getOrders(selectedStatus || undefined);
             setOrders(allOrders || []);
           } else {
+            // 고객: 내 주문 상태 변경 알림
+            if (
+              payload.new.user_id === user.id &&
+              payload.old.status !== payload.new.status
+            ) {
+              setNewOrderAlert({
+                customer: '',
+                church: '',
+                message: `주문이 ${getStatusLabel(payload.new.status)} 상태로 변경되었습니다.`,
+                status: payload.new.status
+              });
+              if (alertTimeout.current) clearTimeout(alertTimeout.current);
+              alertTimeout.current = setTimeout(() => setNewOrderAlert(null), 5000);
+            }
             const userOrders = await getOrdersByUserId(user.id);
             setOrders(userOrders || []);
           }
@@ -419,9 +433,30 @@ export default function RecentPage() {
 
   return (
     <div className="min-h-screen bg-ivory-50 pb-20">
+      {/* 새 주문/상태변경 알림 */}
+      {newOrderAlert && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg shadow-large animate-slide-in">
+          <div className="flex items-center">
+            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            </svg>
+            <div>
+              {newOrderAlert.customer && newOrderAlert.church ? (
+                <>
+                  <div className="font-bold">새 주문!</div>
+                  <div className="text-sm">{newOrderAlert.customer} ({newOrderAlert.church})</div>
+                </>
+              ) : (
+                <div className="font-bold">{newOrderAlert.message}</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* OAuth 결과 메시지 */}
       {error && (
-        <div className="fixed top-4 right-4 z-50 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg shadow-large animate-slide-in">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg shadow-large animate-slide-in">
           <div className="flex items-center">
             <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
@@ -432,27 +467,12 @@ export default function RecentPage() {
       )}
       
       {success && (
-        <div className="fixed top-4 right-4 z-50 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg shadow-large animate-slide-in">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg shadow-large animate-slide-in">
           <div className="flex items-center">
             <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
             </svg>
             {success}
-          </div>
-        </div>
-      )}
-
-      {/* 새 주문 알림 */}
-      {newOrderAlert && (
-        <div className="fixed top-4 left-4 z-50 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg shadow-large animate-slide-in">
-          <div className="flex items-center">
-            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-            </svg>
-            <div>
-              <div className="font-bold">새 주문!</div>
-              <div className="text-sm">{newOrderAlert.customer} ({newOrderAlert.church})</div>
-            </div>
           </div>
         </div>
       )}
