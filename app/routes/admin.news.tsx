@@ -1,7 +1,8 @@
 import { json, type LoaderFunctionArgs, type ActionFunctionArgs } from "@remix-run/node";
 import { useLoaderData, useFetcher } from "@remix-run/react";
 import { useState, useEffect } from "react";
-import { supabase } from "~/lib/supabase";
+import { createServerClient } from "@supabase/ssr";
+import { supabase as clientSupabase } from "~/lib/supabase";
 
 // 교회소식 기본 예시 구조
 const DEFAULT_NEWS = {
@@ -24,11 +25,24 @@ const DEFAULT_NEWS = {
 };
 
 export async function loader({ request }: LoaderFunctionArgs) {
-  // 사용자 인증 확인
+  // 서버용 Supabase 클라이언트 생성
+  const supabase = createServerClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get: (key) => {
+          const cookie = request.headers.get("cookie") ?? "";
+          const match = cookie.match(new RegExp(`${key}=([^;]+)`));
+          return match ? match[1] : undefined;
+        },
+      },
+    }
+  );
+
+  // 인증
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    throw new Response('Unauthorized', { status: 401 });
-  }
+  if (!user) throw new Response('Unauthorized', { status: 401 });
 
   // 관리자 권한 확인
   const { data: userData, error: userError } = await supabase
@@ -49,8 +63,23 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 
 export async function action({ request }: ActionFunctionArgs) {
+  // 서버용 Supabase 클라이언트 생성
+  const supabase = createServerClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get: (key) => {
+          const cookie = request.headers.get("cookie") ?? "";
+          const match = cookie.match(new RegExp(`${key}=([^;]+)`));
+          return match ? match[1] : undefined;
+        },
+      },
+    }
+  );
+
   try {
-    // 사용자 인증 확인
+    // 인증
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return json({ success: false, error: '인증이 필요합니다.' }, { status: 401 });

@@ -136,7 +136,6 @@ export default function OtherPage() {
               >
                 마이페이지
               </button>
-              
               {userData?.role === 'admin' && (
                 <>
                   <button
@@ -153,7 +152,6 @@ export default function OtherPage() {
                   </button>
                 </>
               )}
-              
               <button
                 onClick={handleLogout}
                 className="w-full bg-gray-500 text-white py-3 px-4 rounded-lg font-bold hover:bg-gray-600 transition-colors"
