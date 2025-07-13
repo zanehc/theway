@@ -380,3 +380,11 @@ npm run typecheck
 - ✅ 주문 관리, 메뉴 관리, 매출 보고 기능 구현
 - ✅ 반응형 디자인 적용
 - ✅ TypeScript 타입 안정성 확보
+
+## ⚠️ SSR 인증(쿠키) 개발환경 주의사항
+
+- **SSR에서 인증이 정상 동작하려면, 브라우저의 인증 쿠키가 서버로 반드시 전달되어야 합니다.**
+- 개발환경에서는 반드시 **프론트엔드와 백엔드를 같은 포트/도메인**에서 실행해야 합니다. (예: 둘 다 http://localhost:5173)
+- 개발환경에서는 Secure 옵션이 완전히 제거되어야 하며, SameSite=Lax, Path=/로 설정되어야 합니다.
+- 브라우저의 Application 탭 → Cookies → localhost에 sb-access-token, sb-refresh-token, sb-session 등이 남아 있어야 하며, 네트워크 탭의 Request Headers에 cookie가 포함되어야 합니다.
+- 위 조건이 맞지 않으면 SSR에서 항상 401 Unauthorized가 발생합니다.
