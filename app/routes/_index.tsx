@@ -165,16 +165,18 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-ivory-50 pb-20">
-      {/* 환영 메시지 */}
+      {/* 상단 헤더 영역 개선 */}
       <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="py-6">
-            <h1 className="text-3xl font-bold text-wine-800">
-              {userData?.name || '사용자'}님 안녕하세요! 👋
-            </h1>
-            <p className="text-gray-600 mt-2">
-              오늘도 맛있는 음료와 함께하세요.
-            </p>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between py-4">
+          <div>
+            <div className="text-2xl sm:text-3xl font-black text-wine-800 leading-tight">길을여는교회</div>
+            <div className="flex items-center mt-1">
+              <span className="text-base sm:text-lg font-bold text-wine-600">이음카페</span>
+              <span className="inline-block bg-yellow-400 text-xs font-bold text-white px-2 py-1 rounded-full ml-2 align-middle">Beta</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-base sm:text-lg font-bold text-wine-700">{userData?.name || 'ㅇㅇㅇ'}님 안녕하세요!</span>
           </div>
         </div>
       </div>
@@ -286,16 +288,16 @@ export default function Index() {
                 {news.birthdays && news.birthdays.length > 0 && (
                   <div className="border-l-4 border-green-600 pl-4">
                     <h3 className="font-semibold text-gray-900 text-sm">생일자</h3>
-                    <div className="mt-1 space-y-1">
-                      {news.birthdays.slice(0, 3).map((b: any, idx: number) => (
+                    <div className="mt-1 grid grid-cols-3 gap-2">
+                      {news.birthdays.slice(0, 6).map((b: any, idx: number) => (
                         <div key={idx} className="text-gray-600 text-sm">
                           <span className="font-medium">{b.name}</span>
                           <span className="text-xs text-gray-500 ml-2">{b.date}</span>
                         </div>
                       ))}
-                      {news.birthdays.length > 3 && (
-                        <div className="text-xs text-gray-500">
-                          외 {news.birthdays.length - 3}명 더...
+                      {news.birthdays.length > 6 && (
+                        <div className="col-span-3 text-xs text-gray-500">
+                          외 {news.birthdays.length - 6}명 더...
                         </div>
                       )}
                     </div>
@@ -306,17 +308,16 @@ export default function Index() {
                 {news.offeringAccounts && news.offeringAccounts.length > 0 && (
                   <div className="border-l-4 border-purple-600 pl-4">
                     <h3 className="font-semibold text-gray-900 text-sm">헌금계좌</h3>
-                    <div className="mt-1 space-y-1">
-                      {news.offeringAccounts.slice(0, 2).map((acc: any, idx: number) => (
+                    <div className="mt-1 grid grid-cols-3 gap-2">
+                      {news.offeringAccounts.slice(0, 6).map((acc: any, idx: number) => (
                         <div key={idx} className="text-gray-600 text-sm">
-                          <span className="font-medium">{acc.bank}</span>
-                          <br />
+                          <span className="font-medium">{acc.bank}</span><br />
                           <span className="text-xs text-gray-500">{acc.number}</span>
                         </div>
                       ))}
-                      {news.offeringAccounts.length > 2 && (
-                        <div className="text-xs text-gray-500">
-                          외 {news.offeringAccounts.length - 2}개 더...
+                      {news.offeringAccounts.length > 6 && (
+                        <div className="col-span-3 text-xs text-gray-500">
+                          외 {news.offeringAccounts.length - 6}개 더...
                         </div>
                       )}
                     </div>

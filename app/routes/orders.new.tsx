@@ -149,10 +149,11 @@ export default function NewOrder() {
           const cartItems = quickOrderItems.map((item: any) => {
             const menu = menus.find((m: any) => m.id === item.menu_id);
             if (!menu) return null;
+            const unitPrice = item.unit_price ?? item.price ?? menu.price;
             return {
               menu,
               quantity: item.quantity,
-              total_price: item.quantity * item.price,
+              total_price: item.quantity * unitPrice,
             };
           }).filter((item): item is CartItem => item !== null);
           setCart(cartItems);

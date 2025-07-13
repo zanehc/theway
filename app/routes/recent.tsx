@@ -14,24 +14,20 @@ const statusOptions: { value: OrderStatus; label: string; color: string; bgColor
   { value: 'cancelled', label: '취소', color: 'text-red-800', bgColor: 'bg-red-100' },
 ];
 
+// 필터 버튼 3개로 축소
 const statusButtons = [
-  { key: 'all', label: '전체' },
-  { key: 'pending', label: '대기' },
-  { key: 'preparing', label: '제조중' },
-  { key: 'ready', label: '제조완료' },
-  { key: 'completed', label: '픽업완료' },
-  { key: 'payment_confirmed', label: '결제완료' },
-  { key: 'cancelled', label: '취소' },
+  { key: 'inprogress', label: '주문중' }, // 주문완료, 제조중, 제조완료, 픽업완료
+  { key: 'done', label: '주문완료' },     // 픽업완료, 결제완료
+  { key: 'all', label: '전체' },          // 전체
 ];
 
-// 주문 상태 단계 정의
+// 주문 상태 단계 정의 (종료 제거)
 const orderSteps = [
   { key: 'pending', label: '주문완료' },
   { key: 'preparing', label: '제조중' },
   { key: 'ready', label: '제조완료' },
   { key: 'completed', label: '픽업완료' },
   { key: 'payment_confirmed', label: '결제완료' },
-  { key: 'ended', label: '종료' },
 ];
 
 // 주문 상태 진행바 컴포넌트
@@ -119,7 +115,7 @@ export default function RecentPage() {
   const { initialOrders, currentStatus, currentPaymentStatus, error, success } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
   const [orders, setOrders] = useState<any[]>([]);
-  const [selectedStatus, setSelectedStatus] = useState<OrderStatus | ''>('');
+  const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [newOrderAlert, setNewOrderAlert] = useState<{customer: string, church: string, message?: string, status?: OrderStatus} | null>(null);
   const alertTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -182,7 +178,7 @@ export default function RecentPage() {
             setUserData(userData);
             
             if (role === 'admin') {
-              const allOrders = await getOrders(selectedStatus || undefined);
+              const allOrders = await getOrders(); // 항상 전체 주문 불러오기
               setOrders(allOrders || []);
             } else if (role === 'customer' || role === null) {
               const userOrders = await getOrdersByUserId(user.id);
@@ -360,33 +356,48 @@ export default function RecentPage() {
     }
   };
 
+  // 필터링 로직 (관리자)
+  const filteredOrders = orders.filter(order => {
+    if (userRoleState !== 'admin') return true;
+    if (selectedStatus === 'inprogress') {
+      // 주문중: 대기(pending), 제조중(preparing), 제조완료(ready), 픽업완료(결제 전, completed + payment_status !== confirmed)
+      return (
+        order.status === 'pending' ||
+        order.status === 'preparing' ||
+        order.status === 'ready' ||
+        (order.status === 'completed' && order.payment_status !== 'confirmed')
+      );
+    }
+    if (selectedStatus === 'done') {
+      // 주문완료: 픽업완료(결제완료) 또는 결제완료
+      return (
+        (order.status === 'completed' && order.payment_status === 'confirmed') ||
+        order.payment_status === 'confirmed'
+      );
+    }
+    // 전체
+    return true;
+  });
+
   // 필터 버튼 클릭
   const handleFilterClick = (btn: typeof statusButtons[number]) => {
-    if (btn.key === 'all') {
-      setSelectedStatus('');
-      setCurrentPaymentStatusState('');
-      navigate('/recent', { replace: true });
-    } else if (btn.key === 'payment_confirmed') {
-      setSelectedStatus('');
-      setCurrentPaymentStatusState('confirmed');
-      navigate('/recent?payment_status=confirmed', { replace: true });
-    } else {
-      setSelectedStatus(btn.key as OrderStatus);
-      setCurrentPaymentStatusState('');
-      navigate(`/recent?status=${btn.key}`, { replace: true });
-    }
+    setSelectedStatus(btn.key as any);
     setCurrentPage(1);
   };
 
   // 빠른 주문
   const handleQuickOrder = (order: any) => {
-    const orderItems = order.order_items.map((item: any) => ({
-      menu_id: item.menu_id,
-      quantity: item.quantity,
-      price: item.price,
-      menu_name: item.menu_name
-    }));
-    
+    console.log('빠른주문 order_items:', order.order_items);
+    const orderItems = order.order_items.map((item: any) => {
+      console.log('item:', item);
+      return {
+        menu_id: item.menu_id,
+        quantity: item.quantity,
+        unit_price: item.unit_price ?? item.price ?? (item.menu?.price ?? 0),
+        menu_name: item.menu_name
+      };
+    });
+    console.log('빠른주문 orderItems to save:', orderItems);
     localStorage.setItem('quickOrderItems', JSON.stringify(orderItems));
     window.location.href = '/orders/new';
   };
@@ -467,34 +478,36 @@ export default function RecentPage() {
           </div>
           
           {/* 필터 버튼 */}
-          <div className="flex flex-wrap gap-2 mb-6 justify-center">
-            {statusButtons.map((btn) => (
-              <button
-                key={btn.key}
-                onClick={() => handleFilterClick(btn)}
-                className={`px-4 py-2 rounded-lg font-bold text-sm transition-all duration-300 ${
-                  (btn.key === 'all' && !selectedStatus && !currentPaymentStatusState) ||
-                  (btn.key === 'payment_confirmed' && currentPaymentStatusState === 'confirmed') ||
-                  (btn.key === selectedStatus)
-                    ? 'bg-gradient-wine text-white shadow-wine'
-                    : 'bg-ivory-50 text-wine-700 hover:bg-wine-100'
-                }`}
-              >
-                {btn.label}
-              </button>
-            ))}
-          </div>
+          {userRoleState === 'admin' && (
+            <div className="flex flex-wrap gap-2 mb-6 justify-center">
+              {statusButtons.map((btn) => (
+                <button
+                  key={btn.key}
+                  onClick={() => handleFilterClick(btn)}
+                  className={`px-4 py-2 rounded-lg font-bold text-sm transition-all duration-300 ${
+                    (btn.key === 'all' && !selectedStatus) ||
+                    (btn.key === 'inprogress' && selectedStatus === 'inprogress') ||
+                    (btn.key === 'done' && selectedStatus === 'done')
+                      ? 'bg-gradient-wine text-white shadow-wine'
+                      : 'bg-ivory-50 text-wine-700 hover:bg-wine-100'
+                  }`}
+                >
+                  {btn.label}
+                </button>
+              ))}
+            </div>
+          )}
           
           {/* 주문 목록 */}
           {loading ? (
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-wine-600"></div>
             </div>
-          ) : orders.length > 0 ? (
+          ) : filteredOrders.length > 0 ? (
             <>
               {/* 모바일: 카드형 */}
               <div className="block sm:hidden space-y-4">
-                {orders
+                {filteredOrders
                   .slice((currentPage - 1) * ORDERS_PER_PAGE, currentPage * ORDERS_PER_PAGE)
                   .map((order) => (
                   <div key={order.id} className="bg-ivory-50 rounded-xl border border-wine-200 p-4">
@@ -502,9 +515,6 @@ export default function RecentPage() {
                     <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs text-wine-400">#{order.id.slice(-8)}</span>
-                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${getStatusBgColor(order.status)} ${getStatusColor(order.status)}`}>
-                        {getStatusLabel(order.status, order.payment_status)}
-                      </span>
                     </div>
                     <div className="font-bold text-wine-800 mb-1">{order.customer_name}</div>
                     <div className="text-sm text-wine-600 mb-2">{order.church_group}</div>
@@ -567,12 +577,14 @@ export default function RecentPage() {
                     )}
                     
                     {/* 빠른 주문 버튼 */}
-                    <button
-                      onClick={() => handleQuickOrder(order)}
-                      className="mt-2 w-full px-3 py-1 bg-red-100 text-red-800 rounded text-xs font-bold hover:bg-red-200"
-                    >
-                      빠른 주문
-                    </button>
+                    {userRoleState !== 'admin' && (
+                      <button
+                        onClick={() => handleQuickOrder(order)}
+                        className="mt-2 w-full px-3 py-1 bg-red-100 text-red-800 rounded text-xs font-bold hover:bg-red-200"
+                      >
+                        빠른 주문
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -592,7 +604,7 @@ export default function RecentPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {orders
+                    {filteredOrders
                       .slice((currentPage - 1) * ORDERS_PER_PAGE, currentPage * ORDERS_PER_PAGE)
                       .map((order, idx) => (
                         <tr key={order.id} className="bg-ivory-50">
@@ -678,12 +690,14 @@ export default function RecentPage() {
                             </td>
                           )}
                           <td className="align-middle">
-                            <button
-                              onClick={() => handleQuickOrder(order)}
-                              className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-bold hover:bg-red-200"
-                            >
-                              빠른주문
-                            </button>
+                            {userRoleState !== 'admin' && (
+                              <button
+                                onClick={() => handleQuickOrder(order)}
+                                className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-bold hover:bg-red-200"
+                              >
+                                빠른주문
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -692,7 +706,7 @@ export default function RecentPage() {
               </div>
 
               {/* 페이지네이션 */}
-              {orders.length > ORDERS_PER_PAGE && (
+              {filteredOrders.length > ORDERS_PER_PAGE && (
                 <div className="flex justify-center items-center gap-2 mt-6">
                   <button
                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
@@ -703,12 +717,12 @@ export default function RecentPage() {
                   </button>
                   
                   <span className="px-4 py-2 text-wine-700 font-bold">
-                    {currentPage} / {Math.ceil(orders.length / ORDERS_PER_PAGE)}
+                    {currentPage} / {Math.ceil(filteredOrders.length / ORDERS_PER_PAGE)}
                   </span>
                   
                   <button
-                    onClick={() => setCurrentPage(prev => Math.min(Math.ceil(orders.length / ORDERS_PER_PAGE), prev + 1))}
-                    disabled={currentPage === Math.ceil(orders.length / ORDERS_PER_PAGE)}
+                    onClick={() => setCurrentPage(prev => Math.min(Math.ceil(filteredOrders.length / ORDERS_PER_PAGE), prev + 1))}
+                    disabled={currentPage === Math.ceil(filteredOrders.length / ORDERS_PER_PAGE)}
                     className="px-3 py-2 bg-wine-100 text-wine-700 rounded-lg font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-wine-200 transition-all duration-300"
                   >
                     다음
@@ -737,31 +751,7 @@ export default function RecentPage() {
             </div>
           </Link>
           
-          <Link
-            to="/menus"
-            className="bg-gradient-ivory text-wine-800 rounded-xl p-4 sm:p-6 text-center hover:shadow-ivory transition-all duration-300 shadow-medium hover:shadow-large transform hover:-translate-y-1"
-          >
-            <div className="flex flex-col items-center">
-              <svg className="w-8 h-8 sm:w-12 sm:h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-              <h3 className="font-bold text-sm sm:text-base">메뉴 보기</h3>
-            </div>
-          </Link>
-          
-          {userRoleState === 'admin' && (
-            <Link
-              to="/reports"
-              className="bg-gradient-wine text-ivory-50 rounded-xl p-4 sm:p-6 text-center hover:shadow-wine transition-all duration-300 shadow-medium hover:shadow-large transform hover:-translate-y-1"
-            >
-              <div className="flex flex-col items-center">
-                <svg className="w-8 h-8 sm:w-12 sm:h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-                <h3 className="font-bold text-sm sm:text-base">매출 보고서</h3>
-              </div>
-            </Link>
-          )}
+          {/* 주문현황 밑의 빠른 액션(메뉴보기, 매출보고서) 버튼 제거 */}
         </div>
       </div>
     </div>
