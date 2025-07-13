@@ -595,13 +595,16 @@ export async function getDailySales(startDate?: string, endDate?: string) {
   return Array.from(dailyMap.values()).sort((a, b) => b.date.localeCompare(a.date));
 }
 
-// 알림 생성 - DB 저장 없이 즉시 표시만 하도록 변경
+// 알림 생성 - DB 저장
 export async function createNotification({ user_id, order_id, type, message }: { user_id: string, order_id: string, type: string, message: string }) {
-  console.log('🔔 Notification message (DB 저장 없음):', { user_id, order_id, type, message });
-  
-  // DB 저장 없이 로그만 출력
-  console.log('✅ Notification message logged (no DB storage)');
-  
-  // 에러를 발생시키지 않도록 빈 객체 반환
-  return { success: true };
+  try {
+    const { data, error } = await supabase
+      .from('notifications')
+      .insert([{ user_id, order_id, type, message }]);
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('알림 저장 실패:', error);
+    return { success: false, error };
+  }
 } 
