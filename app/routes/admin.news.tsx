@@ -24,6 +24,23 @@ const DEFAULT_NEWS = {
 };
 
 export async function loader({ request }: LoaderFunctionArgs) {
+  // 사용자 인증 확인
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Response('Unauthorized', { status: 401 });
+  }
+
+  // 관리자 권한 확인
+  const { data: userData, error: userError } = await supabase
+    .from('users')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  if (userError || userData?.role !== 'admin') {
+    throw new Response('Forbidden', { status: 403 });
+  }
+
   // 최신 소식 1건만 사용
   const { data, error } = await supabase.from('church_news').select('*').order('created_at', { ascending: false }).limit(1);
   if (error) return json({ news: DEFAULT_NEWS });
@@ -33,6 +50,23 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 export async function action({ request }: ActionFunctionArgs) {
   try {
+    // 사용자 인증 확인
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return json({ success: false, error: '인증이 필요합니다.' }, { status: 401 });
+    }
+
+    // 관리자 권한 확인
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (userError || userData?.role !== 'admin') {
+      return json({ success: false, error: '관리자 권한이 필요합니다.' }, { status: 403 });
+    }
+
     const formData = await request.formData();
     const news = JSON.parse(formData.get('news') as string);
     
