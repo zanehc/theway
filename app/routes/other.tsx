@@ -5,6 +5,7 @@ import { SignupForm } from "~/components/SignupForm";
 
 export default function OtherPage() {
   const [user, setUser] = useState<any>(null);
+  const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSignup, setShowSignup] = useState(false);
@@ -21,11 +22,39 @@ export default function OtherPage() {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
+      
+      if (user) {
+        // 사용자 정보 가져오기
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('role, name, email')
+          .eq('id', user.id)
+          .single();
+        
+        if (!userError && userData) {
+          setUserData(userData);
+        }
+      }
     };
     getUser();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setUser(session?.user || null);
+      
+      if (session?.user) {
+        // 사용자 정보 가져오기
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('role, name, email')
+          .eq('id', session.user.id)
+          .single();
+        
+        if (!userError && userData) {
+          setUserData(userData);
+        }
+      } else {
+        setUserData(null);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -107,6 +136,15 @@ export default function OtherPage() {
               >
                 마이페이지
               </button>
+              
+              {userData?.role === 'admin' && (
+                <button
+                  onClick={() => navigate("/menus")}
+                  className="w-full bg-green-600 text-white py-3 px-4 rounded-lg font-bold hover:bg-green-700 transition-colors"
+                >
+                  메뉴 수정
+                </button>
+              )}
               
               <button
                 onClick={handleLogout}
