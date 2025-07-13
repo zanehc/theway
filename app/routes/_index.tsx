@@ -5,19 +5,52 @@ import { useState, useEffect } from "react";
 import { getOrdersByUserId } from "~/lib/database";
 import { supabase } from "~/lib/supabase";
 
+// 교회소식 기본 예시 구조
+const DEFAULT_NEWS = {
+  registerNotice: "예수 그리스도 안에서 교회 등록을 원하시는 분은 예배 후 담임목사에게 말씀해 주세요.",
+  events: [
+    { title: "Wonder Kids 여름성경학교", date: "7/19(금)~20(토)", desc: "나는 하나님을 예배해요!" },
+    { title: "King of Kings 캠프", date: "7/26(금)~27(토)", desc: "초등부, 중고등부 연합" }
+  ],
+  birthdays: [
+    { name: "안현진", date: "07.13" },
+    { name: "김종호", date: "07.15" },
+    { name: "조익성", date: "07.19" }
+  ],
+  offeringAccounts: [
+    { bank: "농협", number: "953301-00-074063", owner: "예수비전교회" },
+    { bank: "농협", number: "301-0044-2043", owner: "예수비전교회" },
+    { bank: "국민", number: "897001-00-014084", owner: "예수비전교회" }
+  ],
+  etc: "매월 생일축하, 새가족을 환영합니다."
+};
+
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const error = url.searchParams.get('error');
   const success = url.searchParams.get('success');
 
+  // 교회소식 데이터 가져오기
+  const { data: newsData, error: newsError } = await supabase
+    .from('church_news')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  let news = DEFAULT_NEWS;
+  if (!newsError && newsData && newsData.length > 0) {
+    news = newsData[0].news;
+  }
+
   return json({
     error,
-    success
+    success,
+    news
   });
 }
 
 export default function Index() {
-  const { error, success } = useLoaderData<typeof loader>();
+  const { error, success, news } = useLoaderData<typeof loader>();
   const [user, setUser] = useState<any>(null);
   const [userData, setUserData] = useState<any>(null);
   const [recentOrder, setRecentOrder] = useState<any>(null);
@@ -218,29 +251,87 @@ export default function Index() {
               <h2 className="text-xl font-bold text-gray-900 mb-4">교회 소식</h2>
               
               <div className="space-y-4">
-                <div className="border-l-4 border-wine-600 pl-4">
-                  <h3 className="font-semibold text-gray-900 text-sm">이번 주 예배 안내</h3>
-                  <p className="text-gray-600 text-sm mt-1">
-                    주일 예배: 오전 11시<br />
-                    수요 예배: 오후 7시
-                  </p>
-                </div>
+                {/* 등록안내 */}
+                {news.registerNotice && (
+                  <div className="border-l-4 border-wine-600 pl-4">
+                    <h3 className="font-semibold text-gray-900 text-sm">등록안내</h3>
+                    <p className="text-gray-600 text-sm mt-1 whitespace-pre-line">
+                      {news.registerNotice}
+                    </p>
+                  </div>
+                )}
                 
-                <div className="border-l-4 border-blue-600 pl-4">
-                  <h3 className="font-semibold text-gray-900 text-sm">목장 모임</h3>
-                  <p className="text-gray-600 text-sm mt-1">
-                    매주 토요일 오후 2시<br />
-                    각 목장별로 진행
-                  </p>
-                </div>
+                {/* 행사/캠프 일정 */}
+                {news.events && news.events.length > 0 && (
+                  <div className="border-l-4 border-blue-600 pl-4">
+                    <h3 className="font-semibold text-gray-900 text-sm">행사/캠프 일정</h3>
+                    <div className="mt-1 space-y-1">
+                      {news.events.slice(0, 2).map((ev: any, idx: number) => (
+                        <div key={idx} className="text-gray-600 text-sm">
+                          <span className="font-medium">{ev.title}</span>
+                          <br />
+                          <span className="text-xs text-gray-500">{ev.date} - {ev.desc}</span>
+                        </div>
+                      ))}
+                      {news.events.length > 2 && (
+                        <div className="text-xs text-gray-500">
+                          외 {news.events.length - 2}건 더...
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
                 
-                <div className="border-l-4 border-green-600 pl-4">
-                  <h3 className="font-semibold text-gray-900 text-sm">청년부 모임</h3>
-                  <p className="text-gray-600 text-sm mt-1">
-                    매주 금요일 오후 7시<br />
-                    청년부실에서 진행
-                  </p>
-                </div>
+                {/* 생일자 */}
+                {news.birthdays && news.birthdays.length > 0 && (
+                  <div className="border-l-4 border-green-600 pl-4">
+                    <h3 className="font-semibold text-gray-900 text-sm">생일자</h3>
+                    <div className="mt-1 space-y-1">
+                      {news.birthdays.slice(0, 3).map((b: any, idx: number) => (
+                        <div key={idx} className="text-gray-600 text-sm">
+                          <span className="font-medium">{b.name}</span>
+                          <span className="text-xs text-gray-500 ml-2">{b.date}</span>
+                        </div>
+                      ))}
+                      {news.birthdays.length > 3 && (
+                        <div className="text-xs text-gray-500">
+                          외 {news.birthdays.length - 3}명 더...
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                {/* 헌금계좌 */}
+                {news.offeringAccounts && news.offeringAccounts.length > 0 && (
+                  <div className="border-l-4 border-purple-600 pl-4">
+                    <h3 className="font-semibold text-gray-900 text-sm">헌금계좌</h3>
+                    <div className="mt-1 space-y-1">
+                      {news.offeringAccounts.slice(0, 2).map((acc: any, idx: number) => (
+                        <div key={idx} className="text-gray-600 text-sm">
+                          <span className="font-medium">{acc.bank}</span>
+                          <br />
+                          <span className="text-xs text-gray-500">{acc.number}</span>
+                        </div>
+                      ))}
+                      {news.offeringAccounts.length > 2 && (
+                        <div className="text-xs text-gray-500">
+                          외 {news.offeringAccounts.length - 2}개 더...
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                {/* 기타 공지 */}
+                {news.etc && (
+                  <div className="border-l-4 border-orange-600 pl-4">
+                    <h3 className="font-semibold text-gray-900 text-sm">기타 공지</h3>
+                    <p className="text-gray-600 text-sm mt-1 whitespace-pre-line">
+                      {news.etc}
+                    </p>
+                  </div>
+                )}
               </div>
               
               <div className="mt-6 pt-4 border-t border-gray-200">

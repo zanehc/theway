@@ -138,12 +138,20 @@ export default function OtherPage() {
               </button>
               
               {userData?.role === 'admin' && (
-                <button
-                  onClick={() => navigate("/menus")}
-                  className="w-full bg-green-600 text-white py-3 px-4 rounded-lg font-bold hover:bg-green-700 transition-colors"
-                >
-                  메뉴 수정
-                </button>
+                <>
+                  <button
+                    onClick={() => navigate("/menus")}
+                    className="w-full bg-green-600 text-white py-3 px-4 rounded-lg font-bold hover:bg-green-700 transition-colors"
+                  >
+                    메뉴 수정
+                  </button>
+                  <button
+                    onClick={() => navigate("/admin/news")}
+                    className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-bold hover:bg-blue-700 transition-colors"
+                  >
+                    교회소식 관리
+                  </button>
+                </>
               )}
               
               <button
