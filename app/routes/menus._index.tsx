@@ -335,7 +335,7 @@ export default function Menus() {
         </div>
 
                           {/* 메뉴 목록 */}
-         <div className="grid grid-cols-4 gap-2 sm:gap-3">
+         <div className="grid grid-cols-3 gap-2 sm:gap-3">
            {menus.map((menu) => (
              <div key={menu.id} className="bg-gradient-ivory rounded-lg shadow-soft p-2 sm:p-3 border border-ivory-200/50">
                <div className="h-20 sm:h-24 overflow-hidden bg-gradient-to-br from-ivory-100 to-ivory-200 rounded-lg mb-2 flex items-center justify-center">
