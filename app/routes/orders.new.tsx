@@ -3,7 +3,7 @@ import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useFetcher } from "@remix-run/react";
 import { useState, useEffect } from "react";
 import { getMenus, createOrder } from "~/lib/database";
-import Header from "~/components/Header";
+
 import type { Menu } from "~/types";
 import { supabase } from "~/lib/supabase";
 
@@ -139,6 +139,27 @@ export default function NewOrder() {
       } catch (e) { /* 무시 */ }
       localStorage.removeItem('reorder');
     }
+
+    // 빠른주문 정보가 있으면 자동 채우기
+    const quickOrderRaw = localStorage.getItem('quickOrderItems');
+    if (quickOrderRaw) {
+      try {
+        const quickOrderItems = JSON.parse(quickOrderRaw);
+        if (Array.isArray(quickOrderItems)) {
+          const cartItems = quickOrderItems.map((item: any) => {
+            const menu = menus.find((m: any) => m.id === item.menu_id);
+            if (!menu) return null;
+            return {
+              menu,
+              quantity: item.quantity,
+              total_price: item.quantity * item.price,
+            };
+          }).filter((item): item is CartItem => item !== null);
+          setCart(cartItems);
+        }
+      } catch (e) { /* 무시 */ }
+      localStorage.removeItem('quickOrderItems');
+    }
   }, [menus]);
 
   // 주문 생성 결과 처리
@@ -261,8 +282,7 @@ export default function NewOrder() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-warm">
-      <Header />
+    <div className="min-h-screen bg-gradient-warm pb-20">
       
       <main className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-6 sm:py-12">
         <div className="mb-8 sm:mb-12 animate-fade-in">

@@ -255,11 +255,11 @@ export function SignupForm({ onSwitchToLogin }: SignupFormProps) {
         </div>
       )}
       <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-        <button type="submit" disabled={loading} className="flex-1 bg-gradient-wine text-black py-2 sm:py-3 px-3 sm:px-4 rounded-lg font-bold hover:shadow-wine transition-all duration-300 shadow-medium disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base">
+        <button type="submit" disabled={loading} className="flex-1 bg-gradient-wine text-white py-2 sm:py-3 px-3 sm:px-4 rounded-lg font-bold hover:shadow-wine transition-all duration-300 shadow-medium disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base">
           {loading ? '회원가입 중...' : '회원가입'}
         </button>
         <button type="button" onClick={onSwitchToLogin} className="px-4 sm:px-6 py-2 sm:py-3 border border-wine-300 text-wine-600 rounded-lg font-medium hover:bg-wine-50 transition-colors text-sm sm:text-base">
-          로그인
+          취소
         </button>
       </div>
     </form>

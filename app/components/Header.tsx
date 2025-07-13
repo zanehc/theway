@@ -6,7 +6,6 @@ import { SignupForm } from "./SignupForm";
 import { MyPageModal } from "./MyPageModal";
 import { HamburgerMenu } from "./HamburgerMenu";
 import ModalPortal from './ModalPortal';
-import NotificationBell from './NotificationBell';
 
 export default function Header() {
   // user는 세션에서 즉시, userRole은 비동기로
@@ -216,10 +215,6 @@ export default function Header() {
           <div className="flex items-center space-x-2 sm:space-x-4 animate-slide-up">
             {user ? (
               <>
-                {/* 고객일 때만 알림 벨 표시 */}
-                {userRole === 'customer' && (
-                  <NotificationBell userId={user.id} />
-                )}
                 {/* 회원명 표시 */}
                 <div className="hidden sm:block text-wine-700 font-bold text-sm sm:text-base">
                   {user.email?.split('@')[0]}님 안녕하세요

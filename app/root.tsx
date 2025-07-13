@@ -2,7 +2,6 @@ import type { LinksFunction, MetaFunction, LoaderFunctionArgs } from "@remix-run
 import { json } from "@remix-run/node";
 import {
   Links,
-  LiveReload,
   Meta,
   Outlet,
   Scripts,
@@ -10,7 +9,7 @@ import {
   useLoaderData,
 } from "@remix-run/react";
 import tailwindHref from "./tailwind.css?url";
-import { NotificationProvider } from "./contexts/NotificationContext";
+import BottomNavigation from "./components/BottomNavigation";
 
 export const links: LinksFunction = () => [
   { rel: "stylesheet", href: tailwindHref },
@@ -41,18 +40,17 @@ export default function App() {
   const { ENV } = useLoaderData<typeof loader>();
 
   return (
-    <html lang="ko" className="h-full bg-ivory-50">
-      <head>
+    <html lang="ko" className="h-full bg-ivory-50" suppressHydrationWarning>
+      <head suppressHydrationWarning>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <Meta />
         <Links />
       </head>
-      <body className="h-full min-h-screen bg-ivory-50">
-        <NotificationProvider>
-          <Outlet />
-          <div id="modal-root" />
-        </NotificationProvider>
+      <body className="h-full min-h-screen bg-ivory-50" suppressHydrationWarning>
+        <Outlet />
+        <div id="modal-root" />
+        <BottomNavigation />
         <ScrollRestoration />
         <Scripts />
         <script

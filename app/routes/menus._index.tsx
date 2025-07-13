@@ -4,7 +4,7 @@ import { useLoaderData, useFetcher } from "@remix-run/react";
 import { useState, useEffect } from "react";
 import { supabase } from "~/lib/supabase";
 import { uploadMenuImage, deleteMenuImage, createServerSupabaseClient } from "~/lib/supabase";
-import Header from "~/components/Header";
+
 import type { Menu } from "~/types";
 
 export async function loader({ request }: LoaderFunctionArgs) {
@@ -317,8 +317,7 @@ export default function Menus() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-warm">
-      <Header />
+    <div className="min-h-screen bg-gradient-warm pb-20">
       
       <main className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-6 sm:py-12">
         <div className="mb-8 sm:mb-12 animate-fade-in">

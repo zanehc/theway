@@ -3,7 +3,6 @@ import { supabase } from '~/lib/supabase';
 import { getUserOrderHistory } from '~/lib/database';
 import type { UserOrderHistory } from '~/types';
 import ModalPortal from './ModalPortal';
-import PushNotificationSettings from './PushNotificationSettings';
 
 interface User {
   id: string;
@@ -539,7 +538,9 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
 
           {activeTab === 'notifications' && user && (
             <div className="space-y-4 sm:space-y-6">
-              <PushNotificationSettings userId={user.id} />
+              <div className="text-center py-6 sm:py-8">
+                <p className="text-wine-400 text-sm sm:text-lg">알림 설정이 제거되었습니다.</p>
+              </div>
             </div>
           )}
         </div>

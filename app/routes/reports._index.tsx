@@ -3,7 +3,7 @@ import { json } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
 import { useState } from "react";
 import { getSalesStatistics } from "~/lib/database";
-import Header from "~/components/Header";
+
 
 export async function loader({ request }: LoaderFunctionArgs) {
   try {
@@ -66,8 +66,7 @@ export default function Reports() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-warm">
-      <Header />
+    <div className="min-h-screen bg-gradient-warm pb-20">
       
       <main className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-12">
         <div className="mb-12 animate-fade-in">
