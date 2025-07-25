@@ -8,8 +8,12 @@ import {
   ScrollRestoration,
   useLoaderData,
 } from "@remix-run/react";
+import { useState, useEffect } from "react";
 import tailwindHref from "./tailwind.css?url";
 import BottomNavigation from "./components/BottomNavigation";
+import { NotificationProvider } from "./contexts/NotificationContext";
+import { GlobalToast } from "./components/GlobalToast";
+import { supabase } from "./lib/supabase";
 
 export const links: LinksFunction = () => [
   { rel: "stylesheet", href: tailwindHref },
@@ -36,6 +40,45 @@ export async function loader({ request }: LoaderFunctionArgs) {
   });
 }
 
+function AppContent() {
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const getInitialUser = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        setUser(user);
+      } catch (error) {
+        console.error('Failed to get initial user:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    getInitialUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setUser(session?.user ?? null);
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  return (
+    <NotificationProvider userId={user?.id}>
+      <Outlet />
+      <div id="modal-root" />
+      <BottomNavigation />
+      <GlobalToast />
+    </NotificationProvider>
+  );
+}
+
 export default function App() {
   const { ENV } = useLoaderData<typeof loader>();
 
@@ -48,9 +91,7 @@ export default function App() {
         <Links />
       </head>
       <body className="h-full min-h-screen bg-ivory-50" suppressHydrationWarning>
-        <Outlet />
-        <div id="modal-root" />
-        <BottomNavigation />
+        <AppContent />
         <ScrollRestoration />
         <Scripts />
         <script

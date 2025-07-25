@@ -5,6 +5,7 @@ import { LoginForm } from "./LoginForm";
 import { SignupForm } from "./SignupForm";
 import { MyPageModal } from "./MyPageModal";
 import { HamburgerMenu } from "./HamburgerMenu";
+import { NotificationBell } from "./NotificationBell";
 import ModalPortal from './ModalPortal';
 
 export default function Header() {
@@ -17,9 +18,7 @@ export default function Header() {
   const [showMyPage, setShowMyPage] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loginSuccess, setLoginSuccess] = useState(false);
-  const [userNotification, setUserNotification] = useState<{message: string} | null>(null);
   const [loginRequiredMessage, setLoginRequiredMessage] = useState(false);
-  const notifTimeout = useRef<NodeJS.Timeout | null>(null);
   const [orderStats, setOrderStats] = useState({ pending: 0, preparing: 0, ready: 0, completed: 0, cancelled: 0, confirmedOrders: 0 });
 
   useEffect(() => {
@@ -64,42 +63,10 @@ export default function Header() {
     );
     return () => {
       subscription.unsubscribe();
-      if (notifTimeout.current) clearTimeout(notifTimeout.current);
     };
     // eslint-disable-next-line
   }, []);
 
-  // 알림 구독은 user가 있을 때만 실행
-  useEffect(() => {
-    if (!user) return;
-    let notifChannel: any = null;
-    if (typeof window !== 'undefined') {
-      notifChannel = supabase
-        .channel('user-notifications')
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-        }, payload => {
-          const notif = payload.new;
-          if (user && notif.user_id === user.id) {
-            setUserNotification({ message: notif.message });
-            if ('speechSynthesis' in window) {
-              const utter = new window.SpeechSynthesisUtterance(notif.message);
-              utter.lang = 'ko-KR';
-              window.speechSynthesis.speak(utter);
-            }
-            if (notifTimeout.current) clearTimeout(notifTimeout.current);
-            notifTimeout.current = setTimeout(() => setUserNotification(null), 7000);
-          }
-        })
-        .subscribe();
-    }
-    return () => {
-      if (notifChannel) notifChannel.unsubscribe();
-      if (notifTimeout.current) clearTimeout(notifTimeout.current);
-    };
-  }, [user]);
 
   useEffect(() => {
     // 주문 상태별 숫자 실시간 구독 - 최적화된 버전
@@ -219,6 +186,11 @@ export default function Header() {
                 <div className="hidden sm:block text-wine-700 font-bold text-sm sm:text-base">
                   {user.email?.split('@')[0]}님 안녕하세요
                 </div>
+                {/* 알림 벨 */}
+                <NotificationBell 
+                  userId={user?.id}
+                  userRole={userRole ?? 'customer'}
+                />
                 {/* 햄버거 메뉴 - userRole이 오기 전엔 일반 사용자 메뉴만, 오면 관리자 메뉴 동적 추가 */}
                 <HamburgerMenu 
                   user={user} 
@@ -311,16 +283,6 @@ export default function Header() {
         onClose={() => setShowMyPage(false)} 
       />
 
-      {/* 사용자 알림 배너 */}
-      {userNotification && (
-        <div
-          className="fixed top-4 left-1/2 -translate-x-1/2 z-[99999] bg-green-600 text-ivory-50 px-6 py-4 rounded-xl shadow-2xl font-bold text-lg flex items-center gap-4 cursor-pointer animate-fade-in"
-          onClick={() => setUserNotification(null)}
-        >
-          <span>🔔</span>
-          <span>{userNotification.message}</span>
-        </div>
-      )}
 
       {/* 로그인 필요 메시지 */}
       {loginRequiredMessage && (
