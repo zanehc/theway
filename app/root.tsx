@@ -40,19 +40,20 @@ export async function loader({ request }: LoaderFunctionArgs) {
   });
 }
 
-function AppContent() {
+export default function App() {
+  const { ENV } = useLoaderData<typeof loader>();
   const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
+    setIsClient(true);
+    
     const getInitialUser = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         setUser(user);
       } catch (error) {
         console.error('Failed to get initial user:', error);
-      } finally {
-        setLoading(false);
       }
     };
 
@@ -70,19 +71,6 @@ function AppContent() {
   }, []);
 
   return (
-    <NotificationProvider userId={user?.id}>
-      <Outlet />
-      <div id="modal-root" />
-      <BottomNavigation />
-      <GlobalToast />
-    </NotificationProvider>
-  );
-}
-
-export default function App() {
-  const { ENV } = useLoaderData<typeof loader>();
-
-  return (
     <html lang="ko" className="h-full bg-ivory-50" suppressHydrationWarning>
       <head suppressHydrationWarning>
         <meta charSet="utf-8" />
@@ -91,7 +79,12 @@ export default function App() {
         <Links />
       </head>
       <body className="h-full min-h-screen bg-ivory-50" suppressHydrationWarning>
-        <AppContent />
+        <NotificationProvider userId={user?.id}>
+          <Outlet />
+          <div id="modal-root" />
+          <BottomNavigation />
+          {isClient && <GlobalToast />}
+        </NotificationProvider>
         <ScrollRestoration />
         <Scripts />
         <script
@@ -103,3 +96,9 @@ export default function App() {
     </html>
   );
 }
+
+
+export function HydrateFallback() {
+  return <p>Loading...</p>;
+}
+

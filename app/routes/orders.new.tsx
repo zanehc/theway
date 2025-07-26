@@ -333,6 +333,13 @@ export default function NewOrder() {
                           alt={menu.name} 
                           className="w-full h-full object-cover"
                           loading="lazy"
+                          key={`order-image-${menu.id}-${menu.image_url}`}
+                          onLoad={() => {
+                            console.log('✅ Order page image loaded:', menu.image_url);
+                          }}
+                          onError={(e) => {
+                            console.error('❌ Order page image load failed:', menu.image_url);
+                          }}
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">

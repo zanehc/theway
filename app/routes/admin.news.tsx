@@ -1,5 +1,5 @@
 import { json, type LoaderFunctionArgs, type ActionFunctionArgs } from "@remix-run/node";
-import { useLoaderData, useFetcher } from "@remix-run/react";
+import { useLoaderData, useFetcher, useNavigate } from "@remix-run/react";
 import { useState, useEffect } from "react";
 import { createServerClient } from "@supabase/ssr";
 import { supabase as clientSupabase } from "~/lib/supabase";
@@ -25,110 +25,125 @@ const DEFAULT_NEWS = {
 };
 
 export async function loader({ request }: LoaderFunctionArgs) {
-  // 서버용 Supabase 클라이언트 생성
-  const supabase = createServerClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get: (key) => {
-          const cookie = request.headers.get("cookie") ?? "";
-          const match = cookie.match(new RegExp(`${key}=([^;]+)`));
-          return match ? match[1] : undefined;
-        },
-      },
-    }
-  );
-
-  // 인증
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Response('Unauthorized', { status: 401 });
-
-  // 관리자 권한 확인
-  const { data: userData, error: userError } = await supabase
-    .from('users')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  if (userError || userData?.role !== 'admin') {
-    throw new Response('Forbidden', { status: 403 });
-  }
-
-  // 최신 소식 1건만 사용
-  const { data, error } = await supabase.from('church_news').select('*').order('created_at', { ascending: false }).limit(1);
-  if (error) return json({ news: DEFAULT_NEWS });
-  if (data && data.length > 0) return json({ news: data[0].news });
+  // 클라이언트 사이드에서 인증을 처리하도록 기본 데이터만 반환
   return json({ news: DEFAULT_NEWS });
 }
 
 export async function action({ request }: ActionFunctionArgs) {
-  // 서버용 Supabase 클라이언트 생성
-  const supabase = createServerClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get: (key) => {
-          const cookie = request.headers.get("cookie") ?? "";
-          const match = cookie.match(new RegExp(`${key}=([^;]+)`));
-          return match ? match[1] : undefined;
-        },
-      },
-    }
-  );
-
   try {
-    // 인증
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return json({ success: false, error: '인증이 필요합니다.' }, { status: 401 });
-    }
-
-    // 관리자 권한 확인
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (userError || userData?.role !== 'admin') {
-      return json({ success: false, error: '관리자 권한이 필요합니다.' }, { status: 403 });
-    }
-
     const formData = await request.formData();
-    const news = JSON.parse(formData.get('news') as string);
-    
-    // 항상 1건만 유지 (upsert)
-    const { error } = await supabase
-      .from('church_news')
-      .upsert(
-        { 
-          id: 'singleton', 
-          news, 
-          updated_at: new Date().toISOString() 
-        }, 
-        { onConflict: 'id' }
-      );
-    
-    if (error) {
-      console.error('Database error:', error);
-      return json({ success: false, error: '저장에 실패했습니다.' }, { status: 500 });
+    const intent = formData.get('intent');
+
+    // 서버에서는 service role key를 사용하여 직접 DB 접근
+    const supabase = createServerClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        cookies: {
+          get: () => undefined,
+          set: () => {},
+          remove: () => {},
+        },
+      }
+    );
+
+    if (intent === 'delete') {
+      // id가 'singleton'인 데이터를 삭제합니다.
+      const { error } = await supabase.from('church_news').delete().eq('id', 'singleton');
+      if (error) {
+        console.error('Database error:', error);
+        return json({ success: false, error: '삭제에 실패했습니다.' }, { status: 500 });
+      }
+      return json({ success: true, message: '삭제가 완료되었습니다.' });
     }
-    
-    return json({ success: true, message: '저장이 완료되었습니다.' });
+
+    if (intent === 'save') {
+      const news = JSON.parse(formData.get('news') as string);
+      const { error } = await supabase
+        .from('church_news')
+        .upsert(
+          { 
+            id: 'singleton', 
+            news, 
+            updated_at: new Date().toISOString() 
+          }, 
+          { onConflict: 'id' }
+        );
+      
+      if (error) {
+        console.error('Database error:', error);
+        return json({ success: false, error: '저장에 실패했습니다.' }, { status: 500 });
+      }
+      return json({ success: true, message: '저장이 완료되었습니다.' });
+    }
+
+    return json({ success: false, error: '잘못된 요청입니다.' }, { status: 400 });
   } catch (error) {
     console.error('Action error:', error);
-    return json({ success: false, error: '저장 중 오류가 발생했습니다.' }, { status: 500 });
+    return json({ success: false, error: '처리 중 오류가 발생했습니다.' }, { status: 500 });
   }
 }
 
 export default function AdminNewsPage() {
   const { news } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
+  const navigate = useNavigate();
   const [form, setForm] = useState(news);
   const [preview, setPreview] = useState(news);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // 인증 확인
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const { data: { user } } = await clientSupabase.auth.getUser();
+        
+        if (!user) {
+          navigate('/other');
+          return;
+        }
+        
+        setUser(user);
+        
+        // 사용자 역할 확인
+        const { data: userData, error: userError } = await clientSupabase
+          .from('users')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+        
+        if (userError || userData?.role !== 'admin') {
+          alert('관리자만 접근할 수 있습니다.');
+          navigate('/other');
+          return;
+        }
+        
+        setUserRole(userData.role);
+        
+        // 실제 교회소식 데이터 로드
+        const { data: newsData, error: newsError } = await clientSupabase
+          .from('church_news')
+          .select('*')
+          .eq('id', 'singleton')
+          .single();
+        
+        if (!newsError && newsData) {
+          setForm(newsData.news);
+          setPreview(newsData.news);
+        }
+      } catch (error) {
+        console.error('Auth check error:', error);
+        navigate('/other');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    checkAuth();
+  }, [navigate]);
 
   useEffect(() => {
     setPreview(form);
@@ -144,6 +159,21 @@ export default function AdminNewsPage() {
       }
     }
   }, [fetcher.state, fetcher.data]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-ivory-50 flex items-center justify-center">
+        <div className="bg-white rounded-lg p-6 flex items-center gap-3">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-wine-600"></div>
+          <span>권한 확인 중...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user || userRole !== 'admin') {
+    return null; // 이미 리다이렉트 처리됨
+  }
 
   return (
     <div className="min-h-screen bg-ivory-50 py-10 px-4 flex flex-col items-center">
@@ -379,6 +409,7 @@ export default function AdminNewsPage() {
             />
           </div>
           <input type="hidden" name="news" value={JSON.stringify(form)} />
+          <input type="hidden" name="intent" value="save" />
           <button 
             type="submit" 
             disabled={fetcher.state === 'submitting'}

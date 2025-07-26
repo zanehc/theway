@@ -35,6 +35,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 // Storage 헬퍼 함수들
 export const uploadMenuImage = async (file: File, menuId: string): Promise<string | null> => {
   try {
+    console.log('🔄 Starting image upload for menu:', menuId);
+    console.log('📁 File details:', { name: file.name, size: file.size, type: file.type });
+    
     // 서버에서는 서비스 롤, 클라이언트에서는 anon
     const client = !isBrowser && supabaseServiceKey ? createServerSupabaseClient() : supabase;
     
@@ -43,45 +46,70 @@ export const uploadMenuImage = async (file: File, menuId: string): Promise<strin
     const randomId = Math.random().toString(36).substring(2, 15);
     const fileName = `${menuId}-${timestamp}-${randomId}.${fileExt}`;
     
+    console.log('📝 Generated filename:', fileName);
+    
     const { data, error } = await client.storage
       .from('menu-images')
       .upload(fileName, file, {
-        cacheControl: '3600',
+        cacheControl: '0', // 캐시 비활성화로 즉시 반영
         upsert: false
       });
 
     if (error) {
-      console.error('Storage upload error:', error);
+      console.error('❌ Storage upload error:', error);
       return null;
     }
+
+    console.log('✅ Upload successful:', data);
 
     // 공개 URL 생성
     const { data: { publicUrl } } = client.storage
       .from('menu-images')
       .getPublicUrl(fileName);
 
-    return publicUrl;
+    // 캐시 버스팅을 위한 타임스탬프 추가
+    const finalUrl = `${publicUrl}?t=${timestamp}`;
+    
+    console.log('🔗 Generated public URL:', finalUrl);
+    return finalUrl;
   } catch (error) {
-    console.error('Upload error:', error);
+    console.error('❌ Upload error:', error);
     return null;
   }
 };
 
 export const deleteMenuImage = async (imageUrl: string): Promise<boolean> => {
   try {
-    const fileName = imageUrl.split('/').pop();
-    if (!fileName) return false;
+    console.log('🗑️ Starting image deletion:', imageUrl);
+    
+    // URL에서 파일명 추출 (캐시 버스팅 파라미터 제거)
+    let fileName = imageUrl.split('/').pop();
+    if (!fileName) {
+      console.error('❌ No filename found in URL:', imageUrl);
+      return false;
+    }
+    
+    // 캐시 버스팅 파라미터 제거 (?t=timestamp)
+    if (fileName.includes('?')) {
+      fileName = fileName.split('?')[0];
+    }
+    
+    console.log('📝 Extracted filename:', fileName);
+    
     const client = !isBrowser && supabaseServiceKey ? createServerSupabaseClient() : supabase;
     const { error } = await client.storage
       .from('menu-images')
       .remove([fileName]);
+      
     if (error) {
-      console.error('Delete error:', error);
+      console.error('❌ Delete error:', error);
       return false;
     }
+    
+    console.log('✅ Image deleted successfully:', fileName);
     return true;
   } catch (error) {
-    console.error('Delete error:', error);
+    console.error('❌ Delete error:', error);
     return false;
   }
 };

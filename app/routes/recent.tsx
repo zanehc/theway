@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { getOrders, updateOrderStatus, getOrdersByUserId } from "~/lib/database";
 import { supabase } from "~/lib/supabase";
 import type { OrderStatus } from "~/types";
+import { useNotifications } from "~/contexts/NotificationContext";
 
 const statusOptions: { value: OrderStatus; label: string; color: string; bgColor: string }[] = [
   { value: 'pending', label: '대기', color: 'text-yellow-800', bgColor: 'bg-yellow-100' },
@@ -117,8 +118,6 @@ export default function RecentPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  const [newOrderAlert, setNewOrderAlert] = useState<{customer: string, church: string, message?: string, status?: OrderStatus} | null>(null);
-  const alertTimeout = useRef<NodeJS.Timeout | null>(null);
   const [user, setUser] = useState<any>(null);
   const [userRoleState, setUserRole] = useState<string | null>(null);
   const [userData, setUserData] = useState<any>(null);
@@ -129,6 +128,7 @@ export default function RecentPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const ORDERS_PER_PAGE = 10;
   const channelRef = useRef<any>(null);
+  const { addToast } = useNotifications();
 
   // 클라이언트 마운트 확인
   useEffect(() => {
@@ -207,18 +207,7 @@ export default function RecentPage() {
           const newOrder = payload.new as any;
           
           if (userRoleState === 'admin') {
-            setNewOrderAlert({
-              customer: newOrder.customer_name,
-              church: newOrder.church_group,
-              status: newOrder.status
-            });
-            
-            if (alertTimeout.current) {
-              clearTimeout(alertTimeout.current);
-            }
-            alertTimeout.current = setTimeout(() => {
-              setNewOrderAlert(null);
-            }, 5000);
+            addToast(`새 주문: ${newOrder.customer_name} (${newOrder.church_group})`, 'info');
           }
           
           // 주문 목록 새로고침
@@ -240,14 +229,7 @@ export default function RecentPage() {
               payload.new.user_id === user.id &&
               payload.old.status !== payload.new.status
             ) {
-              setNewOrderAlert({
-                customer: '',
-                church: '',
-                message: `주문이 ${getStatusLabel(payload.new.status)} 상태로 변경되었습니다.`,
-                status: payload.new.status
-              });
-              if (alertTimeout.current) clearTimeout(alertTimeout.current);
-              alertTimeout.current = setTimeout(() => setNewOrderAlert(null), 5000);
+              addToast(`주문이 ${getStatusLabel(payload.new.status)} 상태로 변경되었습니다.`, 'success');
             }
             const userOrders = await getOrdersByUserId(user.id);
             setOrders(userOrders || []);
@@ -263,7 +245,7 @@ export default function RecentPage() {
         supabase.removeChannel(channelRef.current);
       }
     };
-  }, [mounted, user, userRoleState, selectedStatus]);
+  }, [mounted, user, userRoleState, selectedStatus, addToast]);
 
   // 주문 취소 처리
   const handleOrderCancel = async (order: any) => {
@@ -271,7 +253,7 @@ export default function RecentPage() {
     
     try {
       await updateOrderStatus(order.id, 'cancelled');
-      alert('주문이 취소되었습니다.');
+      addToast('주문이 취소되었습니다.', 'warning');
       
       // 주문 목록 새로고침
       if (userRoleState === 'admin') {
@@ -283,7 +265,7 @@ export default function RecentPage() {
       }
     } catch (error) {
       console.error('Cancel order error:', error);
-      alert('주문 취소에 실패했습니다.');
+      addToast('주문 취소에 실패했습니다.', 'error');
     }
   };
 
@@ -308,7 +290,7 @@ export default function RecentPage() {
   const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
     try {
       await updateOrderStatus(orderId, newStatus);
-      alert('주문 상태가 업데이트되었습니다.');
+      addToast('주문 상태가 업데이트되었습니다.', 'success');
       
       // 주문 목록 새로고침
       if (userRoleState === 'admin') {
@@ -320,7 +302,7 @@ export default function RecentPage() {
       }
     } catch (error) {
       console.error('Status change error:', error);
-      alert('상태 변경에 실패했습니다.');
+      addToast('상태 변경에 실패했습니다.', 'error');
     }
   };
 
@@ -334,7 +316,7 @@ export default function RecentPage() {
       
       if (error) throw error;
       
-      alert('결제가 확인되었습니다.');
+      addToast('결제가 확인되었습니다.', 'success');
       
       // 주문 목록 새로고침
       if (userRoleState === 'admin') {
@@ -346,7 +328,7 @@ export default function RecentPage() {
       }
     } catch (error) {
       console.error('Payment confirm error:', error);
-      alert('결제 확인에 실패했습니다.');
+      addToast('결제 확인에 실패했습니다.', 'error');
     }
   };
 
@@ -354,7 +336,7 @@ export default function RecentPage() {
   const handleStatusChangeWithNotification = async (order: any, newStatus: OrderStatus) => {
     try {
       await updateOrderStatus(order.id, newStatus);
-      alert('주문 상태가 업데이트되었습니다.');
+      addToast('주문 상태가 업데이트되었습니다.', 'success');
       
       // 주문 목록 새로고침
       if (userRoleState === 'admin') {
@@ -366,7 +348,7 @@ export default function RecentPage() {
       }
     } catch (error) {
       console.error('Status change error:', error);
-      alert('상태 변경에 실패했습니다.');
+      addToast('상태 변경에 실패했습니다.', 'error');
     }
   };
 
@@ -433,27 +415,6 @@ export default function RecentPage() {
 
   return (
     <div className="min-h-screen bg-ivory-50 pb-20">
-      {/* 새 주문/상태변경 알림 */}
-      {newOrderAlert && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg shadow-large animate-slide-in">
-          <div className="flex items-center">
-            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-            </svg>
-            <div>
-              {newOrderAlert.customer && newOrderAlert.church ? (
-                <>
-                  <div className="font-bold">새 주문!</div>
-                  <div className="text-sm">{newOrderAlert.customer} ({newOrderAlert.church})</div>
-                </>
-              ) : (
-                <div className="font-bold">{newOrderAlert.message}</div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* OAuth 결과 메시지 */}
       {error && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg shadow-large animate-slide-in">

@@ -209,27 +209,53 @@ export async function createOrder(orderData: {
     if (itemsError) throw itemsError;
 
     // 주문 생성 후 알림 전송
-    if (orderData.user_id) {
-      try {
-        const menuNames = orderData.items.map(item => {
-          // 메뉴 이름을 가져오기 위해 메뉴 정보 조회
-          return `${item.menu_id} x${item.quantity}`;
-        }).join(', ');
-        
-        const message = `${orderData.customer_name}이/가 ${menuNames}를 주문했습니다.`;
-        
+    try {
+      // 메뉴 이름들을 실제 메뉴 정보로 조회
+      const menuIds = orderData.items.map(item => item.menu_id);
+      const { data: menus } = await supabase
+        .from('menus')
+        .select('id, name')
+        .in('id', menuIds);
+      
+      const menuNames = orderData.items.map(item => {
+        const menu = menus?.find(m => m.id === item.menu_id);
+        return `${menu?.name || '메뉴'} x${item.quantity}`;
+      }).join(', ');
+      
+      const message = `${orderData.customer_name}님이 ${menuNames}를 주문했습니다.`;
+      
+      // 주문한 사용자에게 알림 (있는 경우)
+      if (orderData.user_id) {
         await createNotification({
           user_id: orderData.user_id,
           order_id: order.id,
           type: 'new_order',
           message: message
         });
-        
         console.log('📱 New order notification sent to user:', orderData.user_id);
-      } catch (notificationError) {
-        console.error('Failed to send notification:', notificationError);
-        // 알림 실패는 주문 생성에 영향을 주지 않도록 함
       }
+      
+      // 모든 관리자에게 알림 전송
+      const { data: admins } = await supabase
+        .from('users')
+        .select('id')
+        .eq('role', 'admin');
+      
+      if (admins && admins.length > 0) {
+        for (const admin of admins) {
+          await createNotification({
+            user_id: admin.id,
+            order_id: order.id,
+            type: 'new_order',
+            message: `[새 주문] ${message}`
+          });
+        }
+        console.log('📱 New order notifications sent to', admins.length, 'admins');
+      }
+      
+    } catch (notificationError) {
+      console.error('Failed to send notification:', notificationError);
+      // 알림 실패는 주문 생성에 영향을 주지 않도록 함
     }
 
     return order;
@@ -254,6 +280,50 @@ export async function updateOrderStatus(id: string, status: string) {
     console.error('Update order status error:', error);
     throw error;
   }
+
+  // 주문 상태 변경 알림
+  try {
+    const statusMessages = {
+      pending: '주문이 접수되었습니다.',
+      preparing: '주문 제조를 시작했습니다.',
+      ready: '주문이 완료되었습니다. 픽업 가능합니다.',
+      completed: '주문이 픽업 완료되었습니다.',
+      cancelled: '주문이 취소되었습니다.'
+    };
+
+    const message = `${data.customer_name}님의 주문 - ${statusMessages[status as keyof typeof statusMessages] || '상태가 변경되었습니다.'}`;
+
+    // 주문한 사용자에게 알림 (있는 경우)
+    if (data.user_id) {
+      await createNotification({
+        user_id: data.user_id,
+        order_id: id,
+        type: 'order_status',
+        message: message
+      });
+    }
+
+    // 모든 관리자에게 알림 전송
+    const { data: admins } = await supabase
+      .from('users')
+      .select('id')
+      .eq('role', 'admin');
+    
+    if (admins && admins.length > 0) {
+      for (const admin of admins) {
+        await createNotification({
+          user_id: admin.id,
+          order_id: id,
+          type: 'order_status',
+          message: `[상태변경] ${message}`
+        });
+      }
+      console.log('📱 Order status notifications sent to', admins.length, 'admins');
+    }
+  } catch (notificationError) {
+    console.error('Failed to send status change notification:', notificationError);
+  }
+
   return data as Order;
 }
 
@@ -272,6 +342,44 @@ export async function updatePaymentStatus(id: string, payment_status: string) {
     console.error('Update payment status error:', error);
     throw error;
   }
+
+  // 결제 상태 변경 알림
+  if (payment_status === 'confirmed') {
+    try {
+      const message = `${data.customer_name}님의 주문 결제가 확인되었습니다.`;
+
+      // 주문한 사용자에게 알림 (있는 경우)
+      if (data.user_id) {
+        await createNotification({
+          user_id: data.user_id,
+          order_id: id,
+          type: 'payment_confirmed',
+          message: message
+        });
+      }
+
+      // 모든 관리자에게 알림 전송
+      const { data: admins } = await supabase
+        .from('users')
+        .select('id')
+        .eq('role', 'admin');
+      
+      if (admins && admins.length > 0) {
+        for (const admin of admins) {
+          await createNotification({
+            user_id: admin.id,
+            order_id: id,
+            type: 'payment_confirmed',
+            message: `[결제완료] ${message}`
+          });
+        }
+        console.log('📱 Payment confirmation notifications sent to', admins.length, 'admins');
+      }
+    } catch (notificationError) {
+      console.error('Failed to send payment confirmation notification:', notificationError);
+    }
+  }
+
   return data as Order;
 }
 

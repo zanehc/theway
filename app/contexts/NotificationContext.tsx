@@ -56,12 +56,22 @@ export function NotificationProvider({ children, userId }: NotificationProviderP
 
   // 실시간 알림 구독 - 모든 탭에서 작동
   useEffect(() => {
-    if (!userId) return;
+    if (!userId) {
+      console.log('🔔 NotificationProvider: userId is missing, skipping subscription.');
+      return;
+    }
 
-    console.log('🔔 Setting up global notification subscription for user:', userId);
+    const channelId = `notifications-for-user-${userId}`;
+    console.log(`🔔 Setting up notification subscription on channel: ${channelId}`);
 
     const channel = supabase
-      .channel('global-notifications')
+      .channel(channelId, {
+        config: {
+          broadcast: {
+            self: true,
+          },
+        },
+      })
       .on(
         'postgres_changes',
         {
@@ -71,36 +81,32 @@ export function NotificationProvider({ children, userId }: NotificationProviderP
           filter: `user_id=eq.${userId}`,
         },
         (payload) => {
-          console.log('🔔 Global notification received:', payload);
+          console.log('🔔 Notification received:', payload);
           const notification = payload.new;
           
-          // 알림 타입에 따른 토스트 타입 결정
           let toastType: 'info' | 'success' | 'warning' | 'error' = 'info';
-          switch (notification.type) {
-            case 'new_order':
-              toastType = 'info';
-              break;
-            case 'order_status':
-              toastType = 'success';
-              break;
-            case 'payment_confirmed':
-              toastType = 'success';
-              break;
-            case 'order_confirmation':
-              toastType = 'success';
-              break;
-            default:
-              toastType = 'info';
+          if (notification.type && ['info', 'success', 'warning', 'error'].includes(notification.type)) {
+            toastType = notification.type;
           }
           
           addToast(notification.message, toastType);
         }
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          console.log(`🔔 Successfully subscribed to ${channelId}`);
+        }
+        if (status === 'CHANNEL_ERROR') {
+          console.error(`🔔 Subscription error on channel ${channelId}:`, err);
+        }
+        if (status === 'TIMED_OUT') {
+          console.warn(`🔔 Subscription timed out on channel ${channelId}`);
+        }
+      });
 
     return () => {
-      console.log('🔔 Unsubscribing from global notifications');
-      channel.unsubscribe();
+      console.log(`🔔 Unsubscribing from channel: ${channelId}`);
+      supabase.removeChannel(channel);
     };
   }, [userId]);
 
