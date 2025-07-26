@@ -22,39 +22,52 @@ const statusButtons = [
   { key: 'all', label: '전체' },          // 전체
 ];
 
-// 주문 상태 단계 정의 (종료 제거)
+// 주문 상태 단계 정의
 const orderSteps = [
   { key: 'pending', label: '주문완료' },
   { key: 'preparing', label: '제조중' },
   { key: 'ready', label: '제조완료' },
   { key: 'completed', label: '픽업완료' },
-  { key: 'payment_confirmed', label: '결제완료' },
 ];
 
+// 결제 상태 표시 컴포넌트
+function PaymentStatusBadge({ status }: { status?: string }) {
+  const isConfirmed = status === 'confirmed';
+  
+  return (
+    <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${
+      isConfirmed
+        ? 'bg-green-100 text-green-800'
+        : 'bg-gray-100 text-gray-800'
+    }`}>
+      <span className={`w-2 h-2 mr-2 rounded-full ${isConfirmed ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+      {isConfirmed ? '결제완료' : '결제대기'}
+    </div>
+  );
+}
+
+
 // 주문 상태 진행바 컴포넌트
-function OrderStatusProgress({ status, paymentStatus }: { status: string, paymentStatus?: string }) {
-  // 결제완료/종료 상태 처리
-  let currentStep = orderSteps.findIndex(s => s.key === status);
-  if (paymentStatus === 'confirmed') currentStep = 4;
-  if (status === 'ended') currentStep = 5;
+function OrderStatusProgress({ status }: { status: string }) {
+  const currentStep = orderSteps.findIndex(s => s.key === status);
 
   return (
-    <div className="w-full flex flex-col items-center mb-2">
-      <div className="flex w-full justify-between mb-1">
+    <div className="w-full">
+      <div className="flex w-full justify-between mb-1 px-1">
         {orderSteps.map((step, idx) => (
-          <span
-            key={step.key}
-            className={`text-xs font-bold ${idx === currentStep ? 'text-wine-800' : 'text-gray-400'}`}
-            style={{ minWidth: 60, textAlign: 'center' }}
-          >
-            {step.label}
-          </span>
+          <div key={step.key} className="flex-1 text-center">
+            <span
+              className={`text-xs font-bold ${idx <= currentStep ? 'text-wine-800' : 'text-gray-400'}`}
+            >
+              {step.label}
+            </span>
+          </div>
         ))}
       </div>
       <div className="relative w-full h-2 bg-gray-200 rounded-full">
         <div
-          className="absolute h-2 rounded-full bg-wine-600 transition-all duration-500"
-          style={{ width: `${((currentStep + 1) / orderSteps.length) * 100}%` }}
+          className="absolute h-2 bg-wine-600 rounded-full transition-all duration-500"
+          style={{ width: `${currentStep >= 0 ? ((currentStep + 1) / orderSteps.length) * 100 : 0}%` }}
         />
       </div>
     </div>
@@ -356,20 +369,15 @@ export default function RecentPage() {
   const filteredOrders = orders.filter(order => {
     if (userRoleState !== 'admin') return true;
     if (selectedStatus === 'inprogress') {
-      // 주문중: 대기(pending), 제조중(preparing), 제조완료(ready), 픽업완료(결제 전, completed + payment_status !== confirmed)
       return (
         order.status === 'pending' ||
         order.status === 'preparing' ||
         order.status === 'ready' ||
-        (order.status === 'completed' && order.payment_status !== 'confirmed')
+        order.status === 'completed'
       );
     }
     if (selectedStatus === 'done') {
-      // 주문완료: 픽업완료(결제완료) 또는 결제완료
-      return (
-        (order.status === 'completed' && order.payment_status === 'confirmed') ||
-        order.payment_status === 'confirmed'
-      );
+      return order.payment_status === 'confirmed';
     }
     // 전체
     return true;
@@ -493,7 +501,10 @@ export default function RecentPage() {
                   .map((order) => (
                   <div key={order.id} className="bg-ivory-50 rounded-xl border border-wine-200 p-4">
                     {/* 주문 상태 진행바 */}
-                    <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
+                    <OrderStatusProgress status={order.status} />
+                    <div className="mt-2">
+                      <PaymentStatusBadge status={order.payment_status} />
+                    </div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs text-wine-400">#{order.id.slice(-8)}</span>
                     </div>
@@ -579,7 +590,8 @@ export default function RecentPage() {
                       <th className="px-2 py-2">주문인</th>
                       <th className="px-2 py-2">주문시간</th>
                       <th className="px-2 py-2">주문메뉴</th>
-                      <th className="px-2 py-2">상태</th>
+                      <th className="px-2 py-2">주문상태</th>
+                      <th className="px-2 py-2">결제상태</th>
                       {userRoleState === 'admin' && <th className="px-2 py-2">액션</th>}
                       <th className="px-2 py-2">빠른주문</th>
                     </tr>
@@ -622,7 +634,10 @@ export default function RecentPage() {
                           </td>
                           {/* 상태 진행바만 표시 (뱃지 제거) */}
                           <td className="align-middle">
-                            <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
+                            <OrderStatusProgress status={order.status} />
+                          </td>
+                          <td className="align-middle">
+                            <PaymentStatusBadge status={order.payment_status} />
                           </td>
                           {userRoleState === 'admin' && (
                             <td className="align-middle">
