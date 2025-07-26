@@ -238,11 +238,12 @@ export default function RecentPage() {
             setOrders(allOrders || []);
           } else {
             // 고객: 내 주문 상태 변경 알림
-            if (
-              payload.new.user_id === user.id &&
-              payload.old.status !== payload.new.status
-            ) {
-              addToast(`주문이 ${getStatusLabel(payload.new.status)} 상태로 변경되었습니다.`, 'success');
+            if (payload.new.user_id === user.id) {
+              if (payload.old.status !== payload.new.status) {
+                addToast(`주문이 ${getStatusLabel(payload.new.status)} 상태로 변경되었습니다.`, 'success');
+              } else if (payload.old.payment_status !== payload.new.payment_status && payload.new.payment_status === 'confirmed') {
+                addToast('주문이 결제완료되었습니다.', 'success');
+              }
             }
             const userOrders = await getOrdersByUserId(user.id);
             setOrders(userOrders || []);
