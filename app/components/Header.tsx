@@ -8,64 +8,24 @@ import { HamburgerMenu } from "./HamburgerMenu";
 import { NotificationBell } from "./NotificationBell";
 import ModalPortal from './ModalPortal';
 
-export default function Header() {
-  // user는 세션에서 즉시, userRole은 비동기로
-  const [user, setUser] = useState<any>(null);
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const [roleLoading, setRoleLoading] = useState(true);
+interface HeaderProps {
+  user: any;
+  userRole: string | null;
+}
+
+export default function Header({ user, userRole }: HeaderProps) {
+  // Props에서 받은 사용자 정보 사용 (중복 상태 관리 제거)
   const [showLogin, setShowLogin] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
   const [showMyPage, setShowMyPage] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [loginSuccess, setLoginSuccess] = useState(false);
   const [loginRequiredMessage, setLoginRequiredMessage] = useState(false);
   const [orderStats, setOrderStats] = useState({ pending: 0, preparing: 0, ready: 0, completed: 0, cancelled: 0, confirmedOrders: 0 });
 
+  // Props 변경 시 로그
   useEffect(() => {
-    // 최초 user 정보 가져오기
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-      if (user) getUserRole(user.id);
-      else setUserRole(null);
-    };
-    const getUserRole = async (userId: string) => {
-      setRoleLoading(true);
-      try {
-        const cachedRole = sessionStorage.getItem(`user_role_${userId}`);
-        if (cachedRole) {
-          setUserRole(cachedRole);
-          setRoleLoading(false);
-        } else {
-          const { data: userData } = await supabase
-            .from('users')
-            .select('role')
-            .eq('id', userId)
-            .single();
-          const role = userData?.role || null;
-          setUserRole(role);
-          if (role) sessionStorage.setItem(`user_role_${userId}`, role);
-          setRoleLoading(false);
-        }
-      } catch {
-        setUserRole(null);
-        setRoleLoading(false);
-      }
-    };
-    getUser();
-    // 인증 상태 변경 리스너
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setUser(session?.user ?? null);
-        if (session?.user) getUserRole(session.user.id);
-        else setUserRole(null);
-      }
-    );
-    return () => {
-      subscription.unsubscribe();
-    };
-    // eslint-disable-next-line
-  }, []);
+    console.log('🎯 Header - Props 업데이트:', { user: user?.email || 'null', userRole });
+  }, [user, userRole]);
 
 
   useEffect(() => {
@@ -130,15 +90,7 @@ export default function Header() {
     window.location.reload();
   };
 
-  const handleNewOrderClick = (e: React.MouseEvent) => {
-    if (!user) { // isLoggedIn 대신 user 체크
-      e.preventDefault();
-      setLoginRequiredMessage(true);
-      setTimeout(() => setLoginRequiredMessage(false), 3000);
-    }
-  };
 
-  const isLoggedIn = !!user;
 
   return (
     <header className="bg-gradient-ivory shadow-soft border-b border-ivory-200/50 backdrop-blur-sm">
@@ -164,19 +116,8 @@ export default function Header() {
             </div>
           </Link>
 
-          {/* 중앙 새주문 버튼 */}
-          <div className="flex-1 flex justify-center">
-            <Link
-              to="/orders/new"
-              onClick={handleNewOrderClick}
-              className="inline-flex items-center px-4 py-2 bg-gradient-wine text-white rounded-xl font-bold text-sm sm:text-base shadow-medium hover:shadow-wine transition-all duration-300 transform hover:-translate-y-1"
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              새 주문
-            </Link>
-          </div>
+          {/* 중앙 공간 */}
+          <div className="flex-1"></div>
 
           {/* 우측 버튼들 - user만 있으면 즉시 렌더, userRole은 관리자 메뉴만 동적으로 */}
           <div className="flex items-center space-x-2 sm:space-x-4 animate-slide-up">

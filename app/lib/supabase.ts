@@ -29,8 +29,25 @@ export const createServerSupabaseClient = () => {
   return supabase;
 };
 
-// 기본 클라이언트(클라이언트: anon, 서버: anon)
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// 기본 클라이언트(클라이언트: anon, 서버: anon) - 세션 유지 설정 강화
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    // 자동 토큰 갱신 활성화
+    autoRefreshToken: true,
+    // 세션 감지 활성화
+    detectSessionInUrl: true,
+    // 토큰 저장소 설정 (localStorage 사용)
+    storage: isBrowser ? window.localStorage : undefined,
+    // 세션 지속성 향상
+    persistSession: true,
+  },
+  // 전역 설정
+  global: {
+    headers: {
+      'X-Client-Info': 'theway-cafe-app'
+    }
+  }
+});
 
 // Storage 헬퍼 함수들
 export const uploadMenuImage = async (file: File, menuId: string): Promise<string | null> => {

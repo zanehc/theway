@@ -2,172 +2,133 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Overview
-
-This is "길을여는교회 이음카페" (The Way Church Connection Cafe) - a church cafe ordering and management system built with Remix, Supabase, and Tailwind CSS. The application provides a complete ordering system for a church cafe with real-time order management, menu administration, and sales reporting.
-
 ## Development Commands
 
-### Common Commands
-- `npm run dev` - Start development server (http://localhost:5173)
-- `npm run build` - Build for production
+### Primary Development Workflow
+- `npm run dev` - Start development server on http://localhost:5173
+- `npm run build` - Build production bundle
 - `npm run start` - Start production server
-- `npm run lint` - Run ESLint with caching
 - `npm run typecheck` - Run TypeScript type checking
-- `npm run create-admin` - Create admin user (requires environment setup)
+- `npm run lint` - Run ESLint checks
 
-### Essential Commands to Run After Changes
-Always run these commands after making code changes:
-- `npm run lint` - Check code style and catch potential issues
-- `npm run typecheck` - Ensure TypeScript type safety
-
-## Technology Stack
-
-### Frontend
-- **Remix v2.16.8** - Full-stack React framework with SSR
-- **TypeScript** - Type safety throughout the application  
-- **Tailwind CSS** - Utility-first CSS framework with custom design system
-- **Vite** - Build tool and development server
-
-### Backend & Database
-- **Supabase** - PostgreSQL database with authentication and real-time features
-  - Authentication with Google OAuth
-  - Row Level Security (RLS) policies
-  - Real-time subscriptions for order updates
-- **@supabase/ssr** - Server-side rendering support for Supabase auth
-
-### Design System
-- **Primary Color**: Red Wine (warm, premium feel)
-- **Secondary Color**: Ivory (clean, soft feel)  
-- Modern gradient designs with smooth animations
+### Database & Admin Tools
+- `npm run create-admin` - Create admin user account (script at scripts/create-admin.js)
+- Check scripts/ directory for additional database utilities:
+  - `check-user-role.mjs` - Verify user roles
+  - `create-test-order.mjs` - Generate test orders
+  - `delete-orders.mjs` - Clean up test data
 
 ## Architecture Overview
 
+### Tech Stack
+- **Framework**: Remix with Vite and SSR
+- **Database**: Supabase (PostgreSQL with Row Level Security)
+- **Styling**: Tailwind CSS with custom theme (Red Wine + Ivory color scheme)
+- **Authentication**: Supabase Auth with Google OAuth
+- **Notifications**: Custom notification system with database storage
+
+### Core Application Structure
+
+This is a Korean church cafe ordering and management system (길을여는교회 이음카페). The application follows a clean separation between customer-facing features and admin management.
+
+**Key Domains:**
+- **Orders**: Complete order lifecycle from creation to completion/pickup
+- **Menus**: Product catalog with categories and pricing
+- **Users**: Customer, staff, and admin role management with church group assignments
+- **Notifications**: Real-time order status updates
+- **Reports**: Sales analytics and business intelligence
+
+### Routing Patterns
+- `/` - Dashboard with order statistics and quick actions
+- `/orders/new` - Customer order placement interface
+- `/orders` - Order status board (filtered views by status)
+- `/menus` - Menu management (admin)
+- `/reports` - Sales reports and analytics
+- `/auth/*` - Authentication flows including profile setup
+- `/admin.news` - Church news management
+
 ### Database Schema
-Core tables and relationships:
-- `users` - User management with roles (customer, staff, admin) and church groups
-- `menus` - Menu items with categories, pricing, and availability
-- `orders` - Order management with status tracking and payment confirmation
+
+**Core Tables:**
+- `users` - User profiles with roles (customer/staff/admin) and church groups
+- `menus` - Product catalog with categories, pricing, and availability
+- `orders` - Order records with customer info, payment status, and order status
 - `order_items` - Line items linking orders to menus with quantities
-- `notifications` - Real-time notification system
-- `church_news` - Church announcements and news
+- `notifications` - User notifications for order updates
 
-### Key Relationships
-- Orders → Users (customer information)
-- Order Items → Orders → Menus (detailed order composition)
-- Notifications → Users + Orders (order status updates)
+**Key Relationships:**
+- Orders have many order_items, each referencing a menu
+- Users can have many orders
+- Notifications are tied to users and orders
 
-### Application Structure
+### State Management Patterns
 
-#### Route Structure
-- `/` - Dashboard with system statistics and quick actions
-- `/orders/new` - New order creation interface
-- `/orders` - Order status management board (implicit _index)
-- `/menus` - Menu management interface (implicit _index) 
-- `/reports` - Sales reporting and analytics (implicit _index)
-- `/admin/news` - Admin-only church news management
-- `/mypage` - User profile and order history
-- Authentication routes: `/login`, `/auth/*`
+**Authentication State:**
+- Global auth state managed in root.tsx with Supabase listener
+- User session persists across page refreshes via SSR cookies
+- Role-based access control enforced at route level
 
-#### Core Components
-- `Layout.tsx` - Main application layout wrapper
-- `BottomNavigation.tsx` - Mobile-first navigation
-- `Header.tsx` - Top navigation with user context
-- `GlobalToast.tsx` - System-wide notification toasts
-- `NotificationContext.tsx` - Real-time notification management
+**Data Fetching:**
+- Remix loaders for SSR data fetching
+- Supabase client for real-time subscriptions
+- Database utilities in `app/lib/database.ts` handle all queries
 
-#### Data Layer
-- `app/lib/supabase.ts` - Supabase client configuration
-- `app/lib/database.ts` - Database query functions and business logic
-- `app/types/index.ts` - TypeScript type definitions
+**Order Status Flow:**
+`pending` → `preparing` → `ready` → `completed` (or `cancelled`)
+Payment status: `pending` → `confirmed`
 
-### Authentication & Authorization
-- Google OAuth integration through Supabase Auth
-- Server-side session management with cookies
-- Role-based access control (customer/staff/admin)
-- Row Level Security policies enforce data access rules
+### Component Architecture
 
-### Real-time Features
-- Order status updates via Supabase real-time subscriptions
-- Live notification system for order changes
-- Automatic UI updates when order statuses change
+**Layout System:**
+- `root.tsx` - Global layout with auth provider and bottom navigation
+- `BottomNavigation` - Main navigation for mobile-first design
+- `GlobalToast` - System-wide notification display
 
-## Development Environment Setup
-
-### SSR Authentication Requirements
-The application uses server-side rendering with cookie-based authentication. For proper authentication in development:
-
-- Frontend and backend must run on the same port/domain (both on http://localhost:5173)
-- Cookies must be properly configured: SameSite=Lax, Path=/
-- Check browser dev tools: Application → Cookies → localhost should show sb-access-token, sb-refresh-token, sb-session
-- Network requests should include cookie headers
-
-### Environment Variables
-Required in `.env`:
-```
-SUPABASE_URL=your_supabase_project_url
-SUPABASE_ANON_KEY=your_supabase_anon_key  
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-NODE_ENV=development
-```
-
-### Database Setup
-- Run SQL migration files in order for fresh setup
-- Use `init_menus_with_images.sql` for sample menu data
-- Key migration files handle RLS policies and table structure
-
-## Key Business Logic
-
-### Order Workflow
-1. **Order Creation** - Customer selects items, enters details, chooses payment method
-2. **Order Processing** - Status progression: pending → preparing → ready → completed
-3. **Payment Confirmation** - Separate payment status tracking (pending/confirmed)
-4. **Notification System** - Real-time updates to customers and staff
-
-### Menu Management
-- Category-based organization (beverages, food, etc.)
-- Price management with availability toggles
-- Image support for menu items
-
-### Sales Analytics
-- Real-time dashboard statistics
-- Daily, weekly, monthly revenue tracking  
-- Popular menu analysis
-- Church group (목장) statistics
-
-### User Management
-- Role-based permissions
-- Church group assignment for customers
-- Admin tools for user management
+**Key Components:**
+- `NotificationProvider` - Context for notification state
+- `MyPageModal` - User profile management
+- `AdminLoginForm` - Admin authentication
+- `Header` - Page headers with role-appropriate actions
 
 ## Development Guidelines
 
-### Code Patterns
-- Use TypeScript types from `app/types/index.ts`
-- Follow existing component patterns in `app/components/`
-- Database queries go in `app/lib/database.ts`
-- Use Tailwind utility classes following the existing design system
+### Code Style
+- TypeScript with strict type checking
+- Tailwind CSS for styling with custom color scheme
+- Korean language UI with English code/comments
+- Responsive mobile-first design
 
-### State Management
-- Server state via Remix loaders/actions
-- Client state via React hooks and context
-- Real-time updates via Supabase subscriptions
+### Environment Setup
+Required environment variables (see env.example):
+- `SUPABASE_URL` - Supabase project URL
+- `SUPABASE_ANON_KEY` - Public API key
+- `SUPABASE_SERVICE_ROLE_KEY` - Server-side API key
+- `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` - Web push notifications
 
-### Error Handling
-- Database errors logged to console with descriptive messages
-- User-facing error messages via toast notifications
-- Graceful fallbacks for failed data fetching
+### Important Development Notes
 
-## Scripts and Utilities
+**SSR Authentication Requirements:**
+- Development must run on same port/domain for cookie sharing
+- Cookies: `sb-access-token`, `sb-refresh-token`, `sb-session` required
+- SameSite=Lax, Path=/ for development environment
+- Secure flag disabled in development
 
-### Management Scripts (in /scripts/)
-- `create-admin.js` - Create admin users
-- `check-user-role.mjs` - Verify user roles
-- `create-test-order.mjs` - Generate test data
-- `delete-orders.mjs` - Cleanup utilities
+**Database Access Patterns:**
+- All queries go through `app/lib/database.ts` functions
+- Row Level Security policies enforce access control
+- Admin users can access all data, customers see only their own orders
+- Use `getUserById`, `getOrders`, `createOrder` etc. for data operations
 
-### Database Migrations
-Multiple SQL files handle schema updates and data initialization. Key files:
-- `supabase_migrations.sql` - Main schema and RLS policies
-- `init_menus_with_images.sql` - Sample menu data
-- `create_notifications_table.sql` - Notification system setup
+### Testing Data
+Use scripts in the `scripts/` directory to:
+- Create admin accounts for testing
+- Generate test orders
+- Verify user roles and permissions
+- Clean up test data
+
+### Common Tasks
+- **Add new menu items**: Use admin interface at `/menus`
+- **Create admin user**: Run `npm run create-admin`
+- **Monitor orders**: Check `/orders` status board
+- **View analytics**: Access `/reports` for sales data
+- **Manage notifications**: System automatically handles order status notifications

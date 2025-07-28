@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, Link, useNavigate, useLocation } from "@remix-run/react";
+import { useLoaderData, useFetcher, useNavigate, useLocation } from "@remix-run/react";
 import { useState, useEffect, useRef } from "react";
 import { getOrders, updateOrderStatus, getOrdersByUserId } from "~/lib/database";
 import { supabase } from "~/lib/supabase";
@@ -48,28 +48,53 @@ function PaymentStatusBadge({ status }: { status?: string }) {
 
 
 // 주문 상태 진행바 컴포넌트
-function OrderStatusProgress({ status }: { status: string }) {
-  const currentStep = orderSteps.findIndex(s => s.key === status);
+function OrderStatusProgress({ status, paymentStatus }: { status: string, paymentStatus?: string }) {
+  // 주문 진행 상태 (주문완료 -> 제조중 -> 제조완료 -> 픽업완료)
+  const orderStep = orderSteps.findIndex(s => s.key === status);
+  const isPaymentConfirmed = paymentStatus === 'confirmed';
 
   return (
-    <div className="w-full">
-      <div className="flex w-full justify-between mb-1 px-1">
-        {orderSteps.map((step, idx) => (
-          <div key={step.key} className="flex-1 text-center">
-            <span
-              className={`text-xs font-bold ${idx <= currentStep ? 'text-wine-800' : 'text-gray-400'}`}
-            >
-              {step.label}
-            </span>
-          </div>
+    <div className="w-full flex flex-col items-center mb-2">
+      {/* 주문 진행 상태 표시 */}
+      <div className="flex w-full justify-between mb-1">
+        {orderSteps.slice(0, 4).map((step, idx) => (
+          <span
+            key={step.key}
+            className={`text-xs font-bold ${
+              idx <= orderStep ? 'text-wine-800' : 'text-gray-400'
+            }`}
+            style={{ minWidth: 50, textAlign: 'center' }}
+          >
+            {step.label}
+          </span>
         ))}
+        {/* 결제완료 별도 표시 */}
+        <span
+          className={`text-xs font-bold ${
+            isPaymentConfirmed ? 'text-green-700' : 'text-gray-400'
+          }`}
+          style={{ minWidth: 50, textAlign: 'center' }}
+        >
+          결제완료
+        </span>
       </div>
-      <div className="relative w-full h-2 bg-gray-200 rounded-full">
+      
+      {/* 주문 진행바 */}
+      <div className="relative w-full h-2 bg-gray-200 rounded-full mb-1">
+        {/* 주문 진행 상태 진행바 (80%까지만) */}
         <div
-          className="absolute h-2 bg-wine-600 rounded-full transition-all duration-500"
-          style={{ width: `${currentStep >= 0 ? ((currentStep + 1) / orderSteps.length) * 100 : 0}%` }}
+          className="absolute h-2 rounded-full bg-wine-600 transition-all duration-500"
+          style={{ width: `${Math.min(((orderStep + 1) / 4) * 80, 80)}%` }}
+        />
+        {/* 결제완료 영역 (마지막 20%) */}
+        <div
+          className={`absolute h-2 rounded-full transition-all duration-500 ${
+            isPaymentConfirmed ? 'bg-green-500' : 'bg-gray-200'
+          }`}
+          style={{ width: '20%', right: 0 }}
         />
       </div>
+      
     </div>
   );
 }
@@ -141,7 +166,7 @@ export default function RecentPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const ORDERS_PER_PAGE = 10;
   const channelRef = useRef<any>(null);
-  const { addToast } = useNotifications();
+  const { toasts, addToast } = useNotifications();
 
   // 클라이언트 마운트 확인
   useEffect(() => {
@@ -209,60 +234,24 @@ export default function RecentPage() {
     getUserAndOrders();
   }, [mounted, selectedStatus]);
 
-  // 실시간 업데이트
+  
+
+  // 알림에 따른 주문 목록 새로고침
   useEffect(() => {
-    if (!mounted || !user) return;
+    if (!mounted) return;
 
-    const channel = supabase
-      .channel('orders-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, async (payload) => {
-        if (payload.eventType === 'INSERT') {
-          const newOrder = payload.new as any;
-          
-          if (userRoleState === 'admin') {
-            addToast(`새 주문: ${newOrder.customer_name} (${newOrder.church_group})`, 'info');
-          }
-          
-          // 주문 목록 새로고침
-          if (userRoleState === 'admin') {
-            const allOrders = await getOrders(selectedStatus || undefined);
-            setOrders(allOrders || []);
-          } else {
-            const userOrders = await getOrdersByUserId(user.id);
-            setOrders(userOrders || []);
-          }
-        } else if (payload.eventType === 'UPDATE') {
-          // 주문 상태 변경 시 목록 새로고침
-          if (userRoleState === 'admin') {
-            const allOrders = await getOrders(selectedStatus || undefined);
-            setOrders(allOrders || []);
-          } else {
-            // 고객: 내 주문 상태 변경 알림
-            if (payload.new.user_id === user.id) {
-              if (payload.old.payment_status !== payload.new.payment_status && payload.new.payment_status === 'confirmed') {
-                addToast('주문이 결제완료되었습니다.', 'success');
-              } else if (payload.old.status !== payload.new.status) {
-                // Only show status change if it's not a payment confirmation that also changed status
-                addToast(`주문이 ${getStatusLabel(payload.new.status)} 상태로 변경되었습니다.`, 'success');
-              }
-            }
-            const userOrders = await getOrdersByUserId(user.id);
-            setOrders(userOrders || []);
-          }
-        }
-      })
-      .subscribe();
-
-    channelRef.current = channel;
-
-    return () => {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
+    const refreshOrders = async () => {
+      if (userRoleState === 'admin') {
+        const allOrders = await getOrders(selectedStatus || undefined);
+        setOrders(allOrders || []);
+      } else if (user) {
+        const userOrders = await getOrdersByUserId(user.id);
+        setOrders(userOrders || []);
       }
     };
-  }, [mounted, user, userRoleState, selectedStatus, addToast]);
 
-  // 주문 취소 처리
+    refreshOrders();
+  }, [toasts, mounted, userRoleState, selectedStatus, user]);
   const handleOrderCancel = async (order: any) => {
     if (!confirm('정말로 이 주문을 취소하시겠습니까?')) return;
     
@@ -503,7 +492,7 @@ export default function RecentPage() {
                   .map((order) => (
                   <div key={order.id} className="bg-ivory-50 rounded-xl border border-wine-200 p-4">
                     {/* 주문 상태 진행바 */}
-                    <OrderStatusProgress status={order.status} />
+                    <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
                     <div className="mt-2">
                       <PaymentStatusBadge status={order.payment_status} />
                     </div>
@@ -636,7 +625,7 @@ export default function RecentPage() {
                           </td>
                           {/* 상태 진행바만 표시 (뱃지 제거) */}
                           <td className="align-middle">
-                            <OrderStatusProgress status={order.status} />
+                            <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
                           </td>
                           <td className="align-middle">
                             <PaymentStatusBadge status={order.payment_status} />
@@ -735,22 +724,6 @@ export default function RecentPage() {
           )}
         </div>
 
-        {/* 빠른 액션 */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-          <Link
-            to="/orders/new"
-            className="bg-gradient-wine text-ivory-50 rounded-xl p-4 sm:p-6 text-center hover:shadow-wine transition-all duration-300 shadow-medium hover:shadow-large transform hover:-translate-y-1"
-          >
-            <div className="flex flex-col items-center">
-              <svg className="w-8 h-8 sm:w-12 sm:h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              <h3 className="font-bold text-sm sm:text-base">새 주문</h3>
-            </div>
-          </Link>
-          
-          {/* 주문현황 밑의 빠른 액션(메뉴보기, 매출보고서) 버튼 제거 */}
-        </div>
       </div>
     </div>
   );

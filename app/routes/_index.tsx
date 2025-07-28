@@ -4,6 +4,7 @@ import { useLoaderData, Link } from "@remix-run/react";
 import { useState, useEffect } from "react";
 import { getOrdersByUserId } from "~/lib/database";
 import { supabase } from "~/lib/supabase";
+import { useNotifications } from "~/contexts/NotificationContext";
 
 // 교회소식 기본 예시 구조
 const DEFAULT_NEWS = {
@@ -56,6 +57,12 @@ export default function Index() {
   const [recentOrder, setRecentOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
+  const { toasts } = useNotifications();
+  
+  // 디버깅: 알림 상태 로그
+  useEffect(() => {
+    console.log('🏠 홈탭 - 현재 toasts:', toasts);
+  }, [toasts]);
 
   // 클라이언트 마운트 확인
   useEffect(() => {
@@ -67,9 +74,19 @@ export default function Index() {
     if (!mounted) return;
     
     const getUserAndRecentOrder = async () => {
+      console.log('🔄 홈탭 - 데이터 로딩 시작');
       try {
         setLoading(true);
-        const { data: { user } } = await supabase.auth.getUser();
+        
+        // 타임아웃 설정 (10초)
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), 10000)
+        );
+        
+        const userPromise = supabase.auth.getUser();
+        const { data: { user } } = await Promise.race([userPromise, timeoutPromise]) as any;
+        
+        console.log('👤 홈탭 - 사용자 정보:', user?.email);
         setUser(user);
         
         if (user) {
@@ -80,19 +97,30 @@ export default function Index() {
             .eq('id', user.id)
             .single();
           
+          console.log('📊 홈탭 - 사용자 데이터:', userData, userError);
+          
           if (!userError && userData) {
             setUserData(userData);
             
-            // 최근 주문 1건 가져오기
-            const userOrders = await getOrdersByUserId(user.id);
-            if (userOrders && userOrders.length > 0) {
-              setRecentOrder(userOrders[0]);
+            // 최근 주문 1건 가져오기 (타임아웃 적용)
+            try {
+              const ordersPromise = getOrdersByUserId(user.id);
+              const userOrders = await Promise.race([ordersPromise, timeoutPromise]) as any;
+              console.log('📦 홈탭 - 최근 주문:', userOrders?.length || 0, '개');
+              
+              if (userOrders && userOrders.length > 0) {
+                setRecentOrder(userOrders[0]);
+              }
+            } catch (orderError) {
+              console.error('주문 데이터 로딩 실패:', orderError);
+              // 주문 데이터 로딩 실패해도 계속 진행
             }
           }
         }
       } catch (error) {
         console.error('Error loading user and recent order:', error);
       } finally {
+        console.log('✅ 홈탭 - 로딩 완료');
         setLoading(false);
       }
     };
@@ -165,21 +193,6 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-ivory-50 pb-20">
-      {/* 상단 헤더 영역 개선 */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between py-4">
-          <div>
-            <div className="text-2xl sm:text-3xl font-black text-wine-800 leading-tight">길을여는교회</div>
-            <div className="flex items-center mt-1">
-              <span className="text-base sm:text-lg font-bold text-wine-600">이음카페</span>
-              <span className="inline-block bg-yellow-400 text-xs font-bold text-white px-2 py-1 rounded-full ml-2 align-middle">Beta</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-base sm:text-lg font-bold text-wine-700">{userData?.name || 'ㅇㅇㅇ'}님 안녕하세요!</span>
-          </div>
-        </div>
-      </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -215,7 +228,7 @@ export default function Index() {
                   <div className="space-y-2 mb-3">
                     {recentOrder.order_items.map((item: any, index: number) => (
                       <div key={index} className="flex justify-between text-sm">
-                        <span>{item.menu_name}</span>
+                        <span>{item.menu?.name || '메뉴명 없음'}</span>
                         <span className="text-gray-500">x{item.quantity}</span>
                       </div>
                     ))}
@@ -254,30 +267,30 @@ export default function Index() {
               
               <div className="space-y-4">
                 {/* 등록안내 */}
-                {news.registerNotice && (
+                {news?.registerNotice && (
                   <div className="border-l-4 border-wine-600 pl-4">
                     <h3 className="font-semibold text-gray-900 text-sm">등록안내</h3>
                     <p className="text-gray-600 text-sm mt-1 whitespace-pre-line">
-                      {news.registerNotice}
+                      {news?.registerNotice}
                     </p>
                   </div>
                 )}
                 
                 {/* 행사/캠프 일정 */}
-                {news.events && news.events.length > 0 && (
+                {news?.events && news.events.length > 0 && (
                   <div className="border-l-4 border-blue-600 pl-4">
                     <h3 className="font-semibold text-gray-900 text-sm">행사/캠프 일정</h3>
                     <div className="mt-1 space-y-1">
-                      {news.events.slice(0, 2).map((ev: any, idx: number) => (
+                      {news?.events?.slice(0, 2).map((ev: any, idx: number) => (
                         <div key={idx} className="text-gray-600 text-sm">
                           <span className="font-medium">{ev.title}</span>
                           <br />
                           <span className="text-xs text-gray-500">{ev.date} - {ev.desc}</span>
                         </div>
                       ))}
-                      {news.events.length > 2 && (
+                      {news?.events && news.events.length > 2 && (
                         <div className="text-xs text-gray-500">
-                          외 {news.events.length - 2}건 더...
+                          외 {news?.events?.length - 2}건 더...
                         </div>
                       )}
                     </div>
@@ -285,19 +298,19 @@ export default function Index() {
                 )}
                 
                 {/* 생일자 */}
-                {news.birthdays && news.birthdays.length > 0 && (
+                {news?.birthdays && news.birthdays.length > 0 && (
                   <div className="border-l-4 border-green-600 pl-4">
                     <h3 className="font-semibold text-gray-900 text-sm">생일자</h3>
                     <div className="mt-1 grid grid-cols-3 gap-2">
-                      {news.birthdays.slice(0, 6).map((b: any, idx: number) => (
+                      {news?.birthdays?.slice(0, 6).map((b: any, idx: number) => (
                         <div key={idx} className="text-gray-600 text-sm">
                           <span className="font-medium">{b.name}</span>
                           <span className="text-xs text-gray-500 ml-2">{b.date}</span>
                         </div>
                       ))}
-                      {news.birthdays.length > 6 && (
+                      {news?.birthdays && news.birthdays.length > 6 && (
                         <div className="col-span-3 text-xs text-gray-500">
-                          외 {news.birthdays.length - 6}명 더...
+                          외 {news?.birthdays?.length - 6}명 더...
                         </div>
                       )}
                     </div>
@@ -305,19 +318,19 @@ export default function Index() {
                 )}
                 
                 {/* 헌금계좌 */}
-                {news.offeringAccounts && news.offeringAccounts.length > 0 && (
+                {news?.offeringAccounts && news.offeringAccounts.length > 0 && (
                   <div className="border-l-4 border-purple-600 pl-4">
                     <h3 className="font-semibold text-gray-900 text-sm">헌금계좌</h3>
                     <div className="mt-1 grid grid-cols-3 gap-2">
-                      {news.offeringAccounts.slice(0, 6).map((acc: any, idx: number) => (
+                      {news?.offeringAccounts?.slice(0, 6).map((acc: any, idx: number) => (
                         <div key={idx} className="text-gray-600 text-sm">
                           <span className="font-medium">{acc.bank}</span><br />
                           <span className="text-xs text-gray-500">{acc.number}</span>
                         </div>
                       ))}
-                      {news.offeringAccounts.length > 6 && (
+                      {news?.offeringAccounts && news.offeringAccounts.length > 6 && (
                         <div className="col-span-3 text-xs text-gray-500">
-                          외 {news.offeringAccounts.length - 6}개 더...
+                          외 {news?.offeringAccounts?.length - 6}개 더...
                         </div>
                       )}
                     </div>
@@ -325,11 +338,11 @@ export default function Index() {
                 )}
                 
                 {/* 기타 공지 */}
-                {news.etc && (
+                {news?.etc && (
                   <div className="border-l-4 border-orange-600 pl-4">
                     <h3 className="font-semibold text-gray-900 text-sm">기타 공지</h3>
                     <p className="text-gray-600 text-sm mt-1 whitespace-pre-line">
-                      {news.etc}
+                      {news?.etc}
                     </p>
                   </div>
                 )}

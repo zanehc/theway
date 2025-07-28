@@ -11,6 +11,7 @@ import {
 import { useState, useEffect } from "react";
 import tailwindHref from "./tailwind.css?url";
 import BottomNavigation from "./components/BottomNavigation";
+import Header from "./components/Header";
 import { NotificationProvider } from "./contexts/NotificationContext";
 import { GlobalToast } from "./components/GlobalToast";
 import { supabase } from "./lib/supabase";
@@ -43,29 +44,113 @@ export async function loader({ request }: LoaderFunctionArgs) {
 export default function App() {
   const { ENV } = useLoaderData<typeof loader>();
   const [user, setUser] = useState<any>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
-    
+
     const getInitialUser = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        console.log('🔐 Root - 초기 사용자 인증 상태 확인');
+        const { data: { user }, error } = await supabase.auth.getUser();
+        
+        if (error) {
+          console.error('🔐 Root - 사용자 정보 가져오기 실패:', error);
+          setUser(null);
+          setUserRole(null);
+          return;
+        }
+
+        console.log('🔐 Root - 사용자 정보:', user?.email || 'null');
         setUser(user);
+        
+        if (user) {
+          // 캐시된 역할 확인 먼저
+          const cachedRole = sessionStorage.getItem(`user_role_${user.id}`);
+          if (cachedRole) {
+            console.log('🔐 Root - 캐시된 역할 사용:', cachedRole);
+            setUserRole(cachedRole);
+          }
+          
+          // 역할 정보 업데이트
+          try {
+            const { data: userData, error: roleError } = await supabase
+              .from('users')
+              .select('role')
+              .eq('id', user.id)
+              .single();
+            
+            if (!roleError && userData?.role) {
+              console.log('🔐 Root - DB에서 역할 확인:', userData.role);
+              setUserRole(userData.role);
+              sessionStorage.setItem(`user_role_${user.id}`, userData.role);
+            } else {
+              console.log('🔐 Root - 역할 정보 없음, 기본값 설정');
+              setUserRole('customer');
+            }
+          } catch (roleError) {
+            console.error('🔐 Root - 역할 정보 가져오기 실패:', roleError);
+            setUserRole('customer');
+          }
+        } else {
+          setUserRole(null);
+        }
       } catch (error) {
-        console.error('Failed to get initial user:', error);
+        console.error('🔐 Root - 초기 인증 처리 실패:', error);
+        setUser(null);
+        setUserRole(null);
       }
     };
 
     getInitialUser();
 
+    console.log('🔐 Root - 인증 상태 변경 리스너 설정');
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        setUser(session?.user ?? null);
+        console.log('🔐 Root - 인증 상태 변경:', event, session?.user?.email || 'null');
+        
+        // 로그아웃 이벤트 처리
+        if (event === 'SIGNED_OUT' || !session?.user) {
+          console.log('🔐 Root - 로그아웃 처리');
+          setUser(null);
+          setUserRole(null);
+          // 캐시 정리
+          Object.keys(sessionStorage).forEach(key => {
+            if (key.startsWith('user_role_')) {
+              sessionStorage.removeItem(key);
+            }
+          });
+          return;
+        }
+
+        // 로그인/세션 갱신 처리
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          console.log('🔐 Root - 로그인/토큰 갱신 처리');
+          setUser(session.user);
+          
+          // 역할 정보 가져오기
+          try {
+            const { data: userData } = await supabase
+              .from('users')
+              .select('role')
+              .eq('id', session.user.id)
+              .single();
+            
+            const role = userData?.role || 'customer';
+            console.log('🔐 Root - 새 역할 설정:', role);
+            setUserRole(role);
+            sessionStorage.setItem(`user_role_${session.user.id}`, role);
+          } catch (error) {
+            console.error('🔐 Root - 역할 정보 실패:', error);
+            setUserRole('customer');
+          }
+        }
       }
     );
 
     return () => {
+      console.log('🔐 Root - 인증 리스너 정리');
       subscription.unsubscribe();
     };
   }, []);
@@ -79,10 +164,15 @@ export default function App() {
         <Links />
       </head>
       <body className="h-full min-h-screen bg-ivory-50" suppressHydrationWarning>
-        <NotificationProvider userId={user?.id}>
-          <Outlet />
-          <div id="modal-root" />
-          <BottomNavigation />
+        <NotificationProvider userId={user?.id} userRole={userRole}>
+          <div className="app-container">
+            <Header user={user} userRole={userRole} />
+            <div className="main-content pb-24">
+              <Outlet />
+            </div>
+            <div id="modal-root" />
+            {isClient && <BottomNavigation user={user} />}
+          </div>
           {isClient && <GlobalToast />}
         </NotificationProvider>
         <ScrollRestoration />
