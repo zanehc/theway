@@ -50,7 +50,7 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
       case 'confirmed':
         return '주문이 결제완료되었습니다';
       case 'pending':
-        return '결제 대기 중입니다';
+        return null; // 결제 대기 중 알림은 표시하지 않음
       default:
         return `결제 상태가 ${paymentStatus}로 변경되었습니다`;
     }
@@ -137,10 +137,12 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
             // 결제 상태 변경 알림 (별도로 처리)
             if (oldOrder.payment_status !== updatedOrder.payment_status) {
               const paymentMessage = getPaymentMessage(updatedOrder.payment_status);
-              if (userRole === 'admin') {
-                addToast(`[관리자] ${paymentMessage}`, 'info');
-              } else if (updatedOrder.user_id === userId) {
-                addToast(paymentMessage, 'info');
+              if (paymentMessage) { // null이 아닐 때만 알림 표시
+                if (userRole === 'admin') {
+                  addToast(`[관리자] ${paymentMessage}`, 'info');
+                } else if (updatedOrder.user_id === userId) {
+                  addToast(paymentMessage, 'info');
+                }
               }
             }
           }

@@ -42,7 +42,17 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 
 export default function App() {
-  const { ENV } = useLoaderData<typeof loader>();
+  // 클라이언트에서는 window.__ENV 사용, 서버에서는 useLoaderData 사용
+  let ENV: any = {};
+  
+  if (typeof window !== 'undefined') {
+    // 클라이언트에서는 window.__ENV 사용
+    ENV = (window as any).__ENV || {};
+  } else {
+    // 서버에서만 useLoaderData 사용
+    const data = useLoaderData<typeof loader>();
+    ENV = data?.ENV || {};
+  }
   const [user, setUser] = useState<any>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
@@ -155,6 +165,7 @@ export default function App() {
     };
   }, []);
 
+
   return (
     <html lang="ko" className="h-full bg-ivory-50" suppressHydrationWarning>
       <head suppressHydrationWarning>
@@ -179,7 +190,7 @@ export default function App() {
         <Scripts />
         <script
           dangerouslySetInnerHTML={{
-            __html: `window.__ENV = ${JSON.stringify(ENV)};`,
+            __html: `window.__ENV = ${JSON.stringify(ENV || {})};`,
           }}
         />
       </body>
