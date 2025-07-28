@@ -6,6 +6,7 @@ import { getOrders, updateOrderStatus, getOrdersByUserId } from "~/lib/database"
 import { supabase } from "~/lib/supabase";
 import type { OrderStatus } from "~/types";
 import { useNotifications } from "~/contexts/NotificationContext";
+import OrderCancellationModal from "~/components/OrderCancellationModal";
 
 const statusOptions: { value: OrderStatus; label: string; color: string; bgColor: string }[] = [
   { value: 'pending', label: '대기', color: 'text-yellow-800', bgColor: 'bg-yellow-100' },
@@ -167,6 +168,12 @@ export default function RecentPage() {
   const ORDERS_PER_PAGE = 10;
   const channelRef = useRef<any>(null);
   const { toasts, addToast } = useNotifications();
+  
+  // 취소 모달 상태
+  const [cancellationModal, setCancellationModal] = useState<{
+    isOpen: boolean;
+    order: any | null;
+  }>({ isOpen: false, order: null });
 
   // 클라이언트 마운트 확인
   useEffect(() => {
@@ -252,14 +259,41 @@ export default function RecentPage() {
 
     refreshOrders();
   }, [toasts, mounted, userRoleState, selectedStatus, user]);
-  const handleOrderCancel = async (order: any) => {
-    if (!confirm('정말로 이 주문을 취소하시겠습니까?')) return;
-    
+  // 취소 모달 열기
+  const handleOrderCancelClick = (order: any) => {
+    setCancellationModal({
+      isOpen: true,
+      order: order
+    });
+  };
+
+  // 취소 모달 닫기
+  const handleCancellationModalClose = () => {
+    setCancellationModal({
+      isOpen: false,
+      order: null
+    });
+  };
+
+  // 취소사유와 함께 주문 취소 실행
+  const handleOrderCancelConfirm = async (reason: string) => {
+    if (!cancellationModal.order) return;
+
+    console.log('🔄 handleOrderCancelConfirm called:', { 
+      orderId: cancellationModal.order.id, 
+      reason,
+      userRole: userRoleState 
+    });
+
     try {
-      await updateOrderStatus(order.id, 'cancelled');
-      addToast('주문이 취소되었습니다.', 'warning');
+      console.log('📞 updateOrderStatus 호출 중...');
+      await updateOrderStatus(cancellationModal.order.id, 'cancelled', reason);
+      console.log('✅ updateOrderStatus 완료');
+      
+      addToast(`주문이 취소되었습니다. (사유: ${reason})`, 'warning');
       
       // 주문 목록 새로고침
+      console.log('🔄 주문 목록 새로고침 중...');
       if (userRoleState === 'admin') {
         const allOrders = await getOrders(selectedStatus || undefined);
         setOrders(allOrders || []);
@@ -267,9 +301,11 @@ export default function RecentPage() {
         const userOrders = await getOrdersByUserId(user.id);
         setOrders(userOrders || []);
       }
+      console.log('✅ 취소 처리 전체 완료');
     } catch (error) {
-      console.error('Cancel order error:', error);
+      console.error('❌ Cancel order error:', error);
       addToast('주문 취소에 실패했습니다.', 'error');
+      throw error; // 모달에서 에러 처리하도록 다시 throw
     }
   };
 
@@ -292,8 +328,12 @@ export default function RecentPage() {
 
   // 주문 상태 변경
   const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
+    console.log('🔄 주문 상태 변경 시작:', { orderId, newStatus });
+    
     try {
-      await updateOrderStatus(orderId, newStatus);
+      const updatedOrder = await updateOrderStatus(orderId, newStatus);
+      console.log('✅ 주문 상태 변경 완료:', updatedOrder);
+      
       addToast('주문 상태가 업데이트되었습니다.', 'success');
       
       // 주문 목록 새로고침
@@ -313,12 +353,26 @@ export default function RecentPage() {
   // 결제 확인
   const handlePaymentConfirm = async (order: any) => {
     try {
-      const { error } = await supabase
+      console.log('💳 결제 확인 시작 - 기존 주문 상태:', {
+        orderId: order.id,
+        currentStatus: order.status,
+        currentPaymentStatus: order.payment_status
+      });
+
+      const { data, error } = await supabase
         .from('orders')
         .update({ payment_status: 'confirmed' })
-        .eq('id', order.id);
+        .eq('id', order.id)
+        .select()
+        .single();
       
       if (error) throw error;
+
+      console.log('💳 결제 확인 완료 - 업데이트된 주문 상태:', {
+        orderId: data.id,
+        newStatus: data.status,
+        newPaymentStatus: data.payment_status
+      });
       
       addToast('결제가 확인되었습니다.', 'success');
       
@@ -550,7 +604,7 @@ export default function RecentPage() {
                         )}
                         {order.status !== 'cancelled' && (
                           <button
-                            onClick={() => handleOrderCancel(order)}
+                            onClick={() => handleOrderCancelClick(order)}
                             className="px-3 py-1 bg-red-100 text-red-800 rounded text-xs font-bold hover:bg-red-200"
                           >
                             취소
@@ -667,7 +721,7 @@ export default function RecentPage() {
                                 )}
                                 {order.status !== 'cancelled' && (
                                   <button
-                                    onClick={() => handleOrderCancel(order)}
+                                    onClick={() => handleOrderCancelClick(order)}
                                     className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-bold hover:bg-red-200"
                                   >
                                     취소
@@ -725,6 +779,21 @@ export default function RecentPage() {
         </div>
 
       </div>
+
+      {/* 취소사유 모달 */}
+      {cancellationModal.order && (
+        <OrderCancellationModal
+          isOpen={cancellationModal.isOpen}
+          onClose={handleCancellationModalClose}
+          onConfirm={handleOrderCancelConfirm}
+          orderInfo={{
+            customerName: cancellationModal.order.customer_name,
+            orderItems: cancellationModal.order.order_items
+              ?.map((item: any) => `${item.menu?.name} x ${item.quantity}`)
+              .join(', ') || ''
+          }}
+        />
+      )}
     </div>
   );
 } 

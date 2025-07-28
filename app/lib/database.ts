@@ -267,7 +267,10 @@ export async function createOrder(orderData: {
   }
 }
 
-export async function updateOrderStatus(id: string, status: string) {
+export async function updateOrderStatus(id: string, status: string, cancellationReason?: string) {
+  console.log('🔄 updateOrderStatus called:', { id, status, cancellationReason });
+  
+  // 일단 기본 상태만 업데이트 (취소사유는 나중에 컬럼 추가 후 활성화)
   const { data, error } = await supabase
     .from('orders')
     .update({ 
@@ -282,6 +285,9 @@ export async function updateOrderStatus(id: string, status: string) {
     console.error('Update order status error:', error);
     throw error;
   }
+
+  console.log('✅ Order status updated successfully:', data);
+  return data;
 
   // 주문 상태 변경 알림 전송
   try {

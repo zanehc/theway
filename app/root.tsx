@@ -42,20 +42,21 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 
 export default function App() {
-  // 클라이언트에서는 window.__ENV 사용, 서버에서는 useLoaderData 사용
-  let ENV: any = {};
-  
-  if (typeof window !== 'undefined') {
-    // 클라이언트에서는 window.__ENV 사용
-    ENV = (window as any).__ENV || {};
-  } else {
-    // 서버에서만 useLoaderData 사용
-    const data = useLoaderData<typeof loader>();
-    ENV = data?.ENV || {};
-  }
   const [user, setUser] = useState<any>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
+  
+  // 환경 변수 처리 - 서버/클라이언트 분리
+  let ENV: any = {};
+  
+  if (typeof window === 'undefined') {
+    // 서버에서는 loader 데이터 사용
+    const loaderData = useLoaderData<typeof loader>();
+    ENV = loaderData?.ENV || {};
+  } else if (isClient) {
+    // 클라이언트에서 하이드레이션 완료 후 window.__ENV 사용
+    ENV = (window as any).__ENV || {};
+  }
 
   useEffect(() => {
     setIsClient(true);
