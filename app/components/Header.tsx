@@ -8,64 +8,24 @@ import { HamburgerMenu } from "./HamburgerMenu";
 import { NotificationBell } from "./NotificationBell";
 import ModalPortal from './ModalPortal';
 
-export default function Header() {
-  // user는 세션에서 즉시, userRole은 비동기로
-  const [user, setUser] = useState<any>(null);
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const [roleLoading, setRoleLoading] = useState(true);
+interface HeaderProps {
+  user: any;
+  userRole: string | null;
+}
+
+export default function Header({ user, userRole }: HeaderProps) {
+  // Props에서 받은 사용자 정보 사용 (중복 상태 관리 제거)
   const [showLogin, setShowLogin] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
   const [showMyPage, setShowMyPage] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [loginSuccess, setLoginSuccess] = useState(false);
   const [loginRequiredMessage, setLoginRequiredMessage] = useState(false);
   const [orderStats, setOrderStats] = useState({ pending: 0, preparing: 0, ready: 0, completed: 0, cancelled: 0, confirmedOrders: 0 });
 
+  // Props 변경 시 로그
   useEffect(() => {
-    // 최초 user 정보 가져오기
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-      if (user) getUserRole(user.id);
-      else setUserRole(null);
-    };
-    const getUserRole = async (userId: string) => {
-      setRoleLoading(true);
-      try {
-        const cachedRole = sessionStorage.getItem(`user_role_${userId}`);
-        if (cachedRole) {
-          setUserRole(cachedRole);
-          setRoleLoading(false);
-        } else {
-          const { data: userData } = await supabase
-            .from('users')
-            .select('role')
-            .eq('id', userId)
-            .single();
-          const role = userData?.role || null;
-          setUserRole(role);
-          if (role) sessionStorage.setItem(`user_role_${userId}`, role);
-          setRoleLoading(false);
-        }
-      } catch {
-        setUserRole(null);
-        setRoleLoading(false);
-      }
-    };
-    getUser();
-    // 인증 상태 변경 리스너
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setUser(session?.user ?? null);
-        if (session?.user) getUserRole(session.user.id);
-        else setUserRole(null);
-      }
-    );
-    return () => {
-      subscription.unsubscribe();
-    };
-    // eslint-disable-next-line
-  }, []);
+    console.log('🎯 Header - Props 업데이트:', { user: user?.email || 'null', userRole });
+  }, [user, userRole]);
 
 
   useEffect(() => {

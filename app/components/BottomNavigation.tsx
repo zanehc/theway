@@ -1,26 +1,19 @@
 import { Link, useLocation, useNavigate } from "@remix-run/react";
 import { useEffect, useState } from "react";
-import { supabase } from "~/lib/supabase";
 
-export default function BottomNavigation() {
+interface BottomNavigationProps {
+  user: any;
+}
+
+export default function BottomNavigation({ user }: BottomNavigationProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const [user, setUser] = useState<any>(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
 
+  // Props 변경 시 로그
   useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-    };
-    getUser();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user || null);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+    console.log('📱 BottomNavigation - Props 업데이트:', { user: user?.email || 'null' });
+  }, [user]);
 
   const isActive = (path: string) => {
     if (path === "/" && location.pathname === "/") return true;
