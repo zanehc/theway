@@ -4,6 +4,7 @@ import { useLoaderData, Link } from "@remix-run/react";
 import { useState, useEffect } from "react";
 import { getOrdersByUserId } from "~/lib/database";
 import { supabase } from "~/lib/supabase";
+import { useNotifications } from "~/contexts/NotificationContext";
 
 // 교회소식 기본 예시 구조
 const DEFAULT_NEWS = {
@@ -56,6 +57,12 @@ export default function Index() {
   const [recentOrder, setRecentOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
+  const { toasts } = useNotifications();
+  
+  // 디버깅: 알림 상태 로그
+  useEffect(() => {
+    console.log('🏠 홈탭 - 현재 toasts:', toasts);
+  }, [toasts]);
 
   // 클라이언트 마운트 확인
   useEffect(() => {

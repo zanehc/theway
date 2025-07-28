@@ -4,6 +4,7 @@ import { useLoaderData, useFetcher } from "@remix-run/react";
 import { useState, useEffect } from "react";
 import { supabase } from "~/lib/supabase";
 import { uploadMenuImage, deleteMenuImage, createServerSupabaseClient } from "~/lib/supabase";
+import { useNotifications } from "~/contexts/NotificationContext";
 
 import type { Menu } from "~/types";
 
@@ -281,6 +282,7 @@ export default function Menus() {
   
   const { menus } = useLoaderData<typeof loader>();
   console.log('📊 Raw menus data:', menus);
+  const { toasts } = useNotifications();
   const fetcher = useFetcher();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingMenu, setEditingMenu] = useState<Menu | null>(null);

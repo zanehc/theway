@@ -6,6 +6,7 @@ import { getMenus, createOrder } from "~/lib/database";
 
 import type { Menu } from "~/types";
 import { supabase } from "~/lib/supabase";
+import { useNotifications } from "~/contexts/NotificationContext";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   try {
@@ -92,6 +93,7 @@ export default function NewOrder() {
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('transfer');
   const [notes, setNotes] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ice coffee');
+  const { toasts } = useNotifications();
 
   // 주문 제출 상태 확인
   const isSubmitting = fetcher.state === 'submitting';

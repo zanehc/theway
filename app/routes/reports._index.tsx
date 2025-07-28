@@ -3,6 +3,7 @@ import { json } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
 import { useState } from "react";
 import { getSalesStatistics } from "~/lib/database";
+import { useNotifications } from "~/contexts/NotificationContext";
 
 
 export async function loader({ request }: LoaderFunctionArgs) {
@@ -41,6 +42,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 export default function Reports() {
   const { period, totalRevenue, totalOrders, confirmedOrders, pendingOrders, cancelledOrders, menuStats, statusStats } = useLoaderData<typeof loader>();
   const [selectedPeriod, setSelectedPeriod] = useState(period);
+  const { toasts } = useNotifications();
 
   const getPeriodLabel = (p: string) => {
     switch (p) {

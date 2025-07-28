@@ -27,6 +27,7 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
   const addToast = (message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
+    console.log('🔔 NotificationContext - 새 알림 추가:', { message, type, userId, userRole });
     const id = Math.random().toString(36).substr(2, 9);
     const newToast: ToastNotification = {
       id,
@@ -35,7 +36,11 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
       timestamp: Date.now(),
     };
     
-    setToasts(prev => [newToast, ...prev]);
+    setToasts(prev => {
+      const newToasts = [newToast, ...prev];
+      console.log('🔔 NotificationContext - 업데이트된 toasts:', newToasts);
+      return newToasts;
+    });
     
     // TTS 음성 알림
     if ('speechSynthesis' in window) {
@@ -56,23 +61,29 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
   };
 
   useEffect(() => {
+    console.log('🔔 NotificationContext - useEffect 실행:', { userId, userRole });
     if (!userId) {
+      console.log('🔔 NotificationContext - userId 없음, 구독 건너뜀');
       return;
     }
 
+    console.log('🔔 NotificationContext - 주문 실시간 구독 시작');
     const ordersChannel = supabase
       .channel('orders-realtime-for-all')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders' },
         (payload) => {
+          console.log('🔔 NotificationContext - 주문 이벤트 수신:', payload);
           if (payload.eventType === 'INSERT') {
             const newOrder = payload.new as any;
+            console.log('🔔 NotificationContext - 새 주문:', { newOrder, userRole });
             if (userRole === 'admin') {
               addToast(`새 주문: ${newOrder.customer_name} (${newOrder.church_group})`, 'info');
             }
           } else if (payload.eventType === 'UPDATE') {
             const updatedOrder = payload.new as any;
+            console.log('🔔 NotificationContext - 주문 업데이트:', { updatedOrder, oldStatus: payload.old.status, newStatus: updatedOrder.status, userRole, userId });
             if (payload.old.status !== updatedOrder.status) {
               if (userRole === 'admin') {
                 addToast(`주문이 ${updatedOrder.status} 상태로 변경되었습니다.`, 'success');
