@@ -20,9 +20,10 @@ const NotificationContext = createContext<NotificationContextType | undefined>(u
 interface NotificationProviderProps {
   children: ReactNode;
   userId?: string;
+  userRole?: string | null;
 }
 
-export function NotificationProvider({ children, userId }: NotificationProviderProps) {
+export function NotificationProvider({ children, userId, userRole }: NotificationProviderProps) {
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
   const addToast = (message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
@@ -54,61 +55,40 @@ export function NotificationProvider({ children, userId }: NotificationProviderP
     setToasts([]);
   };
 
-  // 실시간 알림 구독 - 모든 탭에서 작동
   useEffect(() => {
     if (!userId) {
-      console.log('🔔 NotificationProvider: userId is missing, skipping subscription.');
       return;
     }
 
-    const channelId = `notifications-for-user-${userId}`;
-    console.log(`🔔 Setting up notification subscription on channel: ${channelId}`);
-
-    const channel = supabase
-      .channel(channelId, {
-        config: {
-          broadcast: {
-            self: true,
-          },
-        },
-      })
+    const ordersChannel = supabase
+      .channel('orders-realtime-for-all')
       .on(
         'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${userId}`,
-        },
+        { event: '*', schema: 'public', table: 'orders' },
         (payload) => {
-          console.log('🔔 Notification received:', payload);
-          const notification = payload.new;
-          
-          let toastType: 'info' | 'success' | 'warning' | 'error' = 'info';
-          if (notification.type && ['info', 'success', 'warning', 'error'].includes(notification.type)) {
-            toastType = notification.type;
+          if (payload.eventType === 'INSERT') {
+            const newOrder = payload.new as any;
+            if (userRole === 'admin') {
+              addToast(`새 주문: ${newOrder.customer_name} (${newOrder.church_group})`, 'info');
+            }
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedOrder = payload.new as any;
+            if (payload.old.status !== updatedOrder.status) {
+              if (userRole === 'admin') {
+                addToast(`주문이 ${updatedOrder.status} 상태로 변경되었습니다.`, 'success');
+              } else if (updatedOrder.user_id === userId) {
+                addToast(`주문이 ${updatedOrder.status} 상태로 변경되었습니다.`, 'success');
+              }
+            }
           }
-          
-          addToast(notification.message, toastType);
         }
       )
-      .subscribe((status, err) => {
-        if (status === 'SUBSCRIBED') {
-          console.log(`🔔 Successfully subscribed to ${channelId}`);
-        }
-        if (status === 'CHANNEL_ERROR') {
-          console.error(`🔔 Subscription error on channel ${channelId}:`, err);
-        }
-        if (status === 'TIMED_OUT') {
-          console.warn(`🔔 Subscription timed out on channel ${channelId}`);
-        }
-      });
+      .subscribe();
 
     return () => {
-      console.log(`🔔 Unsubscribing from channel: ${channelId}`);
-      supabase.removeChannel(channel);
+      supabase.removeChannel(ordersChannel);
     };
-  }, [userId]);
+  }, [userId, userRole]);
 
   return (
     <NotificationContext.Provider value={{ toasts, addToast, removeToast, clearAllToasts }}>

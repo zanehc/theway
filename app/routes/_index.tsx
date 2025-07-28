@@ -215,7 +215,7 @@ export default function Index() {
                   <div className="space-y-2 mb-3">
                     {recentOrder.order_items.map((item: any, index: number) => (
                       <div key={index} className="flex justify-between text-sm">
-                        <span>{item.menu_name}</span>
+                        <span>{item.menu?.name || '메뉴명 없음'}</span>
                         <span className="text-gray-500">x{item.quantity}</span>
                       </div>
                     ))}
@@ -254,30 +254,30 @@ export default function Index() {
               
               <div className="space-y-4">
                 {/* 등록안내 */}
-                {news.registerNotice && (
+                {news?.registerNotice && (
                   <div className="border-l-4 border-wine-600 pl-4">
                     <h3 className="font-semibold text-gray-900 text-sm">등록안내</h3>
                     <p className="text-gray-600 text-sm mt-1 whitespace-pre-line">
-                      {news.registerNotice}
+                      {news?.registerNotice}
                     </p>
                   </div>
                 )}
                 
                 {/* 행사/캠프 일정 */}
-                {news.events && news.events.length > 0 && (
+                {news?.events && news.events.length > 0 && (
                   <div className="border-l-4 border-blue-600 pl-4">
                     <h3 className="font-semibold text-gray-900 text-sm">행사/캠프 일정</h3>
                     <div className="mt-1 space-y-1">
-                      {news.events.slice(0, 2).map((ev: any, idx: number) => (
+                      {news?.events?.slice(0, 2).map((ev: any, idx: number) => (
                         <div key={idx} className="text-gray-600 text-sm">
                           <span className="font-medium">{ev.title}</span>
                           <br />
                           <span className="text-xs text-gray-500">{ev.date} - {ev.desc}</span>
                         </div>
                       ))}
-                      {news.events.length > 2 && (
+                      {news?.events && news.events.length > 2 && (
                         <div className="text-xs text-gray-500">
-                          외 {news.events.length - 2}건 더...
+                          외 {news?.events?.length - 2}건 더...
                         </div>
                       )}
                     </div>
@@ -285,19 +285,19 @@ export default function Index() {
                 )}
                 
                 {/* 생일자 */}
-                {news.birthdays && news.birthdays.length > 0 && (
+                {news?.birthdays && news.birthdays.length > 0 && (
                   <div className="border-l-4 border-green-600 pl-4">
                     <h3 className="font-semibold text-gray-900 text-sm">생일자</h3>
                     <div className="mt-1 grid grid-cols-3 gap-2">
-                      {news.birthdays.slice(0, 6).map((b: any, idx: number) => (
+                      {news?.birthdays?.slice(0, 6).map((b: any, idx: number) => (
                         <div key={idx} className="text-gray-600 text-sm">
                           <span className="font-medium">{b.name}</span>
                           <span className="text-xs text-gray-500 ml-2">{b.date}</span>
                         </div>
                       ))}
-                      {news.birthdays.length > 6 && (
+                      {news?.birthdays && news.birthdays.length > 6 && (
                         <div className="col-span-3 text-xs text-gray-500">
-                          외 {news.birthdays.length - 6}명 더...
+                          외 {news?.birthdays?.length - 6}명 더...
                         </div>
                       )}
                     </div>
@@ -305,19 +305,19 @@ export default function Index() {
                 )}
                 
                 {/* 헌금계좌 */}
-                {news.offeringAccounts && news.offeringAccounts.length > 0 && (
+                {news?.offeringAccounts && news.offeringAccounts.length > 0 && (
                   <div className="border-l-4 border-purple-600 pl-4">
                     <h3 className="font-semibold text-gray-900 text-sm">헌금계좌</h3>
                     <div className="mt-1 grid grid-cols-3 gap-2">
-                      {news.offeringAccounts.slice(0, 6).map((acc: any, idx: number) => (
+                      {news?.offeringAccounts?.slice(0, 6).map((acc: any, idx: number) => (
                         <div key={idx} className="text-gray-600 text-sm">
                           <span className="font-medium">{acc.bank}</span><br />
                           <span className="text-xs text-gray-500">{acc.number}</span>
                         </div>
                       ))}
-                      {news.offeringAccounts.length > 6 && (
+                      {news?.offeringAccounts && news.offeringAccounts.length > 6 && (
                         <div className="col-span-3 text-xs text-gray-500">
-                          외 {news.offeringAccounts.length - 6}개 더...
+                          외 {news?.offeringAccounts?.length - 6}개 더...
                         </div>
                       )}
                     </div>
@@ -325,11 +325,11 @@ export default function Index() {
                 )}
                 
                 {/* 기타 공지 */}
-                {news.etc && (
+                {news?.etc && (
                   <div className="border-l-4 border-orange-600 pl-4">
                     <h3 className="font-semibold text-gray-900 text-sm">기타 공지</h3>
                     <p className="text-gray-600 text-sm mt-1 whitespace-pre-line">
-                      {news.etc}
+                      {news?.etc}
                     </p>
                   </div>
                 )}

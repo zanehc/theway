@@ -11,6 +11,7 @@ import {
 import { useState, useEffect } from "react";
 import tailwindHref from "./tailwind.css?url";
 import BottomNavigation from "./components/BottomNavigation";
+import Header from "./components/Header";
 import { NotificationProvider } from "./contexts/NotificationContext";
 import { GlobalToast } from "./components/GlobalToast";
 import { supabase } from "./lib/supabase";
@@ -43,15 +44,24 @@ export async function loader({ request }: LoaderFunctionArgs) {
 export default function App() {
   const { ENV } = useLoaderData<typeof loader>();
   const [user, setUser] = useState<any>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
-    
+
     const getInitialUser = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         setUser(user);
+        if (user) {
+          const { data: userData } = await supabase
+            .from('users')
+            .select('role')
+            .eq('id', user.id)
+            .single();
+          setUserRole(userData?.role || null);
+        }
       } catch (error) {
         console.error('Failed to get initial user:', error);
       }
@@ -62,6 +72,16 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         setUser(session?.user ?? null);
+        if (session?.user) {
+          const { data: userData } = await supabase
+            .from('users')
+            .select('role')
+            .eq('id', session.user.id)
+            .single();
+          setUserRole(userData?.role || null);
+        } else {
+          setUserRole(null);
+        }
       }
     );
 
@@ -79,10 +99,15 @@ export default function App() {
         <Links />
       </head>
       <body className="h-full min-h-screen bg-ivory-50" suppressHydrationWarning>
-        <NotificationProvider userId={user?.id}>
-          <Outlet />
-          <div id="modal-root" />
-          <BottomNavigation />
+        <NotificationProvider userId={user?.id} userRole={userRole}>
+          <div className="app-container">
+            <Header />
+            <div className="main-content pb-24">
+              <Outlet />
+            </div>
+            <div id="modal-root" />
+            {isClient && <BottomNavigation />}
+          </div>
           {isClient && <GlobalToast />}
         </NotificationProvider>
         <ScrollRestoration />

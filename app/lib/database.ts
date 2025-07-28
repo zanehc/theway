@@ -210,51 +210,53 @@ export async function createOrder(orderData: {
 
     // 주문 생성 후 알림 전송
     try {
-      // 메뉴 이름들을 실제 메뉴 정보로 조회
+      // 메뉴 이름 가져오기
       const menuIds = orderData.items.map(item => item.menu_id);
-      const { data: menus } = await supabase
+      const { data: menuData } = await supabase
         .from('menus')
         .select('id, name')
         .in('id', menuIds);
       
-      const menuNames = orderData.items.map(item => {
-        const menu = menus?.find(m => m.id === item.menu_id);
-        return `${menu?.name || '메뉴'} x${item.quantity}`;
-      }).join(', ');
+      const menuMap = new Map(menuData?.map(m => [m.id, m.name]) || []);
+      const menuNames = orderData.items.map(item => 
+        `${menuMap.get(item.menu_id) || '메뉴'} x${item.quantity}`
+      ).join(', ');
       
-      const message = `${orderData.customer_name}님이 ${menuNames}를 주문했습니다.`;
+      const orderMessage = `${orderData.customer_name}님이 ${menuNames}를 주문했습니다. (총 ${orderData.total_amount.toLocaleString()}원)`;
       
-      // 주문한 사용자에게 알림 (있는 경우)
+      // 1. 주문한 사용자에게 주문 확인 알림 (있는 경우)
       if (orderData.user_id) {
         await createNotification({
           user_id: orderData.user_id,
           order_id: order.id,
-          type: 'new_order',
-          message: message
+          type: 'order_confirmation',
+          message: `주문이 접수되었습니다. ${menuNames}`
         });
-        console.log('📱 New order notification sent to user:', orderData.user_id);
+        console.log('📱 Order confirmation sent to user:', orderData.user_id);
       }
       
-      // 모든 관리자에게 알림 전송
-      const { data: admins } = await supabase
+      // 2. 모든 관리자에게 새 주문 알림
+      const { data: adminUsers } = await supabase
         .from('users')
         .select('id')
         .eq('role', 'admin');
       
-      if (admins && admins.length > 0) {
-        for (const admin of admins) {
-          await createNotification({
-            user_id: admin.id,
-            order_id: order.id,
-            type: 'new_order',
-            message: `[새 주문] ${message}`
-          });
-        }
-        console.log('📱 New order notifications sent to', admins.length, 'admins');
+      if (adminUsers && adminUsers.length > 0) {
+        const adminNotifications = adminUsers.map(admin => ({
+          user_id: admin.id,
+          order_id: order.id,
+          type: 'new_order',
+          message: orderMessage
+        }));
+        
+        await Promise.all(
+          adminNotifications.map(notification => createNotification(notification))
+        );
+        console.log('📱 New order notifications sent to', adminUsers.length, 'admins');
       }
       
     } catch (notificationError) {
-      console.error('Failed to send notification:', notificationError);
+      console.error('Failed to send notifications:', notificationError);
       // 알림 실패는 주문 생성에 영향을 주지 않도록 함
     }
 
@@ -281,47 +283,38 @@ export async function updateOrderStatus(id: string, status: string) {
     throw error;
   }
 
-  // 주문 상태 변경 알림
+  // 주문 상태 변경 알림 전송
   try {
-    const statusMessages = {
-      pending: '주문이 접수되었습니다.',
-      preparing: '주문 제조를 시작했습니다.',
-      ready: '주문이 완료되었습니다. 픽업 가능합니다.',
-      completed: '주문이 픽업 완료되었습니다.',
-      cancelled: '주문이 취소되었습니다.'
-    };
-
-    const message = `${data.customer_name}님의 주문 - ${statusMessages[status as keyof typeof statusMessages] || '상태가 변경되었습니다.'}`;
-
-    // 주문한 사용자에게 알림 (있는 경우)
     if (data.user_id) {
+      let message = '';
+      switch (status) {
+        case 'preparing':
+          message = `주문이 제조 중입니다. (주문번호: ${id.slice(-8)})`;
+          break;
+        case 'ready':
+          message = `주문이 완료되었습니다! 픽업해주세요. (주문번호: ${id.slice(-8)})`;
+          break;
+        case 'completed':
+          message = `주문이 픽업 완료되었습니다. 감사합니다! (주문번호: ${id.slice(-8)})`;
+          break;
+        case 'cancelled':
+          message = `주문이 취소되었습니다. (주문번호: ${id.slice(-8)})`;
+          break;
+        default:
+          message = `주문 상태가 변경되었습니다: ${status} (주문번호: ${id.slice(-8)})`;
+      }
+
       await createNotification({
         user_id: data.user_id,
         order_id: id,
         type: 'order_status',
         message: message
       });
-    }
-
-    // 모든 관리자에게 알림 전송
-    const { data: admins } = await supabase
-      .from('users')
-      .select('id')
-      .eq('role', 'admin');
-    
-    if (admins && admins.length > 0) {
-      for (const admin of admins) {
-        await createNotification({
-          user_id: admin.id,
-          order_id: id,
-          type: 'order_status',
-          message: `[상태변경] ${message}`
-        });
-      }
-      console.log('📱 Order status notifications sent to', admins.length, 'admins');
+      
+      console.log('📱 Order status notification sent:', status);
     }
   } catch (notificationError) {
-    console.error('Failed to send status change notification:', notificationError);
+    console.error('Failed to send order status notification:', notificationError);
   }
 
   return data as Order;
@@ -343,41 +336,20 @@ export async function updatePaymentStatus(id: string, payment_status: string) {
     throw error;
   }
 
-  // 결제 상태 변경 알림
-  if (payment_status === 'confirmed') {
-    try {
-      const message = `${data.customer_name}님의 주문 결제가 확인되었습니다.`;
-
-      // 주문한 사용자에게 알림 (있는 경우)
-      if (data.user_id) {
-        await createNotification({
-          user_id: data.user_id,
-          order_id: id,
-          type: 'payment_confirmed',
-          message: message
-        });
-      }
-
-      // 모든 관리자에게 알림 전송
-      const { data: admins } = await supabase
-        .from('users')
-        .select('id')
-        .eq('role', 'admin');
+  // 결제 상태 변경 알림 전송
+  try {
+    if (data.user_id && payment_status === 'confirmed') {
+      await createNotification({
+        user_id: data.user_id,
+        order_id: id,
+        type: 'payment_confirmed',
+        message: `결제가 확인되었습니다. 감사합니다! (주문번호: ${id.slice(-8)})`
+      });
       
-      if (admins && admins.length > 0) {
-        for (const admin of admins) {
-          await createNotification({
-            user_id: admin.id,
-            order_id: id,
-            type: 'payment_confirmed',
-            message: `[결제완료] ${message}`
-          });
-        }
-        console.log('📱 Payment confirmation notifications sent to', admins.length, 'admins');
-      }
-    } catch (notificationError) {
-      console.error('Failed to send payment confirmation notification:', notificationError);
+      console.log('📱 Payment confirmation notification sent');
     }
+  } catch (notificationError) {
+    console.error('Failed to send payment notification:', notificationError);
   }
 
   return data as Order;
@@ -502,6 +474,52 @@ export async function getUserById(id: string) {
   return data as User;
 }
 
+// 새 사용자 생성 (가입 시 자동 호출)
+export async function createUserProfile(authUser: any) {
+  console.log('🔄 Creating user profile for:', authUser.id);
+  
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .insert({
+        id: authUser.id,
+        email: authUser.email,
+        name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || '',
+        role: 'customer',
+        church_group: null,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('❌ Error creating user profile:', error);
+      throw error;
+    }
+
+    console.log('✅ User profile created successfully:', data);
+    return data as User;
+  } catch (error) {
+    console.error('❌ Create user profile error:', error);
+    return null;
+  }
+}
+
+// 사용자 정보 조회 및 없으면 생성
+export async function getUserByIdOrCreate(authUser: any) {
+  console.log('🔄 Getting or creating user:', authUser.id);
+  
+  // 먼저 기존 사용자 조회
+  let user = await getUserById(authUser.id);
+  
+  // 사용자가 없으면 새로 생성
+  if (!user) {
+    console.log('🔄 User not found, creating new profile');
+    user = await createUserProfile(authUser);
+  }
+  
+  return user;
+}
+
 export async function getUsersByRole(role: string) {
   const { data, error } = await supabase
     .from('users')
@@ -514,6 +532,40 @@ export async function getUsersByRole(role: string) {
     return [];
   }
   return data as User[];
+}
+
+// 사용자 정보 업데이트
+export async function updateUser(userId: string, userData: { name?: string; church_group?: string }) {
+  console.log('🔄 updateUser called with:', { userId, userData });
+  
+  try {
+    const updateData = {
+      name: userData.name?.trim(),
+      church_group: userData.church_group?.trim() || null,
+    };
+    
+    console.log('🔄 Update data prepared:', updateData);
+
+    const { data, error } = await supabase
+      .from('users')
+      .update(updateData)
+      .eq('id', userId)
+      .select()
+      .single();
+
+    console.log('🔄 Supabase response:', { data, error });
+
+    if (error) {
+      console.error('❌ Supabase error:', error);
+      throw error;
+    }
+
+    console.log('✅ User updated successfully:', userId, data);
+    return { success: true, data };
+  } catch (error) {
+    console.error('❌ Update user error:', error);
+    return { success: false, error };
+  }
 }
 
 // 오늘의 현재 주문 상태 통계 조회

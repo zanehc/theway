@@ -1,7 +1,7 @@
 import { json, type LoaderFunctionArgs, type ActionFunctionArgs } from "@remix-run/node";
 import { useLoaderData, useFetcher, useNavigate } from "@remix-run/react";
 import { useState, useEffect } from "react";
-import { createServerClient } from "@supabase/ssr";
+// import { createServerClient } from "@supabase/ssr"; // 임시 주석 처리
 import { supabase as clientSupabase } from "~/lib/supabase";
 
 // 교회소식 기본 예시 구조

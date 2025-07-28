@@ -33,30 +33,52 @@ const orderSteps = [
 
 // 주문 상태 진행바 컴포넌트
 function OrderStatusProgress({ status, paymentStatus }: { status: string, paymentStatus?: string }) {
-  // 결제완료/종료 상태 처리
-  let currentStep = orderSteps.findIndex(s => s.key === status);
-  if (paymentStatus === 'confirmed') currentStep = 4;
-  if (status === 'ended') currentStep = 5;
+  // 주문 진행 상태 (주문완료 -> 제조중 -> 제조완료 -> 픽업완료)
+  const orderStep = orderSteps.findIndex(s => s.key === status);
+  const isPaymentConfirmed = paymentStatus === 'confirmed';
 
   return (
     <div className="w-full flex flex-col items-center mb-2">
+      {/* 주문 진행 상태 표시 */}
       <div className="flex w-full justify-between mb-1">
-        {orderSteps.map((step, idx) => (
+        {orderSteps.slice(0, 4).map((step, idx) => (
           <span
             key={step.key}
-            className={`text-xs font-bold ${idx === currentStep ? 'text-wine-800' : 'text-gray-400'}`}
-            style={{ minWidth: 60, textAlign: 'center' }}
+            className={`text-xs font-bold ${
+              idx <= orderStep ? 'text-wine-800' : 'text-gray-400'
+            }`}
+            style={{ minWidth: 50, textAlign: 'center' }}
           >
             {step.label}
           </span>
         ))}
+        {/* 결제완료 별도 표시 */}
+        <span
+          className={`text-xs font-bold ${
+            isPaymentConfirmed ? 'text-green-700' : 'text-gray-400'
+          }`}
+          style={{ minWidth: 50, textAlign: 'center' }}
+        >
+          결제완료
+        </span>
       </div>
-      <div className="relative w-full h-2 bg-gray-200 rounded-full">
+      
+      {/* 주문 진행바 */}
+      <div className="relative w-full h-2 bg-gray-200 rounded-full mb-1">
+        {/* 주문 진행 상태 진행바 (80%까지만) */}
         <div
           className="absolute h-2 rounded-full bg-wine-600 transition-all duration-500"
-          style={{ width: `${((currentStep + 1) / orderSteps.length) * 100}%` }}
+          style={{ width: `${Math.min(((orderStep + 1) / 4) * 80, 80)}%` }}
+        />
+        {/* 결제완료 영역 (마지막 20%) */}
+        <div
+          className={`absolute h-2 rounded-full transition-all duration-500 ${
+            isPaymentConfirmed ? 'bg-green-500' : 'bg-gray-200'
+          }`}
+          style={{ width: '20%', right: 0 }}
         />
       </div>
+      
     </div>
   );
 }
@@ -128,7 +150,7 @@ export default function RecentPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const ORDERS_PER_PAGE = 10;
   const channelRef = useRef<any>(null);
-  const { addToast } = useNotifications();
+  const { toasts } = useNotifications();
 
   // 클라이언트 마운트 확인
   useEffect(() => {
@@ -196,58 +218,24 @@ export default function RecentPage() {
     getUserAndOrders();
   }, [mounted, selectedStatus]);
 
-  // 실시간 업데이트
+  
+
+  // 알림에 따른 주문 목록 새로고침
   useEffect(() => {
-    if (!mounted || !user) return;
+    if (!mounted) return;
 
-    const channel = supabase
-      .channel('orders-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, async (payload) => {
-        if (payload.eventType === 'INSERT') {
-          const newOrder = payload.new as any;
-          
-          if (userRoleState === 'admin') {
-            addToast(`새 주문: ${newOrder.customer_name} (${newOrder.church_group})`, 'info');
-          }
-          
-          // 주문 목록 새로고침
-          if (userRoleState === 'admin') {
-            const allOrders = await getOrders(selectedStatus || undefined);
-            setOrders(allOrders || []);
-          } else {
-            const userOrders = await getOrdersByUserId(user.id);
-            setOrders(userOrders || []);
-          }
-        } else if (payload.eventType === 'UPDATE') {
-          // 주문 상태 변경 시 목록 새로고침
-          if (userRoleState === 'admin') {
-            const allOrders = await getOrders(selectedStatus || undefined);
-            setOrders(allOrders || []);
-          } else {
-            // 고객: 내 주문 상태 변경 알림
-            if (
-              payload.new.user_id === user.id &&
-              payload.old.status !== payload.new.status
-            ) {
-              addToast(`주문이 ${getStatusLabel(payload.new.status)} 상태로 변경되었습니다.`, 'success');
-            }
-            const userOrders = await getOrdersByUserId(user.id);
-            setOrders(userOrders || []);
-          }
-        }
-      })
-      .subscribe();
-
-    channelRef.current = channel;
-
-    return () => {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
+    const refreshOrders = async () => {
+      if (userRoleState === 'admin') {
+        const allOrders = await getOrders(selectedStatus || undefined);
+        setOrders(allOrders || []);
+      } else if (user) {
+        const userOrders = await getOrdersByUserId(user.id);
+        setOrders(userOrders || []);
       }
     };
-  }, [mounted, user, userRoleState, selectedStatus, addToast]);
 
-  // 주문 취소 처리
+    refreshOrders();
+  }, [toasts, mounted, userRoleState, selectedStatus, user]);
   const handleOrderCancel = async (order: any) => {
     if (!confirm('정말로 이 주문을 취소하시겠습니까?')) return;
     

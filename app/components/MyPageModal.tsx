@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '~/lib/supabase';
-import { getUserOrderHistory } from '~/lib/database';
+import { getUserOrderHistory, updateUser, getUserByIdOrCreate } from '~/lib/database';
 import type { UserOrderHistory } from '~/types';
 import ModalPortal from './ModalPortal';
+import { useNotifications } from '~/contexts/NotificationContext';
 
 interface User {
   id: string;
   email: string;
   name: string;
-  church_group?: string;
+  church_group?: string | null;
   role: string;
 }
 
@@ -18,6 +19,7 @@ interface MyPageModalProps {
 }
 
 export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
+  const { addToast } = useNotifications();
   const [user, setUser] = useState<User | null>(null);
   const [name, setName] = useState('');
   const [churchGroup, setChurchGroup] = useState('');
@@ -55,13 +57,13 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
     try {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (authUser) {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', authUser.id)
-          .single();
+        console.log('🔄 MyPageModal: fetching user data for', authUser.id);
+        
+        // 사용자 정보 조회 (없으면 생성)
+        const userData = await getUserByIdOrCreate(authUser);
 
         if (userData) {
+          console.log('🔄 MyPageModal: user data found/created:', userData);
           setUser(userData);
           setName(userData.name || '');
           setChurchGroup(userData.church_group || '');
@@ -69,33 +71,50 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
           // 주문 내역 조회
           const history = await getUserOrderHistory(authUser.id);
           setOrderHistory(history);
+        } else {
+          console.error('❌ MyPageModal: failed to get/create user data');
         }
       }
     } catch (error) {
-      console.error('Error fetching user data:', error);
+      console.error('❌ MyPageModal: Error fetching user data:', error);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    console.log('🔄 MyPageModal handleSubmit called');
+    
+    if (!user) {
+      console.error('❌ No user found');
+      return;
+    }
+
+    console.log('🔄 Current user:', user);
+    console.log('🔄 Form data:', { name: name.trim(), church_group: churchGroup.trim() });
 
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from('users')
-        .update({
-          name: name.trim(),
-          church_group: churchGroup.trim() || null,
-        })
-        .eq('id', user.id);
+      const result = await updateUser(user.id, {
+        name: name.trim(),
+        church_group: churchGroup.trim() || undefined,
+      });
 
-      if (error) throw error;
+      console.log('🔄 updateUser result:', result);
 
-      // 업데이트된 사용자 정보 다시 조회
-      await fetchUserData();
+      if (result.success) {
+        console.log('✅ Update successful, refreshing user data');
+        // 업데이트된 사용자 정보 다시 조회
+        await fetchUserData();
+        
+        // 성공 토스트 알림 표시
+        addToast('정보가 성공적으로 수정되었습니다! 🎉', 'success');
+      } else {
+        console.error('❌ Update failed:', result.error);
+        throw new Error('사용자 정보 업데이트에 실패했습니다.');
+      }
     } catch (error) {
-      console.error('Error updating user:', error);
+      console.error('❌ Error updating user:', error);
+      addToast('정보 수정 중 오류가 발생했습니다. 다시 시도해주세요.', 'error');
     } finally {
       setLoading(false);
     }
