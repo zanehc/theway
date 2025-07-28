@@ -436,19 +436,30 @@ export default function RecentPage() {
 
   // 빠른 주문
   const handleQuickOrder = (order: any) => {
-    console.log('빠른주문 order_items:', order.order_items);
-    const orderItems = order.order_items.map((item: any) => {
-      console.log('item:', item);
-      return {
-        menu_id: item.menu_id,
-        quantity: item.quantity,
-        unit_price: item.unit_price ?? item.price ?? (item.menu?.price ?? 0),
-        menu_name: item.menu_name
-      };
-    });
-    console.log('빠른주문 orderItems to save:', orderItems);
-    localStorage.setItem('quickOrderItems', JSON.stringify(orderItems));
-    window.location.href = '/orders/new';
+    console.log('🚀 빠른주문 시작:', order.order_items);
+    
+    try {
+      const orderItems = order.order_items.map((item: any) => {
+        console.log('📦 주문 아이템:', item);
+        return {
+          menu_id: item.menu_id,
+          quantity: item.quantity,
+          unit_price: item.unit_price ?? item.price ?? (item.menu?.price ?? 0),
+          menu_name: item.menu_name
+        };
+      });
+      
+      console.log('💾 localStorage에 저장할 주문 데이터:', orderItems);
+      localStorage.setItem('quickOrderItems', JSON.stringify(orderItems));
+      
+      // React Router navigate 사용으로 변경 (세션 유지)
+      console.log('🔄 주문 페이지로 이동 중...');
+      navigate('/orders/new');
+      console.log('✅ 빠른주문 설정 완료');
+    } catch (error) {
+      console.error('❌ 빠른주문 처리 실패:', error);
+      addToast('빠른주문 처리에 실패했습니다.', 'error');
+    }
   };
 
   if (!mounted) {

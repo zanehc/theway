@@ -139,27 +139,35 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
               newOrderStatus: updatedOrder.status
             });
             
-            // 주문 상태 변경 알림 우선 처리
-            if (orderStatusChanged) {
+            // 픽업완료 버튼으로 인한 상태 변경 감지
+            const isPickupCompleted = orderStatusChanged && 
+              oldOrder.status === 'ready' && 
+              updatedOrder.status === 'completed';
+            
+            // 결제확인 버튼으로 인한 상태 변경 감지
+            const isPaymentConfirmed = paymentStatusChanged && 
+              oldOrder.payment_status === 'pending' && 
+              updatedOrder.payment_status === 'confirmed';
+            
+            // 픽업완료 처리 - 결제 상태가 동시에 변경되어도 픽업완료 알림만
+            if (isPickupCompleted) {
               const statusMessage = getStatusMessage(
                 updatedOrder.status, 
                 updatedOrder.cancellation_reason
               );
-              const toastType = updatedOrder.status === 'cancelled' ? 'warning' : 'success';
-              
-              console.log('📢 주문 상태 변경 알림 전송:', statusMessage);
+              console.log('🏃‍♂️ 픽업완료 알림 전송:', statusMessage);
               
               if (userRole === 'admin') {
-                addToast(`[관리자] ${statusMessage}`, toastType);
+                addToast(`[관리자] ${statusMessage}`, 'success');
               } else if (updatedOrder.user_id === userId) {
-                addToast(statusMessage, toastType);
+                addToast(statusMessage, 'success');
               }
             }
-            // 결제 상태만 변경된 경우 (주문 상태가 변경되지 않은 경우에만)
-            else if (paymentStatusChanged && !orderStatusChanged) {
+            // 결제확인 처리 - 주문 상태가 동시에 변경되어도 결제완료 알림만
+            else if (isPaymentConfirmed) {
               const paymentMessage = getPaymentMessage(updatedOrder.payment_status);
-              if (paymentMessage) { // null이 아닐 때만 알림 표시
-                console.log('💳 결제 상태 변경 알림 전송:', paymentMessage);
+              if (paymentMessage) {
+                console.log('💳 결제완료 알림 전송:', paymentMessage);
                 
                 if (userRole === 'admin') {
                   addToast(`[관리자] ${paymentMessage}`, 'info');
@@ -168,10 +176,29 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
                 }
               }
             }
+            // 기타 주문 상태 변경 (취소, 제조중, 제조완료 등)
+            else if (orderStatusChanged && !isPickupCompleted) {
+              const statusMessage = getStatusMessage(
+                updatedOrder.status, 
+                updatedOrder.cancellation_reason
+              );
+              const toastType = updatedOrder.status === 'cancelled' ? 'warning' : 'success';
+              
+              console.log('📢 기타 주문 상태 변경 알림 전송:', statusMessage);
+              
+              if (userRole === 'admin') {
+                addToast(`[관리자] ${statusMessage}`, toastType);
+              } else if (updatedOrder.user_id === userId) {
+                addToast(statusMessage, toastType);
+              }
+            }
             
             // 동시 변경된 경우 로그
             if (paymentStatusChanged && orderStatusChanged) {
-              console.log('⚡ 주문 상태와 결제 상태가 동시 변경됨 - 주문 상태 알림만 전송');
+              console.log('⚡ 주문 상태와 결제 상태가 동시 변경됨:', {
+                isPickupCompleted,
+                isPaymentConfirmed
+              });
             }
           }
         }

@@ -143,33 +143,6 @@ export default function Index() {
     );
   }
 
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-ivory-50 flex items-center justify-center px-4">
-        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6">
-          <h1 className="text-2xl font-bold text-wine-800 mb-6 text-center">웰컴</h1>
-          <p className="text-gray-600 mb-6 text-center">
-            로그인하여 주문 서비스를 이용해보세요.
-          </p>
-          <div className="space-y-3">
-            <Link
-              to="/other"
-              className="w-full bg-wine-600 text-white py-3 px-4 rounded-lg font-bold hover:bg-wine-700 transition-colors block text-center"
-            >
-              로그인
-            </Link>
-            <Link
-              to="/other"
-              className="w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-bold hover:bg-gray-200 transition-colors block text-center"
-            >
-              회원가입
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   const getStatusLabel = (status: string) => {
     switch (status) {
       case 'pending': return '대기중';
@@ -193,67 +166,98 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-ivory-50 pb-20">
-
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* 최근 주문 */}
+          {/* 최근 주문 - 로그인 상태에 따라 다른 콘텐츠 */}
           <div className="lg:col-span-2">
             <div className="bg-white rounded-lg shadow-lg p-6">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold text-gray-900">최근 주문</h2>
-                <Link
-                  to="/recent"
-                  className="text-wine-600 hover:text-wine-700 text-sm font-medium"
-                >
-                  전체보기 →
-                </Link>
+                {user && (
+                  <Link
+                    to="/recent"
+                    className="text-wine-600 hover:text-wine-700 text-sm font-medium"
+                  >
+                    전체보기 →
+                  </Link>
+                )}
               </div>
               
-              {recentOrder ? (
-                <div className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <h3 className="font-semibold text-gray-900">
-                        {recentOrder.church_group}
-                      </h3>
-                      <p className="text-sm text-gray-500">
-                        {new Date(recentOrder.created_at).toLocaleDateString('ko-KR')}
-                      </p>
-                    </div>
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(recentOrder.status)}`}>
-                      {getStatusLabel(recentOrder.status)}
-                    </span>
-                  </div>
-                  
-                  <div className="space-y-2 mb-3">
-                    {recentOrder.order_items.map((item: any, index: number) => (
-                      <div key={index} className="flex justify-between text-sm">
-                        <span>{item.menu?.name || '메뉴명 없음'}</span>
-                        <span className="text-gray-500">x{item.quantity}</span>
+              {user ? (
+                // 로그인된 사용자 - 기존 주문 내역 표시
+                recentOrder ? (
+                  <div className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <h3 className="font-semibold text-gray-900">
+                          {recentOrder.church_group}
+                        </h3>
+                        <p className="text-sm text-gray-500">
+                          {new Date(recentOrder.created_at).toLocaleDateString('ko-KR')}
+                        </p>
                       </div>
-                    ))}
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(recentOrder.status)}`}>
+                        {getStatusLabel(recentOrder.status)}
+                      </span>
+                    </div>
+                    
+                    <div className="space-y-2 mb-3">
+                      {recentOrder.order_items.map((item: any, index: number) => (
+                        <div key={index} className="flex justify-between text-sm">
+                          <span>{item.menu?.name || '메뉴명 없음'}</span>
+                          <span className="text-gray-500">x{item.quantity}</span>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <div className="flex justify-between items-center pt-3 border-t border-gray-200">
+                      <span className="font-semibold text-gray-900">
+                        총 {recentOrder.total_amount.toLocaleString()}원
+                      </span>
+                      <Link
+                        to="/recent"
+                        className="text-wine-600 hover:text-wine-700 text-sm font-medium"
+                      >
+                        자세히 보기
+                      </Link>
+                    </div>
                   </div>
-                  
-                  <div className="flex justify-between items-center pt-3 border-t border-gray-200">
-                    <span className="font-semibold text-gray-900">
-                      총 {recentOrder.total_amount.toLocaleString()}원
-                    </span>
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="text-gray-500 mb-4">아직 주문 내역이 없습니다.</div>
                     <Link
-                      to="/recent"
-                      className="text-wine-600 hover:text-wine-700 text-sm font-medium"
+                      to="/orders/new"
+                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-wine-600 hover:bg-wine-700"
                     >
-                      자세히 보기
+                      첫 주문하기
                     </Link>
                   </div>
-                </div>
+                )
               ) : (
-                <div className="text-center py-8">
-                  <div className="text-gray-500 mb-4">아직 주문 내역이 없습니다.</div>
+                // 비로그인 사용자 - 로그인 유도
+                <div className="text-center py-12">
+                  <div className="mb-6">
+                    <svg className="mx-auto h-16 w-16 text-wine-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 11V7a4 4 0 00-8 0v4M8 11v6a2 2 0 002 2h4a2 2 0 002-2v-6M8 11h8" />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    주문 내역을 확인하려면 로그인이 필요합니다
+                  </h3>
+                  <p className="text-gray-600 mb-6">
+                    Google 계정으로 간편하게 로그인하고<br />주문 내역을 확인해보세요.
+                  </p>
                   <Link
-                    to="/orders/new"
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-wine-600 hover:bg-wine-700"
+                    to="/login"
+                    className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-wine-600 hover:bg-wine-700 transition-colors"
                   >
-                    첫 주문하기
+                    <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
+                      <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                      <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                      <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                      <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                    </svg>
+                    Google로 로그인
                   </Link>
                 </div>
               )}
