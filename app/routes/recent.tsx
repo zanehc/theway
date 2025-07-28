@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, Link, useNavigate, useLocation } from "@remix-run/react";
+import { useLoaderData, useFetcher, useNavigate, useLocation } from "@remix-run/react";
 import { useState, useEffect, useRef } from "react";
 import { getOrders, updateOrderStatus, getOrdersByUserId } from "~/lib/database";
 import { supabase } from "~/lib/supabase";
@@ -706,22 +706,6 @@ export default function RecentPage() {
           )}
         </div>
 
-        {/* 빠른 액션 */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-          <Link
-            to="/orders/new"
-            className="bg-gradient-wine text-ivory-50 rounded-xl p-4 sm:p-6 text-center hover:shadow-wine transition-all duration-300 shadow-medium hover:shadow-large transform hover:-translate-y-1"
-          >
-            <div className="flex flex-col items-center">
-              <svg className="w-8 h-8 sm:w-12 sm:h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              <h3 className="font-bold text-sm sm:text-base">새 주문</h3>
-            </div>
-          </Link>
-          
-          {/* 주문현황 밑의 빠른 액션(메뉴보기, 매출보고서) 버튼 제거 */}
-        </div>
       </div>
     </div>
   );

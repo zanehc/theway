@@ -130,15 +130,7 @@ export default function Header() {
     window.location.reload();
   };
 
-  const handleNewOrderClick = (e: React.MouseEvent) => {
-    if (!user) { // isLoggedIn 대신 user 체크
-      e.preventDefault();
-      setLoginRequiredMessage(true);
-      setTimeout(() => setLoginRequiredMessage(false), 3000);
-    }
-  };
 
-  const isLoggedIn = !!user;
 
   return (
     <header className="bg-gradient-ivory shadow-soft border-b border-ivory-200/50 backdrop-blur-sm">
@@ -164,19 +156,8 @@ export default function Header() {
             </div>
           </Link>
 
-          {/* 중앙 새주문 버튼 */}
-          <div className="flex-1 flex justify-center">
-            <Link
-              to="/orders/new"
-              onClick={handleNewOrderClick}
-              className="inline-flex items-center px-4 py-2 bg-gradient-wine text-white rounded-xl font-bold text-sm sm:text-base shadow-medium hover:shadow-wine transition-all duration-300 transform hover:-translate-y-1"
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              새 주문
-            </Link>
-          </div>
+          {/* 중앙 공간 */}
+          <div className="flex-1"></div>
 
           {/* 우측 버튼들 - user만 있으면 즉시 렌더, userRole은 관리자 메뉴만 동적으로 */}
           <div className="flex items-center space-x-2 sm:space-x-4 animate-slide-up">

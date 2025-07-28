@@ -74,9 +74,19 @@ export default function Index() {
     if (!mounted) return;
     
     const getUserAndRecentOrder = async () => {
+      console.log('🔄 홈탭 - 데이터 로딩 시작');
       try {
         setLoading(true);
-        const { data: { user } } = await supabase.auth.getUser();
+        
+        // 타임아웃 설정 (10초)
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), 10000)
+        );
+        
+        const userPromise = supabase.auth.getUser();
+        const { data: { user } } = await Promise.race([userPromise, timeoutPromise]) as any;
+        
+        console.log('👤 홈탭 - 사용자 정보:', user?.email);
         setUser(user);
         
         if (user) {
@@ -87,19 +97,30 @@ export default function Index() {
             .eq('id', user.id)
             .single();
           
+          console.log('📊 홈탭 - 사용자 데이터:', userData, userError);
+          
           if (!userError && userData) {
             setUserData(userData);
             
-            // 최근 주문 1건 가져오기
-            const userOrders = await getOrdersByUserId(user.id);
-            if (userOrders && userOrders.length > 0) {
-              setRecentOrder(userOrders[0]);
+            // 최근 주문 1건 가져오기 (타임아웃 적용)
+            try {
+              const ordersPromise = getOrdersByUserId(user.id);
+              const userOrders = await Promise.race([ordersPromise, timeoutPromise]) as any;
+              console.log('📦 홈탭 - 최근 주문:', userOrders?.length || 0, '개');
+              
+              if (userOrders && userOrders.length > 0) {
+                setRecentOrder(userOrders[0]);
+              }
+            } catch (orderError) {
+              console.error('주문 데이터 로딩 실패:', orderError);
+              // 주문 데이터 로딩 실패해도 계속 진행
             }
           }
         }
       } catch (error) {
         console.error('Error loading user and recent order:', error);
       } finally {
+        console.log('✅ 홈탭 - 로딩 완료');
         setLoading(false);
       }
     };
@@ -172,21 +193,6 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-ivory-50 pb-20">
-      {/* 상단 헤더 영역 개선 */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between py-4">
-          <div>
-            <div className="text-2xl sm:text-3xl font-black text-wine-800 leading-tight">길을여는교회</div>
-            <div className="flex items-center mt-1">
-              <span className="text-base sm:text-lg font-bold text-wine-600">이음카페</span>
-              <span className="inline-block bg-yellow-400 text-xs font-bold text-white px-2 py-1 rounded-full ml-2 align-middle">Beta</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-base sm:text-lg font-bold text-wine-700">{userData?.name || 'ㅇㅇㅇ'}님 안녕하세요!</span>
-          </div>
-        </div>
-      </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
