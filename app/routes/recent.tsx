@@ -1,12 +1,13 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useNavigate, useLocation, useOutletContext } from "@remix-run/react";
+import { useLoaderData, useFetcher, useNavigate, useLocation, useOutletContext, useNavigation } from "@remix-run/react";
 import { useState, useEffect, useRef } from "react";
 import { getOrders, updateOrderStatus, getOrdersByUserId } from "~/lib/database";
 import { supabase } from "~/lib/supabase";
 import type { OrderStatus } from "~/types";
 import { useNotifications } from "~/contexts/NotificationContext";
 import OrderCancellationModal from "~/components/OrderCancellationModal";
+import { OrderListSkeleton } from "~/components/LoadingSkeleton";
 
 const statusOptions: { value: OrderStatus; label: string; color: string; bgColor: string }[] = [
   { value: 'pending', label: '대기', color: 'text-yellow-800', bgColor: 'bg-yellow-100' },
@@ -154,6 +155,7 @@ export async function action({ request }: ActionFunctionArgs) {
 export default function RecentPage() {
   const { initialOrders, currentStatus, currentPaymentStatus, error, success } = useLoaderData<typeof loader>();
   const outletContext = useOutletContext<{ user: any; userRole: string | null }>();
+  const navigation = useNavigation();
   const fetcher = useFetcher();
   const [orders, setOrders] = useState<any[]>([]);
   const [selectedStatus, setSelectedStatus] = useState<string>('');
@@ -162,6 +164,11 @@ export default function RecentPage() {
   const [userRoleState, setUserRole] = useState<string | null>(outletContext?.userRole || null);
   const [userData, setUserData] = useState<any>(null);
   const [currentPaymentStatusState, setCurrentPaymentStatusState] = useState<string>('');
+
+  // Safari 호환성을 위한 안전한 네비게이션 상태 체크
+  if (navigation.state === "loading" && navigation.location?.pathname && navigation.location.pathname !== "/recent") {
+    return <OrderListSkeleton />;
+  }
   const [mounted, setMounted] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -674,9 +681,6 @@ export default function RecentPage() {
                   <div key={order.id} className="bg-ivory-50 rounded-xl border border-wine-200 p-4">
                     {/* 주문 상태 진행바 */}
                     <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
-                    <div className="mt-2">
-                      <PaymentStatusBadge status={order.payment_status} />
-                    </div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs text-wine-400">#{order.id.slice(-8)}</span>
                     </div>
@@ -763,7 +767,6 @@ export default function RecentPage() {
                       <th className="px-2 py-2">주문시간</th>
                       <th className="px-2 py-2">주문메뉴</th>
                       <th className="px-2 py-2">주문상태</th>
-                      <th className="px-2 py-2">결제상태</th>
                       {userRoleState === 'admin' && <th className="px-2 py-2">액션</th>}
                       <th className="px-2 py-2">빠른주문</th>
                     </tr>
@@ -807,9 +810,6 @@ export default function RecentPage() {
                           {/* 상태 진행바만 표시 (뱃지 제거) */}
                           <td className="align-middle">
                             <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
-                          </td>
-                          <td className="align-middle">
-                            <PaymentStatusBadge status={order.payment_status} />
                           </td>
                           {userRoleState === 'admin' && (
                             <td className="align-middle">

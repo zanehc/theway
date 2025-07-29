@@ -46,12 +46,14 @@ export default function App() {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
   
+  // Safari 호환성을 위해 항상 useLoaderData 호출
+  const loaderData = useLoaderData<typeof loader>();
+  
   // 환경 변수 처리 - 서버/클라이언트 분리
   let ENV: any = {};
   
   if (typeof window === 'undefined') {
     // 서버에서는 loader 데이터 사용
-    const loaderData = useLoaderData<typeof loader>();
     ENV = loaderData?.ENV || {};
   } else if (isClient) {
     // 클라이언트에서 하이드레이션 완료 후 window.__ENV 사용
@@ -77,11 +79,16 @@ export default function App() {
         setUser(user);
         
         if (user) {
-          // 캐시된 역할 확인 먼저
-          const cachedRole = sessionStorage.getItem(`user_role_${user.id}`);
-          if (cachedRole) {
-            console.log('🔐 Root - 캐시된 역할 사용:', cachedRole);
-            setUserRole(cachedRole);
+          // Safari 호환성을 위한 안전한 세션스토리지 접근
+          let cachedRole: string | null = null;
+          try {
+            cachedRole = sessionStorage.getItem(`user_role_${user.id}`);
+            if (cachedRole) {
+              console.log('🔐 Root - 캐시된 역할 사용:', cachedRole);
+              setUserRole(cachedRole);
+            }
+          } catch (storageError) {
+            console.warn('🔐 Root - 세션스토리지 접근 실패:', storageError);
           }
           
           // 역할 정보 업데이트
@@ -95,7 +102,13 @@ export default function App() {
             if (!roleError && userData?.role) {
               console.log('🔐 Root - DB에서 역할 확인:', userData.role);
               setUserRole(userData.role);
-              sessionStorage.setItem(`user_role_${user.id}`, userData.role);
+              
+              // Safari 호환성을 위한 안전한 세션스토리지 저장
+              try {
+                sessionStorage.setItem(`user_role_${user.id}`, userData.role);
+              } catch (storageError) {
+                console.warn('🔐 Root - 세션스토리지 저장 실패:', storageError);
+              }
             } else {
               console.log('🔐 Root - 역할 정보 없음, 기본값 설정');
               setUserRole('customer');
@@ -151,7 +164,13 @@ export default function App() {
             const role = userData?.role || 'customer';
             console.log('🔐 Root - 새 역할 설정:', role);
             setUserRole(role);
-            sessionStorage.setItem(`user_role_${session.user.id}`, role);
+            
+            // Safari 호환성을 위한 안전한 세션스토리지 저장
+            try {
+              sessionStorage.setItem(`user_role_${session.user.id}`, role);
+            } catch (storageError) {
+              console.warn('🔐 Root - 세션스토리지 저장 실패 (인증 변경):', storageError);
+            }
           } catch (error) {
             console.error('🔐 Root - 역할 정보 실패:', error);
             setUserRole('customer');

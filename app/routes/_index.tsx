@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, Link, useOutletContext } from "@remix-run/react";
+import { useLoaderData, Link, useOutletContext, useNavigation } from "@remix-run/react";
 import { useState, useEffect } from "react";
 import { getOrdersByUserId } from "~/lib/database";
 import { supabase } from "~/lib/supabase";
@@ -8,6 +8,7 @@ import { useNotifications } from "~/contexts/NotificationContext";
 import { LoginForm } from "~/components/LoginForm";
 import { SignupForm } from "~/components/SignupForm";
 import ModalPortal from "~/components/ModalPortal";
+import { HomeSkeleton } from "~/components/LoadingSkeleton";
 
 // 교회소식 기본 예시 구조
 const DEFAULT_NEWS = {
@@ -56,9 +57,15 @@ export async function loader({ request }: LoaderFunctionArgs) {
 export default function Index() {
   const { error, success, news } = useLoaderData<typeof loader>();
   const outletContext = useOutletContext<{ user: any; userRole: string | null }>();
+  const navigation = useNavigation();
   const [user, setUser] = useState<any>(outletContext?.user || null);
   const [userData, setUserData] = useState<any>(null);
   const [recentOrder, setRecentOrder] = useState<any>(null);
+
+  // Safari 호환성을 위한 안전한 네비게이션 상태 체크
+  if (navigation.state === "loading" && navigation.location?.pathname && navigation.location.pathname !== "/") {
+    return <HomeSkeleton />;
+  }
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
@@ -191,55 +198,124 @@ export default function Index() {
               </div>
             </div>
             
-            {/* 교회소식은 이미 로딩된 데이터로 즉시 표시 */}
+            {/* 교회소식 - Apple 스타일 디자인 (로딩 중에도 표시) */}
             <div className="lg:col-span-1">
-              <div className="bg-white rounded-lg shadow-lg p-6">
-                <h2 className="text-xl font-bold text-gray-900 mb-4">교회 소식</h2>
+              <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-3xl shadow-xl p-6 relative overflow-hidden">
+                {/* 배경 장식 요소 */}
+                <div className="absolute top-0 right-0 w-28 h-28 bg-gradient-to-br from-blue-200/25 to-purple-200/25 rounded-full blur-3xl"></div>
+                <div className="absolute bottom-0 left-0 w-20 h-20 bg-gradient-to-tr from-indigo-200/25 to-blue-200/25 rounded-full blur-2xl"></div>
                 
-                <div className="space-y-4">
-                  {news?.registerNotice && (
-                    <div className="border-l-4 border-wine-600 pl-4">
-                      <h3 className="font-semibold text-gray-900 text-sm">등록안내</h3>
-                      <p className="text-gray-600 text-sm mt-1 whitespace-pre-line">
-                        {news?.registerNotice}
-                      </p>
-                    </div>
-                  )}
+                <div className="relative z-10">
+                  <div className="text-center mb-6">
+                    <h2 className="text-2xl font-black text-gray-900 mb-1.5 tracking-tight">
+                      교회 소식
+                    </h2>
+                    <p className="text-gray-600 text-sm font-medium">
+                      하나님의 은혜가 함께하는 소식들
+                    </p>
+                  </div>
                   
-                  {news?.events && news.events.length > 0 && (
-                    <div className="border-l-4 border-blue-600 pl-4">
-                      <h3 className="font-semibold text-gray-900 text-sm">행사/캠프 일정</h3>
-                      <div className="mt-1 space-y-1">
-                        {news?.events?.slice(0, 2).map((ev: any, idx: number) => (
-                          <div key={idx} className="text-gray-600 text-sm">
-                            <span className="font-medium">{ev.title}</span>
-                            <br />
-                            <span className="text-xs text-gray-500">{ev.date} - {ev.desc}</span>
+                  {/* 2x2 그리드 패널 - 모든 화면에서 고정 */}
+                  <div className="grid grid-cols-2 gap-3 max-w-none">
+                    {/* 등록안내 패널 */}
+                    {news?.registerNotice && (
+                      <div className="bg-white/75 backdrop-blur-sm rounded-2xl p-3.5 border border-white/60 shadow-lg hover:shadow-xl transition-all duration-300">
+                        <div className="text-center mb-2.5">
+                          <div className="w-7 h-7 bg-gradient-to-r from-wine-500 to-wine-600 rounded-full flex items-center justify-center mx-auto mb-1.5">
+                            <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
                           </div>
-                        ))}
+                          <h3 className="font-bold text-gray-900 text-sm">등록안내</h3>
+                        </div>
+                        <p className="text-gray-600 text-xs leading-relaxed whitespace-pre-line text-center">
+                          {news?.registerNotice?.slice(0, 45)}...
+                        </p>
                       </div>
-                    </div>
-                  )}
+                    )}
+                    
+                    {/* 행사일정 패널 */}
+                    {news?.events && news.events.length > 0 && (
+                      <div className="bg-white/75 backdrop-blur-sm rounded-2xl p-3.5 border border-white/60 shadow-lg hover:shadow-xl transition-all duration-300">
+                        <div className="text-center mb-2.5">
+                          <div className="w-7 h-7 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-1.5">
+                            <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                          <h3 className="font-bold text-gray-900 text-sm">행사일정</h3>
+                        </div>
+                        <div className="space-y-1.5">
+                          {news?.events?.slice(0, 1).map((ev: any, idx: number) => (
+                            <div key={idx} className="bg-blue-50/60 rounded-lg p-1.5 text-center">
+                              <h4 className="font-semibold text-blue-900 text-xs mb-0.5">{ev.title}</h4>
+                              <p className="text-blue-700 text-xs">{ev.date}</p>
+                            </div>
+                          ))}
+                          {news?.events && news.events.length > 1 && (
+                            <div className="text-xs text-blue-600 font-medium text-center mt-1">
+                              +{news?.events?.length - 1}개 더
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* 생일축하 패널 */}
+                    {news?.birthdays && news.birthdays.length > 0 && (
+                      <div className="bg-white/75 backdrop-blur-sm rounded-2xl p-3.5 border border-white/60 shadow-lg hover:shadow-xl transition-all duration-300">
+                        <div className="text-center mb-2.5">
+                          <div className="w-7 h-7 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-1.5">
+                            <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
+                            </svg>
+                          </div>
+                          <h3 className="font-bold text-gray-900 text-sm">생일축하</h3>
+                        </div>
+                        <div className="space-y-1">
+                          {news?.birthdays?.slice(0, 2).map((b: any, idx: number) => (
+                            <div key={idx} className="bg-green-50/60 rounded-lg p-1 text-center">
+                              <p className="font-semibold text-green-900 text-xs">{b.name}</p>
+                              <p className="text-green-600 text-xs">{b.date}</p>
+                            </div>
+                          ))}
+                          {news?.birthdays && news.birthdays.length > 2 && (
+                            <div className="text-xs text-green-600 font-medium text-center mt-1">
+                              +{news?.birthdays?.length - 2}명 더
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* 헌금계좌 패널 */}
+                    {news?.offeringAccounts && news.offeringAccounts.length > 0 && (
+                      <div className="bg-white/75 backdrop-blur-sm rounded-2xl p-3.5 border border-white/60 shadow-lg hover:shadow-xl transition-all duration-300">
+                        <div className="text-center mb-2.5">
+                          <div className="w-7 h-7 bg-gradient-to-r from-purple-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-1.5">
+                            <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                            </svg>
+                          </div>
+                          <h3 className="font-bold text-gray-900 text-sm">헌금계좌</h3>
+                        </div>
+                        <div className="space-y-1">
+                          {news?.offeringAccounts?.slice(0, 1).map((acc: any, idx: number) => (
+                            <div key={idx} className="bg-purple-50/60 rounded-lg p-1.5 text-center">
+                              <p className="font-semibold text-purple-900 text-xs">{acc.bank}</p>
+                              <p className="text-purple-700 text-xs font-mono">{acc.number}</p>
+                            </div>
+                          ))}
+                          {news?.offeringAccounts && news.offeringAccounts.length > 1 && (
+                            <div className="text-xs text-purple-600 font-medium text-center mt-1">
+                              +{news?.offeringAccounts?.length - 1}개 더
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   
-                  {news?.birthdays && news.birthdays.length > 0 && (
-                    <div className="border-l-4 border-green-600 pl-4">
-                      <h3 className="font-semibold text-gray-900 text-sm">생일자</h3>
-                      <div className="mt-1 grid grid-cols-3 gap-2">
-                        {news?.birthdays?.slice(0, 6).map((b: any, idx: number) => (
-                          <div key={idx} className="text-gray-600 text-sm">
-                            <span className="font-medium">{b.name}</span>
-                            <span className="text-xs text-gray-500 ml-2">{b.date}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                
-                <div className="mt-6 pt-4 border-t border-gray-200">
-                  <button className="w-full bg-gray-100 text-gray-700 py-2 px-4 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">
-                    더 많은 소식 보기
-                  </button>
                 </div>
               </div>
             </div>
@@ -335,9 +411,130 @@ export default function Index() {
           </div>
         </div>
         
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* 교회소식 섹션 - 전체 너비 */}
+        <div className="mb-8">
+          <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-3xl shadow-xl p-6 relative overflow-hidden">
+            {/* 배경 장식 요소 */}
+            <div className="absolute top-0 right-0 w-28 h-28 bg-gradient-to-br from-blue-200/25 to-purple-200/25 rounded-full blur-3xl"></div>
+            <div className="absolute bottom-0 left-0 w-20 h-20 bg-gradient-to-tr from-indigo-200/25 to-blue-200/25 rounded-full blur-2xl"></div>
+            
+            <div className="relative z-10">
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-black text-gray-900 mb-1.5 tracking-tight">
+                  교회 소식
+                </h2>
+                <p className="text-gray-600 text-sm font-medium">
+                  하나님의 은혜가 함께하는 소식들
+                </p>
+              </div>
+              
+              {/* 2x2 그리드 패널 - 모든 화면에서 고정 */}
+              <div className="grid grid-cols-2 gap-3 max-w-lg mx-auto">
+                {/* 등록안내 패널 */}
+                {news?.registerNotice && (
+                  <div className="bg-white/75 backdrop-blur-sm rounded-2xl p-3.5 border border-white/60 shadow-lg hover:shadow-xl transition-all duration-300">
+                    <div className="text-center mb-2.5">
+                      <div className="w-7 h-7 bg-gradient-to-r from-wine-500 to-wine-600 rounded-full flex items-center justify-center mx-auto mb-1.5">
+                        <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                      </div>
+                      <h3 className="font-bold text-gray-900 text-sm">등록안내</h3>
+                    </div>
+                    <p className="text-gray-600 text-xs leading-relaxed whitespace-pre-line text-center">
+                      {news?.registerNotice?.slice(0, 45)}...
+                    </p>
+                  </div>
+                )}
+                
+                {/* 행사일정 패널 */}
+                {news?.events && news.events.length > 0 && (
+                  <div className="bg-white/75 backdrop-blur-sm rounded-2xl p-3.5 border border-white/60 shadow-lg hover:shadow-xl transition-all duration-300">
+                    <div className="text-center mb-2.5">
+                      <div className="w-7 h-7 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-1.5">
+                        <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <h3 className="font-bold text-gray-900 text-sm">행사일정</h3>
+                    </div>
+                    <div className="space-y-1.5">
+                      {news?.events?.slice(0, 1).map((ev: any, idx: number) => (
+                        <div key={idx} className="bg-blue-50/60 rounded-lg p-1.5 text-center">
+                          <h4 className="font-semibold text-blue-900 text-xs mb-0.5">{ev.title}</h4>
+                          <p className="text-blue-700 text-xs">{ev.date}</p>
+                        </div>
+                      ))}
+                      {news?.events && news.events.length > 1 && (
+                        <div className="text-xs text-blue-600 font-medium text-center mt-1">
+                          +{news?.events?.length - 1}개 더
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                {/* 생일축하 패널 */}
+                {news?.birthdays && news.birthdays.length > 0 && (
+                  <div className="bg-white/75 backdrop-blur-sm rounded-2xl p-3.5 border border-white/60 shadow-lg hover:shadow-xl transition-all duration-300">
+                    <div className="text-center mb-2.5">
+                      <div className="w-7 h-7 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-1.5">
+                        <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
+                        </svg>
+                      </div>
+                      <h3 className="font-bold text-gray-900 text-sm">생일축하</h3>
+                    </div>
+                    <div className="space-y-1">
+                      {news?.birthdays?.slice(0, 2).map((b: any, idx: number) => (
+                        <div key={idx} className="bg-green-50/60 rounded-lg p-1 text-center">
+                          <p className="font-semibold text-green-900 text-xs">{b.name}</p>
+                          <p className="text-green-600 text-xs">{b.date}</p>
+                        </div>
+                      ))}
+                      {news?.birthdays && news.birthdays.length > 2 && (
+                        <div className="text-xs text-green-600 font-medium text-center mt-1">
+                          +{news?.birthdays?.length - 2}명 더
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                {/* 헌금계좌 패널 */}
+                {news?.offeringAccounts && news.offeringAccounts.length > 0 && (
+                  <div className="bg-white/75 backdrop-blur-sm rounded-2xl p-3.5 border border-white/60 shadow-lg hover:shadow-xl transition-all duration-300">
+                    <div className="text-center mb-2.5">
+                      <div className="w-7 h-7 bg-gradient-to-r from-purple-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-1.5">
+                        <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                        </svg>
+                      </div>
+                      <h3 className="font-bold text-gray-900 text-sm">헌금계좌</h3>
+                    </div>
+                    <div className="space-y-1">
+                      {news?.offeringAccounts?.slice(0, 1).map((acc: any, idx: number) => (
+                        <div key={idx} className="bg-purple-50/60 rounded-lg p-1.5 text-center">
+                          <p className="font-semibold text-purple-900 text-xs">{acc.bank}</p>
+                          <p className="text-purple-700 text-xs font-mono">{acc.number}</p>
+                        </div>
+                      ))}
+                      {news?.offeringAccounts && news.offeringAccounts.length > 1 && (
+                        <div className="text-xs text-purple-600 font-medium text-center mt-1">
+                          +{news?.offeringAccounts?.length - 1}개 더
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6">
           {/* 최근 주문 - 로그인 상태에 따라 다른 콘텐츠 */}
-          <div className="lg:col-span-2">
+          <div>
             <div className="bg-white rounded-lg shadow-lg p-6">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold text-gray-900">최근 주문</h2>
@@ -440,101 +637,6 @@ export default function Index() {
             </div>
           </div>
 
-          {/* 교회 소식 배너 */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">교회 소식</h2>
-              
-              <div className="space-y-4">
-                {/* 등록안내 */}
-                {news?.registerNotice && (
-                  <div className="border-l-4 border-wine-600 pl-4">
-                    <h3 className="font-semibold text-gray-900 text-sm">등록안내</h3>
-                    <p className="text-gray-600 text-sm mt-1 whitespace-pre-line">
-                      {news?.registerNotice}
-                    </p>
-                  </div>
-                )}
-                
-                {/* 행사/캠프 일정 */}
-                {news?.events && news.events.length > 0 && (
-                  <div className="border-l-4 border-blue-600 pl-4">
-                    <h3 className="font-semibold text-gray-900 text-sm">행사/캠프 일정</h3>
-                    <div className="mt-1 space-y-1">
-                      {news?.events?.slice(0, 2).map((ev: any, idx: number) => (
-                        <div key={idx} className="text-gray-600 text-sm">
-                          <span className="font-medium">{ev.title}</span>
-                          <br />
-                          <span className="text-xs text-gray-500">{ev.date} - {ev.desc}</span>
-                        </div>
-                      ))}
-                      {news?.events && news.events.length > 2 && (
-                        <div className="text-xs text-gray-500">
-                          외 {news?.events?.length - 2}건 더...
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-                
-                {/* 생일자 */}
-                {news?.birthdays && news.birthdays.length > 0 && (
-                  <div className="border-l-4 border-green-600 pl-4">
-                    <h3 className="font-semibold text-gray-900 text-sm">생일자</h3>
-                    <div className="mt-1 grid grid-cols-3 gap-2">
-                      {news?.birthdays?.slice(0, 6).map((b: any, idx: number) => (
-                        <div key={idx} className="text-gray-600 text-sm">
-                          <span className="font-medium">{b.name}</span>
-                          <span className="text-xs text-gray-500 ml-2">{b.date}</span>
-                        </div>
-                      ))}
-                      {news?.birthdays && news.birthdays.length > 6 && (
-                        <div className="col-span-3 text-xs text-gray-500">
-                          외 {news?.birthdays?.length - 6}명 더...
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-                
-                {/* 헌금계좌 */}
-                {news?.offeringAccounts && news.offeringAccounts.length > 0 && (
-                  <div className="border-l-4 border-purple-600 pl-4">
-                    <h3 className="font-semibold text-gray-900 text-sm">헌금계좌</h3>
-                    <div className="mt-1 grid grid-cols-3 gap-2">
-                      {news?.offeringAccounts?.slice(0, 6).map((acc: any, idx: number) => (
-                        <div key={idx} className="text-gray-600 text-sm">
-                          <span className="font-medium">{acc.bank}</span><br />
-                          <span className="text-xs text-gray-500">{acc.number}</span>
-                        </div>
-                      ))}
-                      {news?.offeringAccounts && news.offeringAccounts.length > 6 && (
-                        <div className="col-span-3 text-xs text-gray-500">
-                          외 {news?.offeringAccounts?.length - 6}개 더...
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-                
-                {/* 기타 공지 */}
-                {news?.etc && (
-                  <div className="border-l-4 border-orange-600 pl-4">
-                    <h3 className="font-semibold text-gray-900 text-sm">기타 공지</h3>
-                    <p className="text-gray-600 text-sm mt-1 whitespace-pre-line">
-                      {news?.etc}
-                    </p>
-                  </div>
-                )}
-              </div>
-              
-              <div className="mt-6 pt-4 border-t border-gray-200">
-                <button className="w-full bg-gray-100 text-gray-700 py-2 px-4 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">
-                  더 많은 소식 보기
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
 
         

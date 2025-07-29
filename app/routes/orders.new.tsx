@@ -1,20 +1,35 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useOutletContext } from "@remix-run/react";
+import { useLoaderData, useFetcher, useOutletContext, useNavigation } from "@remix-run/react";
 import { useState, useEffect } from "react";
 import { getMenus, createOrder } from "~/lib/database";
 
 import type { Menu } from "~/types";
 import { supabase } from "~/lib/supabase";
 import { useNotifications } from "~/contexts/NotificationContext";
+import { MenuListSkeleton } from "~/components/LoadingSkeleton";
+
+// 메뉴 데이터 캐시 (메뉴는 자주 변경되지 않으므로 더 긴 캐시 시간)
+const menuCache = { data: null as any, timestamp: 0 };
+const MENU_CACHE_DURATION = 300000; // 5분
 
 export async function loader({ request }: LoaderFunctionArgs) {
   try {
+    // 캐시된 메뉴 데이터가 유효한지 확인
+    if (menuCache.data && Date.now() - menuCache.timestamp < MENU_CACHE_DURATION) {
+      return json({ menus: menuCache.data, cached: true });
+    }
+
     const menus = await getMenus();
-    return json({ menus });
+    
+    // 캐시 업데이트
+    menuCache.data = menus;
+    menuCache.timestamp = Date.now();
+    
+    return json({ menus, cached: false });
   } catch (error) {
     console.error('New order loader error:', error);
-    return json({ menus: [] });
+    return json({ menus: menuCache.data || [], cached: false });
   }
 }
 
@@ -87,9 +102,15 @@ type CartItem = {
 export default function NewOrder() {
   const { menus } = useLoaderData<typeof loader>();
   const outletContext = useOutletContext<{ user: any; userRole: string | null }>();
+  const navigation = useNavigation();
   const fetcher = useFetcher();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerName, setCustomerName] = useState('');
+
+  // Safari 호환성을 위한 안전한 네비게이션 상태 체크
+  if (navigation.state === "loading" && navigation.location?.pathname && navigation.location.pathname !== "/orders/new") {
+    return <MenuListSkeleton />;
+  }
   const [churchGroup, setChurchGroup] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('transfer');
   const [notes, setNotes] = useState('');

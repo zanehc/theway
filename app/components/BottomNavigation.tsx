@@ -1,5 +1,5 @@
-import { Link, useLocation, useNavigate } from "@remix-run/react";
-import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate, useFetcher } from "@remix-run/react";
+import { useEffect, useState, useCallback } from "react";
 
 interface BottomNavigationProps {
   user: any;
@@ -9,11 +9,61 @@ export default function BottomNavigation({ user }: BottomNavigationProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const [showLoginModal, setShowLoginModal] = useState(false);
+  
+  // 각 탭의 데이터를 미리 로드하기 위한 fetcher들
+  const recentFetcher = useFetcher();
+  const ordersFetcher = useFetcher();
+  const reportsFetcher = useFetcher();
 
   // Props 변경 시 로그
   useEffect(() => {
     console.log('📱 BottomNavigation - Props 업데이트:', { user: user?.email || 'null' });
   }, [user]);
+
+  // 데이터 프리로딩 함수 (Safari 호환성 개선)
+  const prefetchTabData = useCallback((path: string) => {
+    if (!user) return; // 로그인하지 않은 사용자는 스킵
+    
+    // Safari에서 안전한 프리로딩을 위한 예외 처리
+    try {
+      switch (path) {
+        case '/recent':
+          if (recentFetcher.state === 'idle' && !recentFetcher.data) {
+            recentFetcher.load('/recent');
+          }
+          break;
+        case '/orders/new':
+          if (ordersFetcher.state === 'idle' && !ordersFetcher.data) {
+            ordersFetcher.load('/orders/new');
+          }
+          break;
+        case '/reports':
+          if (user?.role === 'staff' || user?.role === 'admin') {
+            if (reportsFetcher.state === 'idle' && !reportsFetcher.data) {
+              reportsFetcher.load('/reports');
+            }
+          }
+          break;
+      }
+    } catch (error) {
+      console.warn('Tab prefetch failed:', error);
+    }
+  }, [user, recentFetcher, ordersFetcher, reportsFetcher]);
+
+  // 현재 탭이 아닌 다른 탭들의 데이터를 미리 로드
+  useEffect(() => {
+    if (!user) return;
+    
+    const currentPath = location.pathname;
+    const tabsToPreload = ['/recent', '/orders/new', '/reports'].filter(path => path !== currentPath);
+    
+    // 500ms 지연 후 프리로딩 시작 (현재 페이지 로딩을 방해하지 않기 위해)
+    const timer = setTimeout(() => {
+      tabsToPreload.forEach(path => prefetchTabData(path));
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [location.pathname, user, prefetchTabData]);
 
   const isActive = (path: string) => {
     if (path === "/" && location.pathname === "/") return true;
@@ -27,6 +77,16 @@ export default function BottomNavigation({ user }: BottomNavigationProps) {
       e.preventDefault();
       setShowLoginModal(true);
       return;
+    }
+    
+    // 탭 클릭 시 해당 탭 데이터를 즉시 프리로드
+    prefetchTabData(item.path);
+  };
+
+  // 마우스 호버 시 데이터 프리로딩
+  const handleNavHover = (path: string) => {
+    if (user) {
+      prefetchTabData(path);
     }
   };
 
@@ -127,7 +187,8 @@ export default function BottomNavigation({ user }: BottomNavigationProps) {
                 key={item.path}
                 to={item.path}
                 onClick={(e) => handleNavClick(item, e)}
-                className={`flex flex-col items-center py-2 px-3 min-w-0 flex-1 ${
+                onMouseEnter={() => handleNavHover(item.path)}
+                className={`flex flex-col items-center py-2 px-3 min-w-0 flex-1 transition-colors duration-200 ${
                   active
                     ? "text-red-800"
                     : "text-gray-500 hover:text-gray-700"

@@ -1,26 +1,46 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useOutletContext } from "@remix-run/react";
+import { useLoaderData, useOutletContext, useNavigation } from "@remix-run/react";
 import { useState } from "react";
 import { getSalesStatistics } from "~/lib/database";
 import { useNotifications } from "~/contexts/NotificationContext";
+import { ReportsSkeleton } from "~/components/LoadingSkeleton";
 
+
+// 리포트 데이터 캐시 (기간별로 캐시)
+const reportsCache = new Map<string, { data: any, timestamp: number }>();
+const REPORTS_CACHE_DURATION = 60000; // 1분 (통계는 실시간성이 중요하므로 짧게)
 
 export async function loader({ request }: LoaderFunctionArgs) {
   try {
     const url = new URL(request.url);
     const period = url.searchParams.get('period') || 'today';
 
+    // 캐시 키 생성
+    const cacheKey = `reports-${period}`;
+    const cached = reportsCache.get(cacheKey);
+    
+    // 캐시된 데이터가 있고 아직 유효한 경우
+    if (cached && Date.now() - cached.timestamp < REPORTS_CACHE_DURATION) {
+      return json({ ...cached.data, cached: true });
+    }
+
     // 새로운 매출 통계 함수 사용
     const salesStats = await getSalesStatistics(period as 'today' | 'week' | 'month');
 
-    return json({
+    const result = {
       period,
       ...salesStats,
-    });
+      cached: false
+    };
+
+    // 캐시에 저장
+    reportsCache.set(cacheKey, { data: result, timestamp: Date.now() });
+
+    return json(result);
   } catch (error) {
     console.error('Reports loader error:', error);
-    return json({
+    const errorResult = {
       period: 'today',
       totalRevenue: 0,
       totalOrders: 0,
@@ -34,15 +54,31 @@ export async function loader({ request }: LoaderFunctionArgs) {
         ready: 0,
         completed: 0,
         cancelled: 0,
-      }
+      },
+      cached: false
+    };
+    
+    // 에러 상황에서도 기본값을 캐시 (5초간)
+    const errorUrl = new URL(request.url);
+    reportsCache.set(`reports-${errorUrl.searchParams.get('period') || 'today'}`, { 
+      data: errorResult, 
+      timestamp: Date.now() - REPORTS_CACHE_DURATION + 5000 
     });
+    
+    return json(errorResult);
   }
 }
 
 export default function Reports() {
   const { period, totalRevenue, totalOrders, confirmedOrders, pendingOrders, cancelledOrders, menuStats, statusStats } = useLoaderData<typeof loader>();
+  const navigation = useNavigation();
   const [selectedPeriod, setSelectedPeriod] = useState(period);
   const { toasts } = useNotifications();
+
+  // Safari 호환성을 위한 안전한 네비게이션 상태 체크
+  if (navigation.state === "loading" && navigation.location?.pathname && navigation.location.pathname !== "/reports") {
+    return <ReportsSkeleton />;
+  }
 
   const getPeriodLabel = (p: string) => {
     switch (p) {
@@ -201,7 +237,7 @@ export default function Reports() {
             <h3 className="text-2xl font-black text-wine-800 mb-6">메뉴별 판매 통계</h3>
             {menuStats.length > 0 ? (
               <div className="space-y-4 max-h-80 overflow-y-auto">
-                {menuStats.map((menu, index) => (
+                {menuStats.map((menu: any, index: number) => (
                   <div key={index} className="bg-white rounded-2xl p-4 shadow-soft">
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-lg font-bold text-wine-800">{menu.name}</span>
