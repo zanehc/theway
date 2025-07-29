@@ -13,6 +13,7 @@ interface NotificationContextType {
   addToast: (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
   removeToast: (id: string) => void;
   clearAllToasts: () => void;
+  initializeTTS: () => void;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -25,6 +26,7 @@ interface NotificationProviderProps {
 
 export function NotificationProvider({ children, userId, userRole }: NotificationProviderProps) {
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
+  const [ttsInitialized, setTtsInitialized] = useState(false);
 
   // 주문 상태를 명확한 한국어 메시지로 변환 (취소사유 포함)
   const getStatusMessage = (status: string, cancellationReason?: string) => {
@@ -74,13 +76,66 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
       return newToasts;
     });
     
-    // TTS 음성 알림
+    // TTS 음성 알림 (iOS Safari 호환성 개선)
     if ('speechSynthesis' in window) {
-      const utterance = new window.SpeechSynthesisUtterance(message);
-      utterance.lang = 'ko-KR';
-      utterance.rate = 0.9;
-      utterance.pitch = 1.0;
-      window.speechSynthesis.speak(utterance);
+      try {
+        // iOS에서 speechSynthesis 초기화
+        if (window.speechSynthesis.getVoices().length === 0) {
+          window.speechSynthesis.addEventListener('voiceschanged', () => {
+            speakMessage(message);
+          });
+        } else {
+          speakMessage(message);
+        }
+      } catch (error) {
+        console.warn('TTS 재생 실패:', error);
+      }
+    }
+    
+    function speakMessage(text: string) {
+      try {
+        // 기존 음성 정지
+        window.speechSynthesis.cancel();
+        
+        const utterance = new window.SpeechSynthesisUtterance(text);
+        
+        // iOS Safari 최적화 설정
+        utterance.lang = 'ko-KR';
+        utterance.rate = 0.8; // iOS에서 좀 더 느리게
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+        
+        // iOS에서 한국어 음성 찾기
+        const voices = window.speechSynthesis.getVoices();
+        const koreanVoice = voices.find(voice => 
+          voice.lang.includes('ko') || voice.lang.includes('KR')
+        );
+        if (koreanVoice) {
+          utterance.voice = koreanVoice;
+          console.log('🎵 TTS - 한국어 음성 사용:', koreanVoice.name);
+        }
+        
+        // 에러 핸들링
+        utterance.onerror = (event) => {
+          console.error('TTS 오류:', event.error);
+        };
+        
+        utterance.onstart = () => {
+          console.log('🎵 TTS 시작:', text);
+        };
+        
+        utterance.onend = () => {
+          console.log('🎵 TTS 완료');
+        };
+        
+        // iOS에서 약간의 지연 후 재생
+        setTimeout(() => {
+          window.speechSynthesis.speak(utterance);
+        }, 100);
+        
+      } catch (error) {
+        console.warn('TTS speakMessage 실패:', error);
+      }
     }
   };
 
@@ -90,6 +145,22 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
 
   const clearAllToasts = () => {
     setToasts([]);
+  };
+
+  // TTS 초기화 (사용자 제스처 필요 시)
+  const initializeTTS = () => {
+    if ('speechSynthesis' in window && !ttsInitialized) {
+      try {
+        // 빈 텍스트로 TTS 테스트 (iOS에서 권한 요청)
+        const testUtterance = new window.SpeechSynthesisUtterance('');
+        testUtterance.volume = 0;
+        window.speechSynthesis.speak(testUtterance);
+        setTtsInitialized(true);
+        console.log('🎵 TTS 초기화 완료');
+      } catch (error) {
+        console.warn('TTS 초기화 실패:', error);
+      }
+    }
   };
 
   useEffect(() => {
@@ -211,7 +282,7 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
   }, [userId, userRole]);
 
   return (
-    <NotificationContext.Provider value={{ toasts, addToast, removeToast, clearAllToasts }}>
+    <NotificationContext.Provider value={{ toasts, addToast, removeToast, clearAllToasts, initializeTTS }}>
       {children}
     </NotificationContext.Provider>
   );
@@ -226,7 +297,8 @@ export function useNotifications() {
       toasts: [],
       addToast: () => {},
       removeToast: () => {},
-      clearAllToasts: () => {}
+      clearAllToasts: () => {},
+      initializeTTS: () => {}
     };
   }
   return context;

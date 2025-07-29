@@ -7,6 +7,7 @@ import { MyPageModal } from "./MyPageModal";
 import { HamburgerMenu } from "./HamburgerMenu";
 import { NotificationBell } from "./NotificationBell";
 import ModalPortal from './ModalPortal';
+import { useNotifications } from '~/contexts/NotificationContext';
 
 interface HeaderProps {
   user: any;
@@ -21,6 +22,7 @@ export default function Header({ user, userRole }: HeaderProps) {
   const [loginSuccess, setLoginSuccess] = useState(false);
   const [loginRequiredMessage, setLoginRequiredMessage] = useState(false);
   const [orderStats, setOrderStats] = useState({ pending: 0, preparing: 0, ready: 0, completed: 0, cancelled: 0, confirmedOrders: 0 });
+  const { initializeTTS } = useNotifications();
 
   // Props 변경 시 로그
   useEffect(() => {
@@ -80,6 +82,8 @@ export default function Header({ user, userRole }: HeaderProps) {
   };
 
   const handleLoginClick = () => {
+    // iOS TTS 초기화 (사용자 제스처 시점)
+    initializeTTS();
     setShowLogin(true);
   };
 
