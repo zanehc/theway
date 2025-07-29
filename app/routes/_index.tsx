@@ -5,6 +5,9 @@ import { useState, useEffect } from "react";
 import { getOrdersByUserId } from "~/lib/database";
 import { supabase } from "~/lib/supabase";
 import { useNotifications } from "~/contexts/NotificationContext";
+import { LoginForm } from "~/components/LoginForm";
+import { SignupForm } from "~/components/SignupForm";
+import ModalPortal from "~/components/ModalPortal";
 
 // 교회소식 기본 예시 구조
 const DEFAULT_NEWS = {
@@ -57,6 +60,9 @@ export default function Index() {
   const [recentOrder, setRecentOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const [showSignup, setShowSignup] = useState(false);
+  const [loginSuccess, setLoginSuccess] = useState(false);
   const { toasts } = useNotifications();
   
   // 디버깅: 알림 상태 로그
@@ -245,20 +251,28 @@ export default function Index() {
                     주문 내역을 확인하려면 로그인이 필요합니다
                   </h3>
                   <p className="text-gray-600 mb-6">
-                    Google 계정으로 간편하게 로그인하고<br />주문 내역을 확인해보세요.
+                    이메일과 비밀번호로 로그인하고<br />주문 내역을 확인해보세요.
                   </p>
-                  <Link
-                    to="/login"
-                    className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-wine-600 hover:bg-wine-700 transition-colors"
-                  >
-                    <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
-                      <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                      <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                      <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                      <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                    </svg>
-                    Google로 로그인
-                  </Link>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <button
+                      onClick={() => setShowLogin(true)}
+                      className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-wine-600 hover:bg-wine-700 transition-colors"
+                    >
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                      </svg>
+                      로그인
+                    </button>
+                    <button
+                      onClick={() => setShowSignup(true)}
+                      className="inline-flex items-center px-6 py-3 border border-wine-600 text-wine-600 bg-white rounded-lg font-medium hover:bg-wine-50 transition-colors"
+                    >
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                      </svg>
+                      회원가입
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -363,6 +377,82 @@ export default function Index() {
 
         
       </div>
+      
+      {/* 로그인 모달 */}
+      {showLogin && (
+        <ModalPortal>
+          <div
+            className="fixed inset-0 bg-black/60 z-[50000]"
+            onClick={() => setShowLogin(false)}
+          />
+          <div
+            className="fixed left-1/2 top-1/2 z-[50001] -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl p-6 shadow-2xl w-full max-w-xs sm:max-w-md"
+            onClick={e => e.stopPropagation()}
+            style={{ maxHeight: '90vh', overflowY: 'auto' }}
+          >
+            <button
+              className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-xl font-bold z-10"
+              onClick={() => setShowLogin(false)}
+              aria-label="닫기"
+            >
+              ×
+            </button>
+            <h2 className="text-xl font-black text-wine-800 mb-4 text-center">로그인</h2>
+            <LoginForm 
+              onSwitchToSignup={() => {
+                setShowLogin(false);
+                setShowSignup(true);
+              }} 
+              onLoginSuccess={() => {
+                console.log('✅ 홈탭 로그인 성공 - 세션 확인 후 리다이렉트');
+                setShowLogin(false);
+                setLoginSuccess(true);
+                setTimeout(() => {
+                  setLoginSuccess(false);
+                  window.location.href = '/';
+                }, 1000);
+              }} 
+            />
+          </div>
+        </ModalPortal>
+      )}
+      
+      {/* 회원가입 모달 */}
+      {showSignup && (
+        <ModalPortal>
+          <div
+            className="fixed inset-0 bg-black/60 z-[50000]"
+            onClick={() => setShowSignup(false)}
+          />
+          <div
+            className="fixed left-1/2 top-1/2 z-[50001] -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl p-6 shadow-2xl w-full max-w-xs sm:max-w-lg"
+            onClick={e => e.stopPropagation()}
+            style={{ maxHeight: '90vh', overflowY: 'auto' }}
+          >
+            <button
+              className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-xl font-bold z-10"
+              onClick={() => setShowSignup(false)}
+              aria-label="닫기"
+            >
+              ×
+            </button>
+            <h2 className="text-xl font-black text-wine-800 mb-4 text-center">회원가입</h2>
+            <SignupForm 
+              onSwitchToLogin={() => {
+                setShowSignup(false);
+                setShowLogin(true);
+              }} 
+            />
+          </div>
+        </ModalPortal>
+      )}
+      
+      {/* 로그인 성공 메시지 */}
+      {loginSuccess && (
+        <div className="fixed top-4 sm:top-8 left-1/2 -translate-x-1/2 z-[99999] bg-green-100 border border-green-400 text-green-700 px-4 sm:px-6 py-3 sm:py-4 rounded-lg shadow-2xl animate-fade-in font-bold text-sm sm:text-lg">
+          로그인 되었습니다
+        </div>
+      )}
     </div>
   );
 }
