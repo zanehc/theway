@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, Link } from "@remix-run/react";
+import { useLoaderData, Link, useOutletContext } from "@remix-run/react";
 import { useState, useEffect } from "react";
 import { getOrdersByUserId } from "~/lib/database";
 import { supabase } from "~/lib/supabase";
@@ -55,7 +55,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 export default function Index() {
   const { error, success, news } = useLoaderData<typeof loader>();
-  const [user, setUser] = useState<any>(null);
+  const outletContext = useOutletContext<{ user: any; userRole: string | null }>();
+  const [user, setUser] = useState<any>(outletContext?.user || null);
   const [userData, setUserData] = useState<any>(null);
   const [recentOrder, setRecentOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -63,7 +64,7 @@ export default function Index() {
   const [showLogin, setShowLogin] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
   const [loginSuccess, setLoginSuccess] = useState(false);
-  const { toasts } = useNotifications();
+  const { toasts, initializeTTS } = useNotifications();
   
   // 디버깅: 알림 상태 로그
   useEffect(() => {
@@ -75,63 +76,81 @@ export default function Index() {
     setMounted(true);
   }, []);
 
-  // 사용자 정보와 최근 주문 불러오기
+  // 빠른 사용자 정보 로딩 (병렬 처리)
   useEffect(() => {
     if (!mounted) return;
     
-    const getUserAndRecentOrder = async () => {
-      console.log('🔄 홈탭 - 데이터 로딩 시작');
+    const loadUserData = async () => {
+      console.log('🔄 홈탭 - 사용자 데이터 로딩 시작');
+      setLoading(true);
+      
       try {
-        setLoading(true);
-        
-        // 타임아웃 설정 (10초)
+        // 3초 타임아웃으로 단축
+        const timeout = 3000;
         const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Timeout')), 10000)
+          setTimeout(() => reject(new Error('Timeout')), timeout)
         );
         
-        const userPromise = supabase.auth.getUser();
-        const { data: { user } } = await Promise.race([userPromise, timeoutPromise]) as any;
+        // 사용자 인증 정보 빠르게 확인
+        const { data: { user }, error: authError } = await Promise.race([
+          supabase.auth.getUser(),
+          timeoutPromise
+        ]) as any;
         
-        console.log('👤 홈탭 - 사용자 정보:', user?.email);
+        if (authError) {
+          console.warn('🔄 홈탭 - 인증 오류:', authError);
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+        
+        console.log('👤 홈탭 - 사용자:', user?.email || 'null');
         setUser(user);
         
-        if (user) {
-          // 사용자 정보 가져오기
-          const { data: userData, error: userError } = await supabase
-            .from('users')
+        if (!user) {
+          setLoading(false);
+          return;
+        }
+        
+        // 사용자 정보와 최근 주문을 병렬로 로딩 (최적화)
+        const [userDataResult, recentOrderResult] = await Promise.allSettled([
+          supabase.from('users')
             .select('role, name, email')
             .eq('id', user.id)
-            .single();
-          
-          console.log('📊 홈탭 - 사용자 데이터:', userData, userError);
-          
-          if (!userError && userData) {
-            setUserData(userData);
-            
-            // 최근 주문 1건 가져오기 (타임아웃 적용)
-            try {
-              const ordersPromise = getOrdersByUserId(user.id);
-              const userOrders = await Promise.race([ordersPromise, timeoutPromise]) as any;
-              console.log('📦 홈탭 - 최근 주문:', userOrders?.length || 0, '개');
-              
-              if (userOrders && userOrders.length > 0) {
-                setRecentOrder(userOrders[0]);
-              }
-            } catch (orderError) {
-              console.error('주문 데이터 로딩 실패:', orderError);
-              // 주문 데이터 로딩 실패해도 계속 진행
-            }
-          }
+            .single(),
+          getOrdersByUserId(user.id, 1) // 홈탭에서는 최근 1개만 필요
+        ]);
+        
+        // 사용자 데이터 처리
+        if (userDataResult.status === 'fulfilled' && !userDataResult.value.error) {
+          setUserData(userDataResult.value.data);
+          console.log('📊 홈탭 - 사용자 데이터 로딩 완료');
+        } else {
+          console.warn('📊 홈탭 - 사용자 데이터 로딩 실패');
         }
+        
+        // 최근 주문 처리
+        if (recentOrderResult.status === 'fulfilled' && recentOrderResult.value?.length > 0) {
+          setRecentOrder(recentOrderResult.value[0]);
+          console.log('📦 홈탭 - 최근 주문:', recentOrderResult.value.length, '개');
+        } else {
+          console.log('📦 홈탭 - 최근 주문 없음');
+        }
+        
       } catch (error) {
-        console.error('Error loading user and recent order:', error);
+        console.error('❌ 홈탭 - 데이터 로딩 실패:', error);
+        // 에러가 발생해도 사용자는 설정
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          setUser(user);
+        } catch {}
       } finally {
-        console.log('✅ 홈탭 - 로딩 완료');
         setLoading(false);
+        console.log('✅ 홈탭 - 로딩 완료');
       }
     };
 
-    getUserAndRecentOrder();
+    loadUserData();
   }, [mounted]);
 
   if (!mounted) {
@@ -140,10 +159,91 @@ export default function Index() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-ivory-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-wine-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">로딩 중...</p>
+      <div className="min-h-screen bg-ivory-50 pb-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          {/* 브랜드 헤더 스켈레톤 */}
+          <div className="mb-6">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gray-200 rounded-xl animate-pulse"></div>
+                <div className="space-y-2">
+                  <div className="h-5 bg-gray-200 rounded w-32 animate-pulse"></div>
+                  <div className="h-3 bg-gray-200 rounded w-12 animate-pulse"></div>
+                </div>
+              </div>
+              <div className="h-8 bg-gray-200 rounded w-16 animate-pulse"></div>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* 스켈레톤 로딩 - 최근 주문 */}
+            <div className="lg:col-span-2">
+              <div className="bg-white rounded-lg shadow-lg p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <div className="h-6 bg-gray-200 rounded w-24 animate-pulse"></div>
+                  <div className="h-4 bg-gray-200 rounded w-16 animate-pulse"></div>
+                </div>
+                <div className="space-y-4">
+                  <div className="h-4 bg-gray-200 rounded w-3/4 animate-pulse"></div>
+                  <div className="h-4 bg-gray-200 rounded w-1/2 animate-pulse"></div>
+                  <div className="h-4 bg-gray-200 rounded w-2/3 animate-pulse"></div>
+                </div>
+              </div>
+            </div>
+            
+            {/* 교회소식은 이미 로딩된 데이터로 즉시 표시 */}
+            <div className="lg:col-span-1">
+              <div className="bg-white rounded-lg shadow-lg p-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-4">교회 소식</h2>
+                
+                <div className="space-y-4">
+                  {news?.registerNotice && (
+                    <div className="border-l-4 border-wine-600 pl-4">
+                      <h3 className="font-semibold text-gray-900 text-sm">등록안내</h3>
+                      <p className="text-gray-600 text-sm mt-1 whitespace-pre-line">
+                        {news?.registerNotice}
+                      </p>
+                    </div>
+                  )}
+                  
+                  {news?.events && news.events.length > 0 && (
+                    <div className="border-l-4 border-blue-600 pl-4">
+                      <h3 className="font-semibold text-gray-900 text-sm">행사/캠프 일정</h3>
+                      <div className="mt-1 space-y-1">
+                        {news?.events?.slice(0, 2).map((ev: any, idx: number) => (
+                          <div key={idx} className="text-gray-600 text-sm">
+                            <span className="font-medium">{ev.title}</span>
+                            <br />
+                            <span className="text-xs text-gray-500">{ev.date} - {ev.desc}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {news?.birthdays && news.birthdays.length > 0 && (
+                    <div className="border-l-4 border-green-600 pl-4">
+                      <h3 className="font-semibold text-gray-900 text-sm">생일자</h3>
+                      <div className="mt-1 grid grid-cols-3 gap-2">
+                        {news?.birthdays?.slice(0, 6).map((b: any, idx: number) => (
+                          <div key={idx} className="text-gray-600 text-sm">
+                            <span className="font-medium">{b.name}</span>
+                            <span className="text-xs text-gray-500 ml-2">{b.date}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="mt-6 pt-4 border-t border-gray-200">
+                  <button className="w-full bg-gray-100 text-gray-700 py-2 px-4 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">
+                    더 많은 소식 보기
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -173,6 +273,68 @@ export default function Index() {
   return (
     <div className="min-h-screen bg-ivory-50 pb-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* 브랜드 및 사용자 정보 헤더 */}
+        <div className="mb-6">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gradient-wine rounded-xl flex items-center justify-center shadow-wine">
+                <svg className="w-6 h-6 text-ivory-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-xl font-black text-wine-800 leading-tight">
+                  길을여는교회 이음카페
+                </h1>
+                <div className="flex items-center gap-2">
+                  <span className="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-xs px-2 py-1 rounded-full font-bold">
+                    Beta
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            {/* 사용자 정보 및 로그인 버튼 */}
+            <div className="flex items-center space-x-3">
+              {user ? (
+                <div className="flex items-center space-x-3">
+                  <div className="text-right">
+                    <div className="text-wine-700 font-bold text-sm">
+                      {user.email?.split('@')[0]}님
+                    </div>
+                    <div className="text-wine-600 text-xs">
+                      안녕하세요
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await supabase.auth.signOut();
+                        window.location.href = '/';
+                      } catch (error) {
+                        console.error('로그아웃 실패:', error);
+                      }
+                    }}
+                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-lg font-medium transition-all text-xs"
+                  >
+                    로그아웃
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    initializeTTS();
+                    setShowLogin(true);
+                  }}
+                  className="bg-wine-100 hover:bg-wine-200 text-wine-700 px-4 py-2 rounded-lg font-bold transition-all text-sm"
+                >
+                  로그인
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+        
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* 최근 주문 - 로그인 상태에 따라 다른 콘텐츠 */}
           <div className="lg:col-span-2">

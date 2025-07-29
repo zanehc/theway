@@ -178,9 +178,8 @@ export default function App() {
       <body className="h-full min-h-screen bg-ivory-50" suppressHydrationWarning>
         <NotificationProvider userId={user?.id} userRole={userRole}>
           <div className="app-container">
-            <Header user={user} userRole={userRole} />
             <div className="main-content pb-24">
-              <Outlet />
+              <Outlet context={{ user, userRole }} />
             </div>
             <div id="modal-root" />
             {isClient && <BottomNavigation user={user} />}

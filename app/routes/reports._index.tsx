@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData } from "@remix-run/react";
+import { useLoaderData, useOutletContext } from "@remix-run/react";
 import { useState } from "react";
 import { getSalesStatistics } from "~/lib/database";
 import { useNotifications } from "~/contexts/NotificationContext";

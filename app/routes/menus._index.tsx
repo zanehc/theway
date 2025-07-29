@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher } from "@remix-run/react";
+import { useLoaderData, useFetcher, useOutletContext } from "@remix-run/react";
 import { useState, useEffect } from "react";
 import { supabase } from "~/lib/supabase";
 import { uploadMenuImage, deleteMenuImage, createServerSupabaseClient } from "~/lib/supabase";

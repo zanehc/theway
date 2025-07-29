@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher } from "@remix-run/react";
+import { useLoaderData, useFetcher, useOutletContext } from "@remix-run/react";
 import { useState, useEffect } from "react";
 import { getMenus, createOrder } from "~/lib/database";
 
@@ -86,6 +86,7 @@ type CartItem = {
 
 export default function NewOrder() {
   const { menus } = useLoaderData<typeof loader>();
+  const outletContext = useOutletContext<{ user: any; userRole: string | null }>();
   const fetcher = useFetcher();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerName, setCustomerName] = useState('');

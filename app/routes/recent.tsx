@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useNavigate, useLocation } from "@remix-run/react";
+import { useLoaderData, useFetcher, useNavigate, useLocation, useOutletContext } from "@remix-run/react";
 import { useState, useEffect, useRef } from "react";
 import { getOrders, updateOrderStatus, getOrdersByUserId } from "~/lib/database";
 import { supabase } from "~/lib/supabase";
@@ -153,12 +153,13 @@ export async function action({ request }: ActionFunctionArgs) {
 
 export default function RecentPage() {
   const { initialOrders, currentStatus, currentPaymentStatus, error, success } = useLoaderData<typeof loader>();
+  const outletContext = useOutletContext<{ user: any; userRole: string | null }>();
   const fetcher = useFetcher();
   const [orders, setOrders] = useState<any[]>([]);
   const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
-  const [userRoleState, setUserRole] = useState<string | null>(null);
+  const [user, setUser] = useState<any>(outletContext?.user || null);
+  const [userRoleState, setUserRole] = useState<string | null>(outletContext?.userRole || null);
   const [userData, setUserData] = useState<any>(null);
   const [currentPaymentStatusState, setCurrentPaymentStatusState] = useState<string>('');
   const [mounted, setMounted] = useState(false);
@@ -200,45 +201,97 @@ export default function RecentPage() {
     }
   }, [location.search, mounted]);
 
-  // 사용자 정보와 주문 불러오기
+  // 빠른 사용자 정보와 주문 로딩 (병렬 처리)
   useEffect(() => {
     if (!mounted) return;
     
-    const getUserAndOrders = async () => {
+    const loadData = async () => {
+      console.log('🔄 최근주문 - 데이터 로딩 시작');
+      setLoading(true);
+      
       try {
-        setLoading(true);
-        const { data: { user } } = await supabase.auth.getUser();
+        // 3초 타임아웃으로 단축
+        const timeout = 3000;
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), timeout)
+        );
+        
+        // 사용자 인증 정보 빠르게 확인
+        const { data: { user }, error: authError } = await Promise.race([
+          supabase.auth.getUser(),
+          timeoutPromise
+        ]) as any;
+        
+        if (authError || !user) {
+          console.warn('🔄 최근주문 - 인증 오류 또는 비로그인:', authError);
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+        
+        console.log('👤 최근주문 - 사용자:', user.email);
         setUser(user);
         
-        if (user) {
-          const { data: userData, error: userError } = await supabase
-            .from('users')
+        // 사용자 정보와 주문을 병렬로 로딩
+        const [userDataResult, ordersResult] = await Promise.allSettled([
+          supabase.from('users')
             .select('role, name, email')
             .eq('id', user.id)
-            .single();
-          
-          if (!userError && userData) {
-            const role = userData?.role || null;
-            setUserRole(role);
-            setUserData(userData);
-            
-            if (role === 'admin') {
-              const allOrders = await getOrders(); // 항상 전체 주문 불러오기
-              setOrders(allOrders || []);
-            } else if (role === 'customer' || role === null) {
-              const userOrders = await getOrdersByUserId(user.id);
-              setOrders(userOrders || []);
-            }
-          }
+            .single(),
+          Promise.resolve() // 초기에는 빈 Promise, 역할 확인 후 주문 로딩
+        ]);
+        
+        // 사용자 정보 처리
+        let role = 'customer';
+        if (userDataResult.status === 'fulfilled' && !userDataResult.value.error) {
+          const userData = userDataResult.value.data;
+          role = userData?.role || 'customer';
+          setUserRole(role);
+          setUserData(userData);
+          console.log('📊 최근주문 - 사용자 데이터 로딩 완료, 역할:', role);
+        } else {
+          console.warn('📊 최근주문 - 사용자 데이터 로딩 실패, 기본 역할 사용');
+          setUserRole('customer');
         }
+        
+        // 역할에 따른 주문 데이터 로딩
+        console.log('📦 최근주문 - 주문 데이터 로딩 시작, 역할:', role);
+        try {
+          let orders;
+          if (role === 'admin') {
+            orders = await getOrders();
+            console.log('📦 최근주문 - 관리자 전체 주문:', orders?.length || 0, '개');
+          } else {
+            orders = await getOrdersByUserId(user.id);
+            console.log('📦 최근주문 - 사용자 주문:', orders?.length || 0, '개');
+          }
+          setOrders(orders || []);
+        } catch (orderError) {
+          console.error('📦 최근주문 - 주문 로딩 실패:', orderError);
+          setOrders([]);
+        }
+        
       } catch (error) {
-        console.error('Error loading user and orders:', error);
+        console.error('❌ 최근주문 - 전체 로딩 실패:', error);
+        // 에러 발생 시 최소한의 사용자 정보라도 설정
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          setUser(user);
+          if (user) {
+            setUserRole('customer');
+            const userOrders = await getOrdersByUserId(user.id);
+            setOrders(userOrders || []);
+          }
+        } catch (fallbackError) {
+          console.error('❌ 최근주문 - 폴백 로딩도 실패:', fallbackError);
+        }
       } finally {
         setLoading(false);
+        console.log('✅ 최근주문 - 로딩 완료');
       }
     };
 
-    getUserAndOrders();
+    loadData();
   }, [mounted, selectedStatus]);
 
   
@@ -465,13 +518,76 @@ export default function RecentPage() {
   if (!mounted) {
     return null;
   }
+  
+  // 비로그인 사용자 처리
+  if (!loading && !user) {
+    return (
+      <div className="min-h-screen bg-ivory-50 pb-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="text-center py-20">
+            <div className="mb-6">
+              <svg className="mx-auto h-16 w-16 text-wine-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 11V7a4 4 0 00-8 0v4M8 11v6a2 2 0 002 2h4a2 2 0 002-2v-6M8 11h8" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              최근 주문을 확인하려면 로그인이 필요합니다
+            </h3>
+            <p className="text-gray-600 mb-6">
+              홈탭에서 로그인 후 최근 주문 내역을 확인해보세요.
+            </p>
+            <button
+              onClick={() => navigate('/')}
+              className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-wine-600 hover:bg-wine-700 transition-colors"
+            >
+              홈으로 가기
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-ivory-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-wine-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">로딩 중...</p>
+      <div className="min-h-screen bg-ivory-50 pb-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="mb-6">
+            <div className="h-8 bg-gray-200 rounded w-32 animate-pulse mb-2"></div>
+            <div className="h-4 bg-gray-200 rounded w-48 animate-pulse"></div>
+          </div>
+          
+          {/* 스켈레톤 필터 버튼들 */}
+          <div className="flex gap-2 mb-6">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-10 bg-gray-200 rounded-lg w-20 animate-pulse"></div>
+            ))}
+          </div>
+          
+          {/* 스켈레톤 주문 카드들 */}
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-white rounded-lg shadow-lg p-4 sm:p-6">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="space-y-2">
+                    <div className="h-5 bg-gray-200 rounded w-32 animate-pulse"></div>
+                    <div className="h-4 bg-gray-200 rounded w-24 animate-pulse"></div>
+                  </div>
+                  <div className="h-6 bg-gray-200 rounded w-16 animate-pulse"></div>
+                </div>
+                
+                <div className="space-y-2 mb-4">
+                  <div className="h-4 bg-gray-200 rounded w-full animate-pulse"></div>
+                  <div className="h-4 bg-gray-200 rounded w-3/4 animate-pulse"></div>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
+                  <div className="h-8 bg-gray-200 rounded w-16 animate-pulse"></div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
