@@ -12,6 +12,10 @@
     "create-admin": "node scripts/create-admin.js"
   },
   "dependencies": {
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/cli": "^8.0.0",
+    "@capacitor/core": "^8.0.0",
+    "@capacitor/ios": "^8.0.0",
     "@remix-run/node": "^2.16.8",
     "@remix-run/react": "^2.16.8",
     "@remix-run/serve": "^2.16.8",
@@ -37,6 +41,7 @@
     "eslint-plugin-react-hooks": "^4.6.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
+    "tslib": "^2.8.1",
     "typescript": "^5.1.6",
     "vite": "^6.0.0",
     "vite-tsconfig-paths": "^4.2.1"
