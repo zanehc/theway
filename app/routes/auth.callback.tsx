@@ -74,16 +74,40 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
     console.log('OAuth login successful:', data.user.email);
 
-    // users 테이블에서 사용자 프로필 확인
-    const { data: existingUser, error: userError } = await supabase
+    // users 테이블에서 사용자 프로필 확인 (ID로 먼저 검색)
+    let { data: existingUser, error: userError } = await supabase
       .from('users')
       .select('id, name, church_group')
       .eq('id', data.user.id)
       .single();
 
     if (userError && userError.code !== 'PGRST116') {
-      // PGRST116 = no rows found, 다른 에러는 로깅
       console.error('User lookup error:', userError);
+    }
+
+    // ID로 못 찾으면 이메일로 검색 (이전 프로젝트에서 생성된 사용자 처리)
+    if (!existingUser && data.user.email) {
+      const { data: userByEmail, error: emailError } = await supabase
+        .from('users')
+        .select('id, name, church_group')
+        .eq('email', data.user.email)
+        .single();
+
+      if (userByEmail) {
+        console.log('Found user by email, updating ID:', data.user.email);
+
+        // 기존 사용자의 ID를 새 OAuth ID로 업데이트
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({ id: data.user.id, updated_at: new Date().toISOString() })
+          .eq('email', data.user.email);
+
+        if (updateError) {
+          console.error('Failed to update user ID:', updateError);
+        } else {
+          existingUser = { ...userByEmail, id: data.user.id };
+        }
+      }
     }
 
     if (!existingUser) {
