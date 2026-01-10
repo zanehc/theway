@@ -32,6 +32,8 @@ export const createServerSupabaseClient = () => {
 // 기본 클라이언트(클라이언트: anon, 서버: anon) - 세션 유지 설정 강화
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
+    // PKCE flow 사용 (서버에서 code를 세션으로 교환)
+    flowType: 'pkce',
     // 자동 토큰 갱신 활성화
     autoRefreshToken: true,
     // 세션 감지 활성화
