@@ -5,22 +5,45 @@ import { supabase } from '~/lib/supabase';
 export default function ProfileSetup() {
   const navigate = useNavigate();
   const [user, setUser] = useState<any>(null);
+  const [existingProfile, setExistingProfile] = useState<any>(null);
   const [name, setName] = useState('');
   const [churchGroup, setChurchGroup] = useState('');
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUser(user);
-        // 소셜 로그인에서 가져온 이름이 있으면 기본값으로 설정
-        if (user.user_metadata?.name) {
-          setName(user.user_metadata.name);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          setUser(user);
+
+          // 기존 프로필 확인
+          const { data: profile } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', user.id)
+            .single();
+
+          if (profile) {
+            setExistingProfile(profile);
+            setName(profile.name || '');
+            setChurchGroup(profile.church_group || '');
+          } else {
+            // 소셜 로그인에서 가져온 이름이 있으면 기본값으로 설정
+            const defaultName = user.user_metadata?.full_name ||
+                               user.user_metadata?.name ||
+                               user.email?.split('@')[0] || '';
+            setName(defaultName);
+          }
+        } else {
+          navigate('/');
         }
-      } else {
-        navigate('/');
+      } catch (err) {
+        console.error('프로필 로딩 오류:', err);
+      } finally {
+        setInitialLoading(false);
       }
     };
 
@@ -29,9 +52,14 @@ export default function ProfileSetup() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!name.trim()) {
       setError('이름을 입력해주세요.');
+      return;
+    }
+
+    if (!churchGroup.trim()) {
+      setError('소속 목장을 입력해주세요.');
       return;
     }
 
@@ -39,32 +67,52 @@ export default function ProfileSetup() {
     setError('');
 
     try {
-      // users 테이블에 사용자 정보 저장
-      const { error: userError } = await supabase
-        .from('users')
-        .insert({
-          id: user.id,
-          email: user.email,
-          name: name.trim(),
-          role: 'customer',
-          church_group: churchGroup.trim() || null,
-        });
+      if (existingProfile) {
+        // 기존 프로필 업데이트
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({
+            name: name.trim(),
+            church_group: churchGroup.trim() || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', user.id);
 
-      if (userError) {
-        setError('사용자 정보 저장에 실패했습니다.');
-        return;
+        if (updateError) {
+          console.error('프로필 업데이트 오류:', updateError);
+          setError('프로필 업데이트에 실패했습니다.');
+          return;
+        }
+      } else {
+        // 새 프로필 생성
+        const { error: insertError } = await supabase
+          .from('users')
+          .insert({
+            id: user.id,
+            email: user.email,
+            name: name.trim(),
+            role: 'customer',
+            church_group: churchGroup.trim() || null,
+          });
+
+        if (insertError) {
+          console.error('프로필 생성 오류:', insertError);
+          setError('사용자 정보 저장에 실패했습니다.');
+          return;
+        }
       }
 
       // 성공 시 홈으로 리다이렉트
       navigate('/');
     } catch (err) {
+      console.error('프로필 저장 오류:', err);
       setError('오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
   };
 
-  if (!user) {
+  if (initialLoading || !user) {
     return (
       <div className="min-h-screen bg-gradient-warm flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-wine-600"></div>
@@ -76,8 +124,15 @@ export default function ProfileSetup() {
     <div className="min-h-screen bg-gradient-warm flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-large p-8 w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-black text-wine-800 mb-2">프로필 설정</h1>
-          <p className="text-wine-600">추가 정보를 입력해주세요</p>
+          <div className="text-5xl mb-4">☕</div>
+          <h1 className="text-2xl sm:text-3xl font-black text-wine-800 mb-2">
+            {existingProfile ? '프로필 수정' : '환영합니다!'}
+          </h1>
+          <p className="text-wine-600 text-sm sm:text-base">
+            {existingProfile
+              ? '정보를 수정해주세요'
+              : '이음카페 이용을 위해 정보를 입력해주세요'}
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -103,14 +158,15 @@ export default function ProfileSetup() {
 
           <div>
             <label className="block text-sm font-bold text-wine-700 mb-2">
-              목장 (선택사항)
+              소속 목장 *
             </label>
             <input
               type="text"
               value={churchGroup}
               onChange={(e) => setChurchGroup(e.target.value)}
               className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300"
-              placeholder="목장명을 입력하세요"
+              placeholder="예: 1목장, 청년부 등"
+              required
             />
           </div>
 
