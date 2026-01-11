@@ -35,13 +35,12 @@ const orderSteps = [
 // 결제 상태 표시 컴포넌트
 function PaymentStatusBadge({ status }: { status?: string }) {
   const isConfirmed = status === 'confirmed';
-  
+
   return (
-    <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${
-      isConfirmed
-        ? 'bg-green-100 text-green-800'
-        : 'bg-gray-100 text-gray-800'
-    }`}>
+    <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${isConfirmed
+      ? 'bg-green-100 text-green-800'
+      : 'bg-gray-100 text-gray-800'
+      }`}>
       <span className={`w-2 h-2 mr-2 rounded-full ${isConfirmed ? 'bg-green-500' : 'bg-gray-400'}`}></span>
       {isConfirmed ? '결제완료' : '결제대기'}
     </div>
@@ -62,9 +61,8 @@ function OrderStatusProgress({ status, paymentStatus }: { status: string, paymen
         {orderSteps.slice(0, 4).map((step, idx) => (
           <span
             key={step.key}
-            className={`text-xs font-bold ${
-              idx <= orderStep ? 'text-wine-800' : 'text-gray-400'
-            }`}
+            className={`text-xs font-bold ${idx <= orderStep ? 'text-wine-800' : 'text-gray-400'
+              }`}
             style={{ minWidth: 50, textAlign: 'center' }}
           >
             {step.label}
@@ -72,15 +70,14 @@ function OrderStatusProgress({ status, paymentStatus }: { status: string, paymen
         ))}
         {/* 결제완료 별도 표시 */}
         <span
-          className={`text-xs font-bold ${
-            isPaymentConfirmed ? 'text-green-700' : 'text-gray-400'
-          }`}
+          className={`text-xs font-bold ${isPaymentConfirmed ? 'text-green-700' : 'text-gray-400'
+            }`}
           style={{ minWidth: 50, textAlign: 'center' }}
         >
           결제완료
         </span>
       </div>
-      
+
       {/* 주문 진행바 */}
       <div className="relative w-full h-2 bg-gray-200 rounded-full mb-1">
         {/* 주문 진행 상태 진행바 (80%까지만) */}
@@ -90,13 +87,12 @@ function OrderStatusProgress({ status, paymentStatus }: { status: string, paymen
         />
         {/* 결제완료 영역 (마지막 20%) */}
         <div
-          className={`absolute h-2 rounded-full transition-all duration-500 ${
-            isPaymentConfirmed ? 'bg-green-500' : 'bg-gray-200'
-          }`}
+          className={`absolute h-2 rounded-full transition-all duration-500 ${isPaymentConfirmed ? 'bg-green-500' : 'bg-gray-200'
+            }`}
           style={{ width: '20%', right: 0 }}
         />
       </div>
-      
+
     </div>
   );
 }
@@ -107,8 +103,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const success = url.searchParams.get('success');
 
   return json({
-    initialOrders: [], 
-    currentStatus: null, 
+    initialOrders: [],
+    currentStatus: null,
     currentPaymentStatus: null,
     userRole: null,
     error,
@@ -140,7 +136,7 @@ export async function action({ request }: ActionFunctionArgs) {
         .from('orders')
         .update({ payment_status: paymentStatus })
         .eq('id', orderId);
-      
+
       if (error) throw error;
       return redirect('/recent');
     } catch (error) {
@@ -160,15 +156,17 @@ export default function RecentPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<any>(outletContext?.user || null);
-  const [userRoleState, setUserRole] = useState<string | null>(outletContext?.userRole || null);
+
+  // outletContext에서 제공하는 인증 상태를 우선 사용
+  const contextUser = outletContext?.user || null;
+  const contextUserRole = outletContext?.userRole || null;
+
+  const [user, setUser] = useState<any>(contextUser);
+  const [userRoleState, setUserRole] = useState<string | null>(contextUserRole);
   const [userData, setUserData] = useState<any>(null);
   const [currentPaymentStatusState, setCurrentPaymentStatusState] = useState<string>('');
 
-  // Safari 호환성을 위한 안전한 네비게이션 상태 체크
-  if (navigation.state === "loading" && navigation.location?.pathname && navigation.location.pathname !== "/recent") {
-    return <OrderListSkeleton />;
-  }
+  // 모든 훅은 조건부 return 전에 호출되어야 함 (React 훅 규칙)
   const [mounted, setMounted] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -176,7 +174,7 @@ export default function RecentPage() {
   const ORDERS_PER_PAGE = 10;
   const channelRef = useRef<any>(null);
   const { toasts, addToast } = useNotifications();
-  
+
   // 취소 모달 상태
   const [cancellationModal, setCancellationModal] = useState<{
     isOpen: boolean;
@@ -188,14 +186,42 @@ export default function RecentPage() {
     setMounted(true);
   }, []);
 
+  // outletContext에서 user/userRole이 변경되면 로컬 상태 동기화
+  useEffect(() => {
+    console.log('🔄 최근주문 - Context 동기화:', { contextUser: contextUser?.email, contextUserRole });
+    setUser(contextUser);
+    setUserRole(contextUserRole);
+  }, [contextUser, contextUserRole]);
+
+  // 마운트 시 세션 재확인 (탭 이동 후 세션 유실 방지)
+  useEffect(() => {
+    if (!mounted) return;
+
+    const checkSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        console.log('🔄 최근주문 - 세션 확인:', session?.user?.email || 'null', error?.message || '');
+
+        if (session?.user && !user) {
+          console.log('🔄 최근주문 - 세션에서 사용자 복구:', session.user.email);
+          setUser(session.user);
+        }
+      } catch (err) {
+        console.error('🔄 최근주문 - 세션 확인 실패:', err);
+      }
+    };
+
+    checkSession();
+  }, [mounted]);
+
   // URL 파라미터 동기화
   useEffect(() => {
     if (!mounted) return;
-    
+
     const params = new URLSearchParams(location.search);
     const status = params.get('status') as OrderStatus | '';
     const paymentStatus = params.get('payment_status') || '';
-    
+
     if (paymentStatus === 'confirmed') {
       setSelectedStatus('');
       setCurrentPaymentStatusState('confirmed');
@@ -208,100 +234,64 @@ export default function RecentPage() {
     }
   }, [location.search, mounted]);
 
-  // 빠른 사용자 정보와 주문 로딩 (병렬 처리)
+  // 주문 데이터 로딩 (user 상태 기반)
   useEffect(() => {
     if (!mounted) return;
-    
-    const loadData = async () => {
-      console.log('🔄 최근주문 - 데이터 로딩 시작');
+
+    const loadOrders = async () => {
+      console.log('🔄 최근주문 - 주문 데이터 로딩 시작, user:', user?.email, 'role:', userRoleState);
       setLoading(true);
-      
+
       try {
-        // 3초 타임아웃으로 단축
-        const timeout = 3000;
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Timeout')), timeout)
-        );
-        
-        // 사용자 인증 정보 빠르게 확인
-        const { data: { user }, error: authError } = await Promise.race([
-          supabase.auth.getUser(),
-          timeoutPromise
-        ]) as any;
-        
-        if (authError || !user) {
-          console.warn('🔄 최근주문 - 인증 오류 또는 비로그인:', authError);
-          setUser(null);
+        if (!user) {
+          console.log('🔄 최근주문 - 비로그인 상태, 빈 목록 반환');
+          setOrders([]);
           setLoading(false);
           return;
         }
-        
-        console.log('👤 최근주문 - 사용자:', user.email);
-        setUser(user);
-        
-        // 사용자 정보와 주문을 병렬로 로딩
-        const [userDataResult, ordersResult] = await Promise.allSettled([
-          supabase.from('users')
-            .select('role, name, email')
-            .eq('id', user.id)
-            .single(),
-          Promise.resolve() // 초기에는 빈 Promise, 역할 확인 후 주문 로딩
-        ]);
-        
-        // 사용자 정보 처리
-        let role = 'customer';
-        if (userDataResult.status === 'fulfilled' && !userDataResult.value.error) {
-          const userData = userDataResult.value.data;
-          role = userData?.role || 'customer';
-          setUserRole(role);
-          setUserData(userData);
-          console.log('📊 최근주문 - 사용자 데이터 로딩 완료, 역할:', role);
-        } else {
-          console.warn('📊 최근주문 - 사용자 데이터 로딩 실패, 기본 역할 사용');
-          setUserRole('customer');
+
+        // 사용자 상세 정보 로딩 (역할 확인용)
+        const { data: userDataResult, error: userError } = await supabase
+          .from('users')
+          .select('role, name, email')
+          .eq('id', user.id)
+          .single();
+
+        if (!userError && userDataResult) {
+          setUserData(userDataResult);
+          // context에서 역할을 못 가져왔으면 DB에서 확인
+          if (!userRoleState) {
+            setUserRole((userDataResult.role as string) || 'customer');
+          }
         }
-        
+
         // 역할에 따른 주문 데이터 로딩
-        console.log('📦 최근주문 - 주문 데이터 로딩 시작, 역할:', role);
-        try {
-          let orders;
-          if (role === 'admin') {
-            orders = await getOrders();
-            console.log('📦 최근주문 - 관리자 전체 주문:', orders?.length || 0, '개');
-          } else {
-            orders = await getOrdersByUserId(user.id);
-            console.log('📦 최근주문 - 사용자 주문:', orders?.length || 0, '개');
-          }
-          setOrders(orders || []);
-        } catch (orderError) {
-          console.error('📦 최근주문 - 주문 로딩 실패:', orderError);
-          setOrders([]);
+        const role = userRoleState || (userDataResult?.role as string) || 'customer';
+        console.log('📦 최근주문 - 주문 데이터 로딩, 역할:', role);
+
+        let orders;
+        if (role === 'admin') {
+          orders = await getOrders();
+          console.log('📦 최근주문 - 관리자 전체 주문:', orders?.length || 0, '개');
+        } else {
+          orders = await getOrdersByUserId(user.id);
+          console.log('📦 최근주문 - 사용자 주문:', orders?.length || 0, '개');
         }
-        
+        setOrders(orders || []);
+
       } catch (error) {
-        console.error('❌ 최근주문 - 전체 로딩 실패:', error);
-        // 에러 발생 시 최소한의 사용자 정보라도 설정
-        try {
-          const { data: { user } } = await supabase.auth.getUser();
-          setUser(user);
-          if (user) {
-            setUserRole('customer');
-            const userOrders = await getOrdersByUserId(user.id);
-            setOrders(userOrders || []);
-          }
-        } catch (fallbackError) {
-          console.error('❌ 최근주문 - 폴백 로딩도 실패:', fallbackError);
-        }
+        console.error('❌ 최근주문 - 주문 로딩 실패:', error);
+        setOrders([]);
       } finally {
         setLoading(false);
         console.log('✅ 최근주문 - 로딩 완료');
       }
     };
 
-    loadData();
-  }, [mounted, selectedStatus]);
+    loadOrders();
+  }, [mounted, user, userRoleState, selectedStatus]);
 
-  
+
 
   // 알림에 따른 주문 목록 새로고침
   useEffect(() => {
@@ -319,6 +309,12 @@ export default function RecentPage() {
 
     refreshOrders();
   }, [toasts, mounted, userRoleState, selectedStatus, user]);
+
+  // Safari 호환성을 위한 안전한 네비게이션 상태 체크 (모든 훅 호출 후에 조건부 return)
+  if (navigation.state === "loading" && navigation.location?.pathname && navigation.location.pathname !== "/recent") {
+    return <OrderListSkeleton />;
+  }
+
   // 취소 모달 열기
   const handleOrderCancelClick = (order: any) => {
     setCancellationModal({
@@ -339,19 +335,19 @@ export default function RecentPage() {
   const handleOrderCancelConfirm = async (reason: string) => {
     if (!cancellationModal.order) return;
 
-    console.log('🔄 handleOrderCancelConfirm called:', { 
-      orderId: cancellationModal.order.id, 
+    console.log('🔄 handleOrderCancelConfirm called:', {
+      orderId: cancellationModal.order.id,
       reason,
-      userRole: userRoleState 
+      userRole: userRoleState
     });
 
     try {
       console.log('📞 updateOrderStatus 호출 중...');
       await updateOrderStatus(cancellationModal.order.id, 'cancelled', reason);
       console.log('✅ updateOrderStatus 완료');
-      
+
       addToast(`주문이 취소되었습니다. (사유: ${reason})`, 'warning');
-      
+
       // 주문 목록 새로고침
       console.log('🔄 주문 목록 새로고침 중...');
       if (userRoleState === 'admin') {
@@ -389,13 +385,13 @@ export default function RecentPage() {
   // 주문 상태 변경
   const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
     console.log('🔄 주문 상태 변경 시작:', { orderId, newStatus });
-    
+
     try {
       const updatedOrder = await updateOrderStatus(orderId, newStatus);
       console.log('✅ 주문 상태 변경 완료:', updatedOrder);
-      
+
       addToast('주문 상태가 업데이트되었습니다.', 'success');
-      
+
       // 주문 목록 새로고침
       if (userRoleState === 'admin') {
         const allOrders = await getOrders(selectedStatus || undefined);
@@ -425,7 +421,7 @@ export default function RecentPage() {
         .eq('id', order.id)
         .select()
         .single();
-      
+
       if (error) throw error;
 
       console.log('💳 결제 확인 완료 - 업데이트된 주문 상태:', {
@@ -433,9 +429,9 @@ export default function RecentPage() {
         newStatus: data.status,
         newPaymentStatus: data.payment_status
       });
-      
+
       addToast('결제가 확인되었습니다.', 'success');
-      
+
       // 주문 목록 새로고침
       if (userRoleState === 'admin') {
         const allOrders = await getOrders(selectedStatus || undefined);
@@ -455,7 +451,7 @@ export default function RecentPage() {
     try {
       await updateOrderStatus(order.id, newStatus);
       addToast('주문 상태가 업데이트되었습니다.', 'success');
-      
+
       // 주문 목록 새로고침
       if (userRoleState === 'admin') {
         const allOrders = await getOrders(selectedStatus || undefined);
@@ -497,7 +493,7 @@ export default function RecentPage() {
   // 빠른 주문
   const handleQuickOrder = (order: any) => {
     console.log('🚀 빠른주문 시작:', order.order_items);
-    
+
     try {
       const orderItems = order.order_items.map((item: any) => {
         console.log('📦 주문 아이템:', item);
@@ -508,10 +504,10 @@ export default function RecentPage() {
           menu_name: item.menu_name
         };
       });
-      
+
       console.log('💾 localStorage에 저장할 주문 데이터:', orderItems);
       localStorage.setItem('quickOrderItems', JSON.stringify(orderItems));
-      
+
       // React Router navigate 사용으로 변경 (세션 유지)
       console.log('🔄 주문 페이지로 이동 중...');
       navigate('/orders/new');
@@ -525,7 +521,7 @@ export default function RecentPage() {
   if (!mounted) {
     return null;
   }
-  
+
   // 비로그인 사용자 처리
   if (!loading && !user) {
     return (
@@ -563,14 +559,14 @@ export default function RecentPage() {
             <div className="h-8 bg-gray-200 rounded w-32 animate-pulse mb-2"></div>
             <div className="h-4 bg-gray-200 rounded w-48 animate-pulse"></div>
           </div>
-          
+
           {/* 스켈레톤 필터 버튼들 */}
           <div className="flex gap-2 mb-6">
             {[1, 2, 3].map((i) => (
               <div key={i} className="h-10 bg-gray-200 rounded-lg w-20 animate-pulse"></div>
             ))}
           </div>
-          
+
           {/* 스켈레톤 주문 카드들 */}
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (
@@ -582,12 +578,12 @@ export default function RecentPage() {
                   </div>
                   <div className="h-6 bg-gray-200 rounded w-16 animate-pulse"></div>
                 </div>
-                
+
                 <div className="space-y-2 mb-4">
                   <div className="h-4 bg-gray-200 rounded w-full animate-pulse"></div>
                   <div className="h-4 bg-gray-200 rounded w-3/4 animate-pulse"></div>
                 </div>
-                
+
                 <div className="flex justify-between items-center">
                   <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
                   <div className="h-8 bg-gray-200 rounded w-16 animate-pulse"></div>
@@ -613,7 +609,7 @@ export default function RecentPage() {
           </div>
         </div>
       )}
-      
+
       {success && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg shadow-large animate-slide-in">
           <div className="flex items-center">
@@ -635,7 +631,7 @@ export default function RecentPage() {
             </h1>
           </div>
         )}
-        
+
         {/* 카페 주문현황 */}
         <div className="relative bg-ivory-100 border-4 border-wine-600 rounded-3xl p-4 sm:p-6 mb-8">
           <div className="flex flex-col items-center mb-4">
@@ -644,7 +640,7 @@ export default function RecentPage() {
               {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
             </span>
           </div>
-          
+
           {/* 필터 버튼 */}
           {userRoleState === 'admin' && (
             <div className="flex flex-wrap gap-2 mb-6 justify-center">
@@ -652,20 +648,19 @@ export default function RecentPage() {
                 <button
                   key={btn.key}
                   onClick={() => handleFilterClick(btn)}
-                  className={`px-4 py-2 rounded-lg font-bold text-sm transition-all duration-300 ${
-                    (btn.key === 'all' && !selectedStatus) ||
+                  className={`px-4 py-2 rounded-lg font-bold text-sm transition-all duration-300 ${(btn.key === 'all' && !selectedStatus) ||
                     (btn.key === 'inprogress' && selectedStatus === 'inprogress') ||
                     (btn.key === 'done' && selectedStatus === 'done')
-                      ? 'bg-gradient-wine text-white shadow-wine'
-                      : 'bg-ivory-50 text-wine-700 hover:bg-wine-100'
-                  }`}
+                    ? 'bg-gradient-wine text-white shadow-wine'
+                    : 'bg-ivory-50 text-wine-700 hover:bg-wine-100'
+                    }`}
                 >
                   {btn.label}
                 </button>
               ))}
             </div>
           )}
-          
+
           {/* 주문 목록 */}
           {loading ? (
             <div className="flex items-center justify-center py-8">
@@ -678,85 +673,85 @@ export default function RecentPage() {
                 {filteredOrders
                   .slice((currentPage - 1) * ORDERS_PER_PAGE, currentPage * ORDERS_PER_PAGE)
                   .map((order) => (
-                  <div key={order.id} className="bg-ivory-50 rounded-xl border border-wine-200 p-4">
-                    {/* 주문 상태 진행바 */}
-                    <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs text-wine-400">#{order.id.slice(-8)}</span>
-                    </div>
-                    <div className="font-bold text-wine-800 mb-1">{order.customer_name}</div>
-                    <div className="text-sm text-wine-600 mb-2">{order.church_group}</div>
-                    <div className="text-sm text-wine-700 mb-2">
-                      {new Date(order.created_at).toLocaleString('ko-KR')}
-                    </div>
-                    <div className="space-y-1 mb-3">
-                      {order.order_items?.map((item: any) => (
-                        <div key={item.id} className="text-sm text-wine-700">
-                          {item.menu?.name} x {item.quantity}
-                        </div>
-                      ))}
-                    </div>
-                    <div className="font-bold text-wine-800 mb-3">₩{order.total_amount?.toLocaleString()}</div>
-                    
-                    {/* 관리자 액션 버튼 */}
-                    {userRoleState === 'admin' && (
-                      <div className="flex flex-wrap gap-2">
-                        {order.status === 'pending' && (
-                          <button
-                            onClick={() => handleStatusChangeWithNotification(order, 'preparing')}
-                            className="px-3 py-1 bg-blue-100 text-blue-800 rounded text-xs font-bold hover:bg-blue-200"
-                          >
-                            제조시작
-                          </button>
-                        )}
-                        {order.status === 'preparing' && (
-                          <button
-                            onClick={() => handleStatusChangeWithNotification(order, 'ready')}
-                            className="px-3 py-1 bg-green-100 text-green-800 rounded text-xs font-bold hover:bg-green-200"
-                          >
-                            제조완료
-                          </button>
-                        )}
-                        {order.status === 'ready' && (
-                          <button
-                            onClick={() => handleStatusChange(order.id, 'completed')}
-                            className="px-3 py-1 bg-wine-100 text-wine-800 rounded text-xs font-bold hover:bg-wine-200"
-                          >
-                            픽업완료
-                          </button>
-                        )}
-                        {order.payment_status !== 'confirmed' && (
-                          <button
-                            onClick={() => handlePaymentConfirm(order)}
-                            className="px-3 py-1 bg-purple-100 text-purple-800 rounded text-xs font-bold hover:bg-purple-200"
-                          >
-                            결제확인
-                          </button>
-                        )}
-                        {order.status !== 'cancelled' && (
-                          <button
-                            onClick={() => handleOrderCancelClick(order)}
-                            className="px-3 py-1 bg-red-100 text-red-800 rounded text-xs font-bold hover:bg-red-200"
-                          >
-                            취소
-                          </button>
-                        )}
+                    <div key={order.id} className="bg-ivory-50 rounded-xl border border-wine-200 p-4">
+                      {/* 주문 상태 진행바 */}
+                      <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-wine-400">#{order.id.slice(-8)}</span>
                       </div>
-                    )}
-                    
-                    {/* 빠른 주문 버튼 */}
-                    {userRoleState !== 'admin' && (
-                      <button
-                        onClick={() => handleQuickOrder(order)}
-                        className="mt-2 w-full px-3 py-1 bg-red-100 text-red-800 rounded text-xs font-bold hover:bg-red-200"
-                      >
-                        빠른 주문
-                      </button>
-                    )}
-                  </div>
-                ))}
+                      <div className="font-bold text-wine-800 mb-1">{order.customer_name}</div>
+                      <div className="text-sm text-wine-600 mb-2">{order.church_group}</div>
+                      <div className="text-sm text-wine-700 mb-2">
+                        {new Date(order.created_at).toLocaleString('ko-KR')}
+                      </div>
+                      <div className="space-y-1 mb-3">
+                        {order.order_items?.map((item: any) => (
+                          <div key={item.id} className="text-sm text-wine-700">
+                            {item.menu?.name} x {item.quantity}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="font-bold text-wine-800 mb-3">₩{order.total_amount?.toLocaleString()}</div>
+
+                      {/* 관리자 액션 버튼 */}
+                      {userRoleState === 'admin' && (
+                        <div className="flex flex-wrap gap-2">
+                          {order.status === 'pending' && (
+                            <button
+                              onClick={() => handleStatusChangeWithNotification(order, 'preparing')}
+                              className="px-3 py-1 bg-blue-100 text-blue-800 rounded text-xs font-bold hover:bg-blue-200"
+                            >
+                              제조시작
+                            </button>
+                          )}
+                          {order.status === 'preparing' && (
+                            <button
+                              onClick={() => handleStatusChangeWithNotification(order, 'ready')}
+                              className="px-3 py-1 bg-green-100 text-green-800 rounded text-xs font-bold hover:bg-green-200"
+                            >
+                              제조완료
+                            </button>
+                          )}
+                          {order.status === 'ready' && (
+                            <button
+                              onClick={() => handleStatusChange(order.id, 'completed')}
+                              className="px-3 py-1 bg-wine-100 text-wine-800 rounded text-xs font-bold hover:bg-wine-200"
+                            >
+                              픽업완료
+                            </button>
+                          )}
+                          {order.payment_status !== 'confirmed' && (
+                            <button
+                              onClick={() => handlePaymentConfirm(order)}
+                              className="px-3 py-1 bg-purple-100 text-purple-800 rounded text-xs font-bold hover:bg-purple-200"
+                            >
+                              결제확인
+                            </button>
+                          )}
+                          {order.status !== 'cancelled' && (
+                            <button
+                              onClick={() => handleOrderCancelClick(order)}
+                              className="px-3 py-1 bg-red-100 text-red-800 rounded text-xs font-bold hover:bg-red-200"
+                            >
+                              취소
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* 빠른 주문 버튼 */}
+                      {userRoleState !== 'admin' && (
+                        <button
+                          onClick={() => handleQuickOrder(order)}
+                          className="mt-2 w-full px-3 py-1 bg-red-100 text-red-800 rounded text-xs font-bold hover:bg-red-200"
+                        >
+                          빠른 주문
+                        </button>
+                      )}
+                    </div>
+                  ))}
               </div>
-              
+
               {/* 데스크탑: 테이블 */}
               <div className="hidden sm:block overflow-x-auto">
                 <table className="min-w-full text-center border-separate border-spacing-y-2">
@@ -883,11 +878,11 @@ export default function RecentPage() {
                   >
                     이전
                   </button>
-                  
+
                   <span className="px-4 py-2 text-wine-700 font-bold">
                     {currentPage} / {Math.ceil(filteredOrders.length / ORDERS_PER_PAGE)}
                   </span>
-                  
+
                   <button
                     onClick={() => setCurrentPage(prev => Math.min(Math.ceil(filteredOrders.length / ORDERS_PER_PAGE), prev + 1))}
                     disabled={currentPage === Math.ceil(filteredOrders.length / ORDERS_PER_PAGE)}

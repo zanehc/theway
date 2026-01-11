@@ -114,11 +114,7 @@ export default function Index() {
   const navigation = useNavigation();
   const [recentOrder, setRecentOrder] = useState<any>(null);
 
-  // Safari 호환성을 위한 안전한 네비게이션 상태 체크
-  if (navigation.state === "loading" && navigation.location?.pathname && navigation.location.pathname !== "/") {
-    return <HomeSkeleton />;
-  }
-  // 사용자 관련 데이터만 로딩 상태 (메인 콘텐츠는 바로 표시)
+  // 모든 훅은 조건부 return 전에 호출되어야 함 (React 훅 규칙)
   const [userDataLoading, setUserDataLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
 
@@ -199,6 +195,11 @@ export default function Index() {
 
     loadRecentOrder();
   }, [mounted, user]);
+
+  // Safari 호환성을 위한 안전한 네비게이션 상태 체크 (모든 훅 호출 후에 조건부 return)
+  if (navigation.state === "loading" && navigation.location?.pathname && navigation.location.pathname !== "/") {
+    return <HomeSkeleton />;
+  }
 
   if (!mounted) {
     return null;

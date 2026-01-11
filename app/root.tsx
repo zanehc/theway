@@ -45,13 +45,13 @@ export default function App() {
   const [user, setUser] = useState<any>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
-  
+
   // Safari 호환성을 위해 항상 useLoaderData 호출
   const loaderData = useLoaderData<typeof loader>();
-  
+
   // 환경 변수 처리 - 서버/클라이언트 분리
   let ENV: any = {};
-  
+
   if (typeof window === 'undefined') {
     // 서버에서는 loader 데이터 사용
     ENV = loaderData?.ENV || {};
@@ -65,19 +65,22 @@ export default function App() {
 
     const getInitialUser = async () => {
       try {
-        console.log('🔐 Root - 초기 사용자 인증 상태 확인');
-        const { data: { user }, error } = await supabase.auth.getUser();
-        
-        if (error) {
-          console.error('🔐 Root - 사용자 정보 가져오기 실패:', error);
+        console.log('🔐 Root - 초기 사용자 인증 상태 확인 (getSession 사용)');
+
+        // getSession()으로 로컬 캐시된 세션을 먼저 확인 (더 빠름)
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+        if (sessionError) {
+          console.error('🔐 Root - 세션 가져오기 실패:', sessionError);
           setUser(null);
           setUserRole(null);
           return;
         }
 
-        console.log('🔐 Root - 사용자 정보:', user?.email || 'null');
+        const user = session?.user || null;
+        console.log('🔐 Root - 세션에서 사용자 정보:', user?.email || 'null');
         setUser(user);
-        
+
         if (user) {
           // Safari 호환성을 위한 안전한 세션스토리지 접근
           let cachedRole: string | null = null;
@@ -90,7 +93,7 @@ export default function App() {
           } catch (storageError) {
             console.warn('🔐 Root - 세션스토리지 접근 실패:', storageError);
           }
-          
+
           // 역할 정보 업데이트
           try {
             const { data: userData, error: roleError } = await supabase
@@ -98,14 +101,15 @@ export default function App() {
               .select('role')
               .eq('id', user.id)
               .single();
-            
+
             if (!roleError && userData?.role) {
-              console.log('🔐 Root - DB에서 역할 확인:', userData.role);
-              setUserRole(userData.role);
-              
+              const roleValue = userData.role as string;
+              console.log('🔐 Root - DB에서 역할 확인:', roleValue);
+              setUserRole(roleValue);
+
               // Safari 호환성을 위한 안전한 세션스토리지 저장
               try {
-                sessionStorage.setItem(`user_role_${user.id}`, userData.role);
+                sessionStorage.setItem(`user_role_${user.id}`, roleValue);
               } catch (storageError) {
                 console.warn('🔐 Root - 세션스토리지 저장 실패:', storageError);
               }
@@ -133,7 +137,7 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('🔐 Root - 인증 상태 변경:', event, session?.user?.email || 'null');
-        
+
         // 로그아웃 이벤트 처리
         if (event === 'SIGNED_OUT' || !session?.user) {
           console.log('🔐 Root - 로그아웃 처리');
@@ -152,7 +156,7 @@ export default function App() {
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
           console.log('🔐 Root - 로그인/토큰 갱신 처리');
           setUser(session.user);
-          
+
           // 역할 정보 가져오기
           try {
             const { data: userData } = await supabase
@@ -160,11 +164,11 @@ export default function App() {
               .select('role')
               .eq('id', session.user.id)
               .single();
-            
-            const role = userData?.role || 'customer';
+
+            const role = (userData?.role as string) || 'customer';
             console.log('🔐 Root - 새 역할 설정:', role);
             setUserRole(role);
-            
+
             // Safari 호환성을 위한 안전한 세션스토리지 저장
             try {
               sessionStorage.setItem(`user_role_${session.user.id}`, role);
@@ -193,6 +197,12 @@ export default function App() {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <Meta />
         <Links />
+        {/* 환경 변수를 가장 먼저 설정 (다른 스크립트보다 앞서 실행) */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.__ENV = ${JSON.stringify(loaderData?.ENV || {})};`,
+          }}
+        />
       </head>
       <body className="h-full min-h-screen bg-ivory-50" suppressHydrationWarning>
         <NotificationProvider userId={user?.id} userRole={userRole}>
@@ -207,11 +217,6 @@ export default function App() {
         </NotificationProvider>
         <ScrollRestoration />
         <Scripts />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `window.__ENV = ${JSON.stringify(ENV || {})};`,
-          }}
-        />
       </body>
     </html>
   );
