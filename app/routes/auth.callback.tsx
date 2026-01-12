@@ -38,7 +38,7 @@ export default function AuthCallback() {
         })();
 
         const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Supabase 조회 타임아웃')), 5000)
+          setTimeout(() => reject(new Error('Supabase 조회 타임아웃')), 15000)
         );
 
         let result: any;
