@@ -4,24 +4,24 @@ import { useState, useEffect } from "react";
 import { createServerClient } from "@supabase/ssr";
 import { supabase as clientSupabase } from "~/lib/supabase";
 
-// 교회소식 기본 예시 구조
+// 교회소식 기본 예시 구조 (2026.01.11 주보 기준)
 const DEFAULT_NEWS = {
   registerNotice: "예수 그리스도 안에서 교회 등록을 원하시는 분은 예배 후 담임목사에게 말씀해 주세요.",
   events: [
-    { title: "Wonder Kids 여름성경학교", date: "7/19(금)~20(토)", desc: "나는 하나님을 예배해요!" },
-    { title: "King of Kings 캠프", date: "7/26(금)~27(토)", desc: "초등부, 중고등부 연합" }
+    { title: "정기제직회", date: "1/11(주일) 오후 3시", desc: "" },
+    { title: "공동의회(사무처리회)", date: "1/18(주일) 2부 예배 직후", desc: "예배당" },
+    { title: "목장 방학", date: "1/11(주일)~1/31(토)", desc: "3주간 / 2월 1일 개강" },
+    { title: "'길 학교' 개강", date: "1/11, 18, 25일", desc: "주일 중식 직후 1:30~3:00 / 전교인 대상" },
+    { title: "결혼 - 김주은 ♥ 권가람", date: "1/17(토) 오전 11시", desc: "더화이트베이W홀 4층(서울 서초) / 김희환 장로-김연태 권사의 딸" },
+    { title: "결혼 - 오승현 ♥ 나윤희", date: "1/17(토) 오전 11시", desc: "남악 스카이웨딩컨벤션(남악) / 바나바 목장" }
   ],
-  birthdays: [
-    { name: "안현진", date: "07.13" },
-    { name: "김종호", date: "07.15" },
-    { name: "조익성", date: "07.19" }
-  ],
+  birthdays: [],
   offeringAccounts: [
-    { bank: "농협", number: "953301-00-074063", owner: "예수비전교회" },
-    { bank: "농협", number: "301-0044-2043", owner: "예수비전교회" },
-    { bank: "국민", number: "897001-00-014084", owner: "예수비전교회" }
+    { bank: "국민", number: "359301-04-070463", owner: "길을여는교회" },
+    { bank: "국민", number: "897001-00-044203", owner: "길을여는교회 (구제/선교)" },
+    { bank: "국민", number: "897001-00-014048", owner: "길을여는교회 (건축)" }
   ],
-  etc: "매월 생일축하, 새가족을 환영합니다."
+  etc: "사역 팀원 모집: 신청서는 로비에 비치 되어 있습니다. (중보기도팀, 전도팀, 시설팀, 찬양팀, 새가족팀, 방송음향팀, 성가대, 아미키즈 & 예스키즈 목자)\n기부금영수증 발급신청서: 로비에 비치되어 있습니다."
 };
 
 export async function loader({ request }: LoaderFunctionArgs) {
