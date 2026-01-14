@@ -234,7 +234,7 @@ export default function RecentPage() {
     }
   }, [location.search, mounted]);
 
-  // 주문 데이터 로딩 (user 상태 기반)
+  // 주문 데이터 로딩 (user 상태 기반) - 최적화됨
   useEffect(() => {
     if (!mounted) return;
 
@@ -250,23 +250,8 @@ export default function RecentPage() {
           return;
         }
 
-        // 사용자 상세 정보 로딩 (역할 확인용)
-        const { data: userDataResult, error: userError } = await supabase
-          .from('users')
-          .select('role, name, email')
-          .eq('id', user.id)
-          .single();
-
-        if (!userError && userDataResult) {
-          setUserData(userDataResult);
-          // context에서 역할을 못 가져왔으면 DB에서 확인
-          if (!userRoleState) {
-            setUserRole((userDataResult.role as string) || 'customer');
-          }
-        }
-
-        // 역할에 따른 주문 데이터 로딩
-        const role = userRoleState || (userDataResult?.role as string) || 'customer';
+        // outletContext에서 역할 사용 (DB 조회 제거로 성능 최적화)
+        const role = userRoleState || 'customer';
         console.log('📦 최근주문 - 주문 데이터 로딩, 역할:', role);
 
         let orders;
@@ -289,17 +274,19 @@ export default function RecentPage() {
     };
 
     loadOrders();
-  }, [mounted, user, userRoleState, selectedStatus]);
+  }, [mounted, user, userRoleState]); // selectedStatus 제거 - 필터링은 렌더링에서 처리
 
 
 
-  // 알림에 따른 주문 목록 새로고침
+  // 알림에 따른 주문 목록 새로고침 (toasts 변경 시에만 실행)
   useEffect(() => {
-    if (!mounted) return;
+    // 초기 로딩 시에는 loadOrders에서 처리하므로 건너뜀 (중복 방지)
+    if (!mounted || toasts.length === 0) return;
 
     const refreshOrders = async () => {
+      console.log('🔄 최근주문 - 알림으로 인한 새로고침');
       if (userRoleState === 'admin') {
-        const allOrders = await getOrders(selectedStatus || undefined);
+        const allOrders = await getOrders();
         setOrders(allOrders || []);
       } else if (user) {
         const userOrders = await getOrdersByUserId(user.id);
@@ -308,7 +295,7 @@ export default function RecentPage() {
     };
 
     refreshOrders();
-  }, [toasts, mounted, userRoleState, selectedStatus, user]);
+  }, [toasts]); // 의존성 간소화 - toasts 변경 시에만 새로고침
 
   // Safari 호환성을 위한 안전한 네비게이션 상태 체크 (모든 훅 호출 후에 조건부 return)
   if (navigation.state === "loading" && navigation.location?.pathname && navigation.location.pathname !== "/recent") {
