@@ -33,9 +33,7 @@ export async function getMenusByCategory(category: string) {
 }
 
 // Order queries
-export async function getOrders(status?: string) {
-  console.log('🔍 getOrders called with status:', status);
-  
+export async function getOrders(status?: string, limit: number = 50) {
   let query = supabase
     .from('orders')
     .select(`
@@ -45,10 +43,10 @@ export async function getOrders(status?: string) {
         menu:menus (*)
       )
     `)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(limit); // 성능 최적화: 기본 50개 제한
 
   if (status) {
-    console.log('🔍 Adding status filter:', status);
     query = query.eq('status', status);
     // 픽업완료 필터일 때 결제완료 제외
     if (status === 'completed') {
@@ -56,16 +54,13 @@ export async function getOrders(status?: string) {
     }
   }
 
-  console.log('🔍 Executing query...');
   const { data, error } = await query;
-  
+
   if (error) {
     console.error('Get orders error:', error);
     return [];
   }
-  
-  console.log('🔍 getOrders result:', data);
-  console.log('🔍 getOrders result length:', data?.length || 0);
+
   return data as OrderWithItems[];
 }
 
@@ -123,12 +118,12 @@ export async function getTodayOrdersByStatus(status: string) {
 
 export async function getUserOrderHistory(userId: string): Promise<UserOrderHistory> {
   const orders = await getOrdersByUserId(userId);
-  
+
   const total_orders = orders.length;
   const total_spent = orders
     .filter(order => order.payment_status === 'confirmed')
     .reduce((sum, order) => sum + order.total_amount, 0);
-  
+
   const recent_orders = orders.slice(0, 5); // 최근 5개 주문
 
   return {
@@ -216,14 +211,14 @@ export async function createOrder(orderData: {
         .from('menus')
         .select('id, name')
         .in('id', menuIds);
-      
+
       const menuMap = new Map(menuData?.map(m => [m.id, m.name]) || []);
-      const menuNames = orderData.items.map(item => 
+      const menuNames = orderData.items.map(item =>
         `${menuMap.get(item.menu_id) || '메뉴'} x${item.quantity}`
       ).join(', ');
-      
+
       const orderMessage = `${orderData.customer_name}님이 ${menuNames}를 주문했습니다. (총 ${orderData.total_amount.toLocaleString()}원)`;
-      
+
       // 1. 주문한 사용자에게 주문 확인 알림 (있는 경우)
       if (orderData.user_id) {
         await createNotification({
@@ -234,13 +229,13 @@ export async function createOrder(orderData: {
         });
         console.log('📱 Order confirmation sent to user:', orderData.user_id);
       }
-      
+
       // 2. 모든 관리자에게 새 주문 알림
       const { data: adminUsers } = await supabase
         .from('users')
         .select('id')
         .eq('role', 'admin');
-      
+
       if (adminUsers && adminUsers.length > 0) {
         const adminNotifications = adminUsers.map(admin => ({
           user_id: admin.id,
@@ -248,13 +243,13 @@ export async function createOrder(orderData: {
           type: 'new_order',
           message: orderMessage
         }));
-        
+
         await Promise.all(
           adminNotifications.map(notification => createNotification(notification))
         );
         console.log('📱 New order notifications sent to', adminUsers.length, 'admins');
       }
-      
+
     } catch (notificationError) {
       console.error('Failed to send notifications:', notificationError);
       // 알림 실패는 주문 생성에 영향을 주지 않도록 함
@@ -269,11 +264,11 @@ export async function createOrder(orderData: {
 
 export async function updateOrderStatus(id: string, status: string, cancellationReason?: string) {
   console.log('🔄 updateOrderStatus called:', { id, status, cancellationReason });
-  
+
   // 일단 기본 상태만 업데이트 (취소사유는 나중에 컬럼 추가 후 활성화)
   const { data, error } = await supabase
     .from('orders')
-    .update({ 
+    .update({
       status,
       updated_at: new Date().toISOString()
     })
@@ -316,7 +311,7 @@ export async function updateOrderStatus(id: string, status: string, cancellation
         type: 'order_status',
         message: message
       });
-      
+
       console.log('📱 Order status notification sent:', status);
     }
   } catch (notificationError) {
@@ -329,7 +324,7 @@ export async function updateOrderStatus(id: string, status: string, cancellation
 export async function updatePaymentStatus(id: string, payment_status: string) {
   const { data, error } = await supabase
     .from('orders')
-    .update({ 
+    .update({
       payment_status,
       updated_at: new Date().toISOString()
     })
@@ -351,7 +346,7 @@ export async function updatePaymentStatus(id: string, payment_status: string) {
         type: 'payment_confirmed',
         message: `결제가 확인되었습니다. 감사합니다! (주문번호: ${id.slice(-8)})`
       });
-      
+
       console.log('📱 Payment confirmation notification sent');
     }
   } catch (notificationError) {
@@ -483,7 +478,7 @@ export async function getUserById(id: string) {
 // 새 사용자 생성 (가입 시 자동 호출)
 export async function createUserProfile(authUser: any) {
   console.log('🔄 Creating user profile for:', authUser.id);
-  
+
   try {
     const { data, error } = await supabase
       .from('users')
@@ -513,16 +508,16 @@ export async function createUserProfile(authUser: any) {
 // 사용자 정보 조회 및 없으면 생성
 export async function getUserByIdOrCreate(authUser: any) {
   console.log('🔄 Getting or creating user:', authUser.id);
-  
+
   // 먼저 기존 사용자 조회
   let user = await getUserById(authUser.id);
-  
+
   // 사용자가 없으면 새로 생성
   if (!user) {
     console.log('🔄 User not found, creating new profile');
     user = await createUserProfile(authUser);
   }
-  
+
   return user;
 }
 
@@ -543,13 +538,13 @@ export async function getUsersByRole(role: string) {
 // 사용자 정보 업데이트
 export async function updateUser(userId: string, userData: { name?: string; church_group?: string }) {
   console.log('🔄 updateUser called with:', { userId, userData });
-  
+
   try {
     const updateData = {
       name: userData.name?.trim(),
       church_group: userData.church_group?.trim() || null,
     };
-    
+
     console.log('🔄 Update data prepared:', updateData);
 
     const { data, error } = await supabase
@@ -611,7 +606,7 @@ export async function getTodayOrderStatusStats() {
   orders?.forEach((order: any) => {
     // 현재 상태별 통계
     statusStats[order.status as keyof typeof statusStats]++;
-    
+
     // 결제완료 주문 수
     if (order.payment_status === 'confirmed') {
       confirmedOrders++;
@@ -628,26 +623,26 @@ export async function getTodayOrderStatusStats() {
 export async function getWeeklySalesForLast4Weeks() {
   const now = new Date();
   const weeks = [];
-  
+
   // 현재 날짜에서 가장 가까운 일요일 찾기
   const currentDay = now.getDay(); // 0: 일요일, 1: 월요일, ..., 6: 토요일
   const daysToSunday = currentDay === 0 ? 0 : 7 - currentDay; // 다음 일요일까지의 일수
-  
+
   // 가장 가까운 일요일 계산
   const nearestSunday = new Date(now);
   nearestSunday.setDate(nearestSunday.getDate() + daysToSunday);
   nearestSunday.setHours(23, 59, 59, 999);
-  
+
   // 최근 4주간의 주간 데이터 생성 (가장 가까운 일요일부터 역순으로)
   for (let i = 0; i < 4; i++) {
     const weekEnd = new Date(nearestSunday);
     weekEnd.setDate(weekEnd.getDate() - (i * 7));
     weekEnd.setHours(23, 59, 59, 999);
-    
+
     const weekStart = new Date(weekEnd);
     weekStart.setDate(weekStart.getDate() - 6);
     weekStart.setHours(0, 0, 0, 0);
-    
+
     weeks.push({
       weekNumber: 4 - i,
       startDate: weekStart,
@@ -655,16 +650,16 @@ export async function getWeeklySalesForLast4Weeks() {
       label: `${weekStart.getMonth() + 1}/${weekStart.getDate()}`
     });
   }
-  
+
   const weeklyStats = [];
-  
+
   for (const week of weeks) {
     const { data: orders, error } = await supabase
       .from('orders')
       .select('*')
       .gte('created_at', week.startDate.toISOString())
       .lte('created_at', week.endDate.toISOString());
-    
+
     if (error) {
       console.error('Get weekly sales error:', error);
       weeklyStats.push({
@@ -675,22 +670,22 @@ export async function getWeeklySalesForLast4Weeks() {
       });
       continue;
     }
-    
+
     let orderCompletedRevenue = 0;
     let paymentConfirmedRevenue = 0;
-    
+
     orders?.forEach((order: any) => {
       // 주문완료 상태인 주문의 매출
       if (order.status === 'completed') {
         orderCompletedRevenue += order.total_amount;
       }
-      
+
       // 결제완료 상태인 주문의 매출
       if (order.payment_status === 'confirmed') {
         paymentConfirmedRevenue += order.total_amount;
       }
     });
-    
+
     weeklyStats.push({
       weekNumber: week.weekNumber,
       label: week.label,
@@ -698,7 +693,7 @@ export async function getWeeklySalesForLast4Weeks() {
       paymentConfirmedRevenue
     });
   }
-  
+
   return weeklyStats;
 }
 
@@ -715,7 +710,7 @@ export async function getDailySales(startDate?: string, endDate?: string) {
     start.setHours(0, 0, 0, 0);
     query = query.gte('created_at', start.toISOString());
   }
-  
+
   if (endDate) {
     const end = new Date(endDate);
     end.setHours(23, 59, 59, 999);
@@ -731,11 +726,11 @@ export async function getDailySales(startDate?: string, endDate?: string) {
 
   // 일별로 그룹화
   const dailyMap = new Map();
-  
+
   orders?.forEach((order: any) => {
     const orderDate = new Date(order.created_at);
     const dateKey = orderDate.toISOString().split('T')[0]; // YYYY-MM-DD 형식
-    
+
     if (!dailyMap.has(dateKey)) {
       dailyMap.set(dateKey, {
         date: dateKey,
@@ -743,14 +738,14 @@ export async function getDailySales(startDate?: string, endDate?: string) {
         paymentConfirmedRevenue: 0
       });
     }
-    
+
     const daily = dailyMap.get(dateKey);
-    
+
     // 주문완료 상태인 주문의 매출
     if (order.status === 'completed') {
       daily.orderCompletedRevenue += order.total_amount;
     }
-    
+
     // 결제완료 상태인 주문의 매출
     if (order.payment_status === 'confirmed') {
       daily.paymentConfirmedRevenue += order.total_amount;

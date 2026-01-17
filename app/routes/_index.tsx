@@ -115,7 +115,7 @@ export default function Index() {
   const [recentOrder, setRecentOrder] = useState<any>(null);
 
   // 모든 훅은 조건부 return 전에 호출되어야 함 (React 훅 규칙)
-  const [userDataLoading, setUserDataLoading] = useState(true);
+  const [userDataLoading, setUserDataLoading] = useState(false); // 최적화: 초기값 false
   const [mounted, setMounted] = useState(false);
 
   // outletContext에서 직접 user 사용 (root.tsx에서 관리)
@@ -124,11 +124,6 @@ export default function Index() {
   const [showSignup, setShowSignup] = useState(false);
   const [loginSuccess, setLoginSuccess] = useState(false);
   const { toasts, initializeTTS, showNotification } = useNotifications();
-
-  // 디버깅: 알림 상태 로그
-  useEffect(() => {
-    console.log('🏠 홈탭 - 현재 toasts:', toasts);
-  }, [toasts]);
 
   // 클라이언트 마운트 확인
   useEffect(() => {
@@ -170,24 +165,19 @@ export default function Index() {
 
   // YouTube 최신 영상은 서버에서 이미 가져왔으므로 클라이언트에서는 불필요
 
-  // 최근 주문 로딩 (user가 있을 때만)
+  // 최근 주문 로딩 (user가 있을 륜만)
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || !user) return;
 
     const loadRecentOrder = async () => {
-      if (!user) {
-        setUserDataLoading(false);
-        return;
-      }
-
-      console.log('🔄 홈탭 - 최근 주문 로딩:', user.email);
+      setUserDataLoading(true);
       try {
         const orders = await getOrdersByUserId(user.id, 1);
         if (orders?.length > 0) {
           setRecentOrder(orders[0]);
         }
       } catch {
-        console.warn('📦 홈탭 - 최근 주문 로딩 실패');
+        // 실패 시 조용히 처리
       } finally {
         setUserDataLoading(false);
       }

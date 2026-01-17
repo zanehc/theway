@@ -239,12 +239,10 @@ export default function RecentPage() {
     if (!mounted) return;
 
     const loadOrders = async () => {
-      console.log('🔄 최근주문 - 주문 데이터 로딩 시작, user:', user?.email, 'role:', userRoleState);
       setLoading(true);
 
       try {
         if (!user) {
-          console.log('🔄 최근주문 - 비로그인 상태, 빈 목록 반환');
           setOrders([]);
           setLoading(false);
           return;
@@ -252,24 +250,20 @@ export default function RecentPage() {
 
         // outletContext에서 역할 사용 (DB 조회 제거로 성능 최적화)
         const role = userRoleState || 'customer';
-        console.log('📦 최근주문 - 주문 데이터 로딩, 역할:', role);
 
         let orders;
         if (role === 'admin') {
           orders = await getOrders();
-          console.log('📦 최근주문 - 관리자 전체 주문:', orders?.length || 0, '개');
         } else {
           orders = await getOrdersByUserId(user.id);
-          console.log('📦 최근주문 - 사용자 주문:', orders?.length || 0, '개');
         }
         setOrders(orders || []);
 
       } catch (error) {
-        console.error('❌ 최근주문 - 주문 로딩 실패:', error);
+        console.error('주문 로딩 실패:', error);
         setOrders([]);
       } finally {
         setLoading(false);
-        console.log('✅ 최근주문 - 로딩 완료');
       }
     };
 
@@ -284,7 +278,6 @@ export default function RecentPage() {
     if (!mounted || toasts.length === 0) return;
 
     const refreshOrders = async () => {
-      console.log('🔄 최근주문 - 알림으로 인한 새로고침');
       if (userRoleState === 'admin') {
         const allOrders = await getOrders();
         setOrders(allOrders || []);
