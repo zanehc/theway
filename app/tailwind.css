@@ -2,9 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
-/* 폰트 최적화: 시스템 폰트 먼저 표시 후 웹폰트 로드 */
+/* 폰트: Noto Sans KR (한국어) + Inter (영문) + 시스템 폰트 fallback */
 html {
-  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Noto Sans KR', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 html,

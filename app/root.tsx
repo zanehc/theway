@@ -18,17 +18,11 @@ import { supabase } from "./lib/supabase";
 
 export const links: LinksFunction = () => [
   { rel: "stylesheet", href: tailwindHref },
-  // DNS prefetch + preconnect for faster connection
-  { rel: "dns-prefetch", href: "https://fonts.googleapis.com" },
-  { rel: "dns-prefetch", href: "https://fonts.gstatic.com" },
-  { rel: "dns-prefetch", href: "https://cdn.jsdelivr.net" },
+  // Preconnect for Google Fonts
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
   { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-  { rel: "preconnect", href: "https://cdn.jsdelivr.net", crossOrigin: "anonymous" },
-  // Font stylesheets - reduced weights + display=swap for non-blocking
-  { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" },
-  // Pretendard dynamic subset (로드 시 필요한 글자만 로드 - 더 작은 파일)
-  { rel: "stylesheet", href: "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css" },
+  // Google Fonts - Noto Sans KR (한국어) + Inter (영문) with display=swap
+  { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" },
 ];
 
 export const meta: MetaFunction = () => {
