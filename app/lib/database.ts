@@ -33,18 +33,23 @@ export async function getMenusByCategory(category: string) {
 }
 
 // Order queries
-export async function getOrders(status?: string, limit: number = 50) {
+export async function getOrders(status?: string, limit: number = 30) {
   let query = supabase
     .from('orders')
     .select(`
       *,
       order_items (
-        *,
-        menu:menus (*)
+        id,
+        menu_id,
+        quantity,
+        unit_price,
+        total_price,
+        notes,
+        menu:menus (id, name, price)
       )
     `)
     .order('created_at', { ascending: false })
-    .limit(limit); // 성능 최적화: 기본 50개 제한
+    .limit(limit);
 
   if (status) {
     query = query.eq('status', status);
@@ -64,24 +69,20 @@ export async function getOrders(status?: string, limit: number = 50) {
   return data as OrderWithItems[];
 }
 
-export async function getOrdersByUserId(userId: string, limit?: number) {
-  let query = supabase
+export async function getOrdersByUserId(userId: string, limit: number = 30) {
+  const { data, error } = await supabase
     .from('orders')
     .select(`
       *,
       order_items (
         *,
-        menu:menus (*)
+        menu:menus (id, name, price)
       )
     `)
     .eq('user_id', userId)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(limit);
 
-  if (limit) {
-    query = query.limit(limit);
-  }
-
-  const { data, error } = await query;
   if (error) {
     console.error('Get orders by user id error:', error);
     return [];
@@ -540,10 +541,19 @@ export async function updateUser(userId: string, userData: { name?: string; chur
   console.log('🔄 updateUser called with:', { userId, userData });
 
   try {
-    const updateData = {
-      name: userData.name?.trim(),
-      church_group: userData.church_group?.trim() || null,
+    const updateData: Record<string, any> = {
+      updated_at: new Date().toISOString(),
     };
+
+    // name이 있으면 추가
+    if (userData.name !== undefined) {
+      updateData.name = userData.name.trim();
+    }
+
+    // church_group 처리 (빈 문자열이면 null로 설정)
+    if (userData.church_group !== undefined) {
+      updateData.church_group = userData.church_group.trim() || null;
+    }
 
     console.log('🔄 Update data prepared:', updateData);
 
