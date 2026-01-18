@@ -188,31 +188,9 @@ export default function RecentPage() {
 
   // outletContext에서 user/userRole이 변경되면 로컬 상태 동기화
   useEffect(() => {
-    console.log('🔄 최근주문 - Context 동기화:', { contextUser: contextUser?.email, contextUserRole });
     setUser(contextUser);
     setUserRole(contextUserRole);
   }, [contextUser, contextUserRole]);
-
-  // 마운트 시 세션 재확인 (탭 이동 후 세션 유실 방지)
-  useEffect(() => {
-    if (!mounted) return;
-
-    const checkSession = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        console.log('🔄 최근주문 - 세션 확인:', session?.user?.email || 'null', error?.message || '');
-
-        if (session?.user && !user) {
-          console.log('🔄 최근주문 - 세션에서 사용자 복구:', session.user.email);
-          setUser(session.user);
-        }
-      } catch (err) {
-        console.error('🔄 최근주문 - 세션 확인 실패:', err);
-      }
-    };
-
-    checkSession();
-  }, [mounted]);
 
   // URL 파라미터 동기화
   useEffect(() => {
@@ -238,37 +216,44 @@ export default function RecentPage() {
   useEffect(() => {
     if (!mounted) return;
 
+    // user가 없으면 빠르게 로딩 종료
+    if (!user) {
+      setOrders([]);
+      setLoading(false);
+      return;
+    }
+
+    let isCancelled = false;
+
     const loadOrders = async () => {
-      setLoading(true);
-
       try {
-        if (!user) {
-          setOrders([]);
-          setLoading(false);
-          return;
-        }
-
-        // outletContext에서 역할 사용 (DB 조회 제거로 성능 최적화)
         const role = userRoleState || 'customer';
 
-        let orders;
-        if (role === 'admin') {
-          orders = await getOrders();
-        } else {
-          orders = await getOrdersByUserId(user.id);
-        }
-        setOrders(orders || []);
+        const result = role === 'admin'
+          ? await getOrders()
+          : await getOrdersByUserId(user.id);
 
+        if (!isCancelled) {
+          setOrders(result || []);
+        }
       } catch (error) {
         console.error('주문 로딩 실패:', error);
-        setOrders([]);
+        if (!isCancelled) {
+          setOrders([]);
+        }
       } finally {
-        setLoading(false);
+        if (!isCancelled) {
+          setLoading(false);
+        }
       }
     };
 
     loadOrders();
-  }, [mounted, user, userRoleState]); // selectedStatus 제거 - 필터링은 렌더링에서 처리
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [mounted, user, userRoleState]);
 
 
 

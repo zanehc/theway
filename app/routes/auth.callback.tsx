@@ -95,11 +95,9 @@ export default function AuthCallback() {
         }
 
         console.log('✅ 기존 사용자 로그인 완료:', existingUser.name);
-        setStatus('로그인 완료, 홈으로 이동 중...');
-
-        setTimeout(() => {
-          navigate('/?success=' + encodeURIComponent('로그인되었습니다.'));
-        }, 500);
+        setStatus('로그인 완료!');
+        // 즉시 홈으로 이동 (불필요한 500ms 지연 제거)
+        navigate('/?success=' + encodeURIComponent('로그인되었습니다.'));
 
       } catch (err: any) {
         console.error('❌ 프로필 확인 오류:', err);
@@ -151,13 +149,13 @@ export default function AuthCallback() {
 
           if (exchangeError) {
             console.error('❌ 코드 교환 실패:', exchangeError);
-            // 리스너가 처리할 수도 있으니 3초 대기
+            // 리스너가 처리할 수도 있으니 1초 대기 (3초 → 1초 단축)
             setTimeout(() => {
               if (!isProcessing.current) {
                 authListener.data.subscription.unsubscribe();
                 navigate('/?error=' + encodeURIComponent('로그인 처리 실패'));
               }
-            }, 3000);
+            }, 1000);
             return;
           }
 
@@ -171,20 +169,20 @@ export default function AuthCallback() {
               authListener.data.subscription.unsubscribe();
               navigate('/?error=' + encodeURIComponent('로그인 처리 실패'));
             }
-          }, 3000);
+          }, 1000);
         }
       } else {
         console.log('⚠️ code 없음, 리스너만 대기');
       }
 
-      // 15초 타임아웃
+      // 10초 타임아웃 (15초 → 10초 단축)
       setTimeout(() => {
         if (!isProcessing.current) {
           console.log('⏱️ 인증 타임아웃');
           authListener.data.subscription.unsubscribe();
           navigate('/?error=' + encodeURIComponent('로그인 처리 시간 초과'));
         }
-      }, 15000);
+      }, 10000);
     };
 
     handleCallback();
