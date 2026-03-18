@@ -33,28 +33,27 @@ function getSupabaseServiceKey(): string | undefined {
 let supabaseClient: ReturnType<typeof createClient> | null = null;
 
 function initSupabaseClient(): ReturnType<typeof createClient> {
-  // 이미 초기화되었으면 재사용
-  if (supabaseClient) {
-    return supabaseClient;
-  }
-
   const url = getSupabaseUrl();
   const key = getSupabaseAnonKey();
 
-  if (!url || !key) {
-    console.error('⚠️ Supabase 환경 변수 누락:', {
-      url: url ? '설정됨' : '누락',
-      key: key ? '설정됨' : '누락',
-      isBrowser,
-      windowENV: isBrowser ? (window as any).__ENV : 'N/A'
-    });
-    throw new Error('Supabase URL 또는 Anon Key가 설정되지 않았습니다. window.__ENV를 확인해주세요.');
+  // 이미 올바르게 초기화되었으면 재사용
+  if (supabaseClient && url && key) {
+    return supabaseClient;
   }
+
+  // 환경변수가 아직 없으면 (window.__ENV 미설정) 재시도 가능하도록 null 유지
+  if (!url || !key) {
+    if (isBrowser) {
+      console.warn('⚠️ Supabase 환경 변수 대기 중... window.__ENV:', (window as any).__ENV);
+    }
+    throw new Error('Supabase URL 또는 Anon Key가 아직 설정되지 않았습니다.');
+  }
+
+  // 이전에 잘못된 클라이언트가 있으면 재생성
+  supabaseClient = null;
 
   supabaseClient = createClient(url, key, {
     auth: {
-      // PKCE flow 사용 (서버에서 code를 세션으로 교환)
-      flowType: 'pkce',
       // 자동 토큰 갱신 활성화
       autoRefreshToken: true,
       // 세션 감지 활성화

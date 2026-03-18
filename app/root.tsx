@@ -49,17 +49,6 @@ export default function App() {
   // Safari 호환성을 위해 항상 useLoaderData 호출
   const loaderData = useLoaderData<typeof loader>();
   
-  // 환경 변수 처리 - 서버/클라이언트 분리
-  let ENV: any = {};
-  
-  if (typeof window === 'undefined') {
-    // 서버에서는 loader 데이터 사용
-    ENV = loaderData?.ENV || {};
-  } else if (isClient) {
-    // 클라이언트에서 하이드레이션 완료 후 window.__ENV 사용
-    ENV = (window as any).__ENV || {};
-  }
-
   useEffect(() => {
     setIsClient(true);
 
@@ -174,6 +163,13 @@ export default function App() {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <Meta />
         <Links />
+        {/* 환경 변수를 모든 JS보다 먼저 설정 - loaderData에서 직접 읽어 타이밍 이슈 방지 */}
+        <script
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{
+            __html: `window.__ENV = ${JSON.stringify(loaderData?.ENV || {})};`,
+          }}
+        />
       </head>
       <body className="h-full min-h-screen bg-ivory-50" suppressHydrationWarning>
         <NotificationProvider userId={user?.id} userRole={userRole}>
@@ -188,11 +184,6 @@ export default function App() {
         </NotificationProvider>
         <ScrollRestoration />
         <Scripts />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `window.__ENV = ${JSON.stringify(ENV || {})};`,
-          }}
-        />
       </body>
     </html>
   );

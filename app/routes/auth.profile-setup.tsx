@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from '@remix-run/react';
+import { useNavigate, useOutletContext } from '@remix-run/react';
 import { supabase } from '~/lib/supabase';
 
 export default function ProfileSetup() {
   const navigate = useNavigate();
-  const [user, setUser] = useState<any>(null);
+  const outletContext = useOutletContext<{ user: any; userRole: string | null }>();
+  const [user, setUser] = useState<any>(outletContext?.user || null);
   const [existingProfile, setExistingProfile] = useState<any>(null);
   const [name, setName] = useState('');
   const [churchGroup, setChurchGroup] = useState('');
@@ -15,8 +16,13 @@ export default function ProfileSetup() {
   useEffect(() => {
     const getUser = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
+        let authUser = outletContext?.user;
+        if (!authUser) {
+          const { data: { session } } = await supabase.auth.getSession();
+          authUser = session?.user;
+        }
+        if (authUser) {
+          const user = authUser;
           setUser(user);
 
           // 기존 프로필 확인

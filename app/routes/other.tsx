@@ -34,26 +34,23 @@ export default function OtherPage() {
     setUser(contextUser);
   }, [contextUser]);
 
-  // 마운트 시 세션 재확인 (탭 이동 후 세션 유실 방지)
+  // 세션 재확인 (outletContext에 user가 없을 때만 fallback)
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || user) return;
 
     const checkSession = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        console.log('📱 기타탭 - 세션 확인:', session?.user?.email || 'null', error?.message || '');
-
-        if (session?.user && !user) {
-          console.log('📱 기타탭 - 세션에서 사용자 복구:', session.user.email);
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
           setUser(session.user);
         }
-      } catch (err) {
-        console.error('📱 기타탭 - 세션 확인 실패:', err);
-      }
+      } catch {}
     };
 
-    checkSession();
-  }, [mounted]);
+    // outletContext가 아직 로딩 중일 수 있으므로 짧은 지연 후 확인
+    const timer = setTimeout(checkSession, 200);
+    return () => clearTimeout(timer);
+  }, [mounted, user]);
 
   // 사용자 정보 및 역할 로드
   useEffect(() => {

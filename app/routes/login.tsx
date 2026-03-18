@@ -1,17 +1,9 @@
-import { json, redirect, type LoaderFunctionArgs } from "@remix-run/node";
-import { useLoaderData, Form } from "@remix-run/react";
+import { json, type LoaderFunctionArgs } from "@remix-run/node";
 import { useState } from "react";
-import { supabase } from "~/lib/supabase";
 import { LoginForm } from "~/components/LoginForm";
-import { SignupForm } from "~/components/SignupForm";
 
 export async function loader({ request }: LoaderFunctionArgs) {
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (user) {
-    return redirect('/');
-  }
-  
+  // 서버에는 클라이언트 세션이 없으므로 auth 체크 불가 - 클라이언트에서 처리
   return json({});
 }
 
