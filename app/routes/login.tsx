@@ -19,11 +19,11 @@ export default function LoginPage() {
   const [loginSuccess, setLoginSuccess] = useState(false);
 
   const handleLoginSuccess = () => {
-    console.log('✅ 로그인 성공 - 홈으로 리다이렉트');
     setLoginSuccess(true);
+    // 짧은 피드백 후 즉시 이동
     setTimeout(() => {
       window.location.href = '/';
-    }, 1000);
+    }, 300);
   };
 
   return (
