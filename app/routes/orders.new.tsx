@@ -123,12 +123,20 @@ export default function NewOrder() {
 
   useEffect(() => {
     async function fetchUserInfo() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
+      // outletContext의 user를 우선 사용, 없을 때만 getSession 호출
+      const currentUser = outletContext?.user;
+      let userId = currentUser?.id;
+
+      if (!userId) {
+        const { data: { session } } = await supabase.auth.getSession();
+        userId = session?.user?.id;
+      }
+
+      if (userId) {
         const { data: userData } = await supabase
           .from('users')
           .select('name, church_group')
-          .eq('id', user.id)
+          .eq('id', userId)
           .single();
         if (userData) {
           setCustomerName(userData.name || '');
@@ -276,13 +284,14 @@ export default function NewOrder() {
       return;
     }
 
-    // 클라이언트에서 사용자 ID 가져오기
-    const getCurrentUserId = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      return user?.id;
+    // outletContext user 우선 사용, 없으면 getSession으로 fallback
+    const getUserId = async () => {
+      if (outletContext?.user?.id) return outletContext.user.id;
+      const { data: { session } } = await supabase.auth.getSession();
+      return session?.user?.id;
     };
 
-    getCurrentUserId().then(userId => {
+    getUserId().then(userId => {
       if (!userId) {
         alert('로그인 정보가 확인되지 않아 주문을 생성할 수 없습니다. 다시 로그인 해주세요.');
         return;

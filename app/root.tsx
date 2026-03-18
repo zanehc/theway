@@ -113,48 +113,45 @@ export default function App() {
 
     getInitialUser();
 
-    console.log('🔐 Root - 인증 상태 변경 리스너 설정');
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('🔐 Root - 인증 상태 변경:', event, session?.user?.email || 'null');
-        
-        // 로그아웃 이벤트 처리
-        if (event === 'SIGNED_OUT' || !session?.user) {
+
+        // 명시적 로그아웃만 처리 (INITIAL_SESSION 등에서 false logout 방지)
+        if (event === 'SIGNED_OUT') {
           console.log('🔐 Root - 로그아웃 처리');
           setUser(null);
           setUserRole(null);
-          // 캐시 정리
-          Object.keys(sessionStorage).forEach(key => {
-            if (key.startsWith('user_role_')) {
-              sessionStorage.removeItem(key);
-            }
-          });
+          try {
+            Object.keys(sessionStorage).forEach(key => {
+              if (key.startsWith('user_role_')) {
+                sessionStorage.removeItem(key);
+              }
+            });
+          } catch {}
           return;
         }
 
-        // 로그인/세션 갱신 처리
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-          console.log('🔐 Root - 로그인/토큰 갱신 처리');
+        // 로그인/세션 갱신 처리 - 세션이 있을 때만
+        if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION')) {
           setUser(session.user);
-          
-          // 역할 정보 가져오기
+
+          // INITIAL_SESSION은 getInitialUser에서 이미 처리하므로 역할 재조회 생략
+          if (event === 'INITIAL_SESSION') return;
+
           try {
             const { data: userData } = await supabase
               .from('users')
               .select('role')
               .eq('id', session.user.id)
               .single();
-            
+
             const role = userData?.role || 'customer';
-            console.log('🔐 Root - 새 역할 설정:', role);
             setUserRole(role);
-            
-            // Safari 호환성을 위한 안전한 세션스토리지 저장
+
             try {
               sessionStorage.setItem(`user_role_${session.user.id}`, role);
-            } catch (storageError) {
-              console.warn('🔐 Root - 세션스토리지 저장 실패 (인증 변경):', storageError);
-            }
+            } catch {}
           } catch (error) {
             console.error('🔐 Root - 역할 정보 실패:', error);
             setUserRole('customer');

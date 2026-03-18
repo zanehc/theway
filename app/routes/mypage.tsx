@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '~/lib/supabase';
 import { getUserOrderHistory, updateUser, getUserByIdOrCreate } from '~/lib/database';
 import type { UserOrderHistory } from '~/types';
-import { useNavigate } from '@remix-run/react';
+import { useNavigate, useOutletContext } from '@remix-run/react';
 import { useNotifications } from '~/contexts/NotificationContext';
 
 interface User {
@@ -15,6 +15,7 @@ interface User {
 
 export default function MyPage() {
   const navigate = useNavigate();
+  const outletContext = useOutletContext<{ user: any; userRole: string | null }>();
   const { addToast } = useNotifications();
   const [user, setUser] = useState<User | null>(null);
   const [name, setName] = useState('');
@@ -37,7 +38,12 @@ export default function MyPage() {
 
   const fetchUserData = async () => {
     try {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
+      // outletContext user 우선 사용, 없으면 getSession fallback
+      let authUser = outletContext?.user;
+      if (!authUser) {
+        const { data: { session } } = await supabase.auth.getSession();
+        authUser = session?.user;
+      }
       if (authUser) {
         console.log('🔄 MyPage: fetching user data for', authUser.id);
         
