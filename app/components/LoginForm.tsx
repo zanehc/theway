@@ -23,11 +23,44 @@ export function LoginForm({ onSwitchToSignup, onLoginSuccess }: LoginFormProps) 
     setLoading(true);
     setError('');
 
+    // signInWithPassword가 hang되는 경우 대비 - auth 상태 변화 감지로 성공 처리
+    let loginHandled = false;
+    const authListener = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' && !loginHandled) {
+        loginHandled = true;
+        authListener.data.subscription.unsubscribe();
+        setLoading(false);
+        if (onLoginSuccess) onLoginSuccess();
+      }
+    });
+
+    // 5초 타임아웃 - promise가 안 끝나도 auth 상태가 변경되었으면 성공 처리
+    const timeout = setTimeout(async () => {
+      if (!loginHandled) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          loginHandled = true;
+          authListener.data.subscription.unsubscribe();
+          setLoading(false);
+          if (onLoginSuccess) onLoginSuccess();
+        } else {
+          setLoading(false);
+          setError('로그인 응답 시간이 초과되었습니다. 다시 시도해주세요.');
+        }
+      }
+    }, 5000);
+
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password: password,
       });
+
+      clearTimeout(timeout);
+
+      if (loginHandled) return; // 이미 auth listener에서 처리됨
+      loginHandled = true;
+      authListener.data.subscription.unsubscribe();
 
       if (error) {
         if (error.message.includes('Invalid login credentials')) {
@@ -35,14 +68,18 @@ export function LoginForm({ onSwitchToSignup, onLoginSuccess }: LoginFormProps) 
         } else {
           setError(error.message);
         }
+        setLoading(false);
       } else {
-        // 로그인 성공 시
+        setLoading(false);
         if (onLoginSuccess) onLoginSuccess();
       }
     } catch (err) {
-      setError('로그인 중 오류가 발생했습니다.');
-    } finally {
-      setLoading(false);
+      clearTimeout(timeout);
+      if (!loginHandled) {
+        authListener.data.subscription.unsubscribe();
+        setError('로그인 중 오류가 발생했습니다.');
+        setLoading(false);
+      }
     }
   };
 
