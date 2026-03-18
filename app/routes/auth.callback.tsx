@@ -38,43 +38,49 @@ export default function AuthCallback() {
         return;
       }
 
-      if (!code) {
-        // code 없으면 세션 확인 후 홈으로
+      setStatus('로그인 처리 중...');
+
+      // 1) code가 있으면 교환 시도
+      if (code) {
+        try {
+          await supabase.auth.exchangeCodeForSession(code);
+        } catch {
+          // 교환 실패해도 세션이 이미 있을 수 있음 → 아래에서 확인
+        }
+      }
+
+      // 2) 세션 확인 - 코드 교환 성공/실패 관계없이 세션 있으면 로그인 완료
+      try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
           goHome('로그인되었습니다.');
-        } else {
-          goError('로그인 정보가 없습니다.');
-        }
-        return;
-      }
-
-      setStatus('로그인 처리 중...');
-
-      try {
-        const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-
-        if (exchangeError) {
-          console.error('코드 교환 실패:', exchangeError);
-          goError('로그인 처리 실패');
           return;
         }
+      } catch {}
 
-        // 코드 교환 성공 → 바로 홈으로 이동
-        // 프로필 없는 신규 사용자는 홈에서 처리
-        goHome('로그인되었습니다.');
+      // 3) 세션이 아직 없으면 auth 이벤트 대기
+      const authListener = supabase.auth.onAuthStateChange((event, session) => {
+        if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
+          authListener.data.subscription.unsubscribe();
+          goHome('로그인되었습니다.');
+        }
+      });
 
-      } catch (err) {
-        console.error('코드 교환 예외:', err);
-        goError('로그인 처리 실패');
-      }
+      // 4) 5초 안전장치
+      setTimeout(() => {
+        authListener.data.subscription.unsubscribe();
+        // 마지막으로 세션 한 번 더 확인
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (session?.user) {
+            goHome('로그인되었습니다.');
+          } else {
+            goError('로그인 처리 시간 초과');
+          }
+        }).catch(() => goError('로그인 처리 실패'));
+      }, 5000);
     };
 
     handleCallback();
-
-    // 안전장치: 5초 후에도 안 끝나면 홈으로
-    const timeout = setTimeout(() => goHome('로그인되었습니다.'), 5000);
-    return () => clearTimeout(timeout);
   }, [searchParams, navigate]);
 
   return (
