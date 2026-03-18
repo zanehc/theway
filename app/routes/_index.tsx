@@ -53,20 +53,9 @@ export default function Index() {
     }
   }, [outletContext?.user]);
 
-  // OAuth 콜백 처리 + 세션 확인
+  // 비로그인 시 세션 확인
   useEffect(() => {
-    if (!mounted) return;
-
-    // URL에 code 파라미터가 있으면 OAuth 콜백 → URL 정리
-    const url = new URL(window.location.href);
-    if (url.searchParams.has('code')) {
-      url.searchParams.delete('code');
-      window.history.replaceState({}, '', url.pathname + (url.search || ''));
-    }
-
-    if (user) return;
-
-    // 세션 확인 (OAuth 자동 교환 완료 후 또는 기존 세션)
+    if (!mounted || user) return;
     const checkSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -76,15 +65,6 @@ export default function Index() {
       } catch {}
     };
     checkSession();
-
-    // OAuth 자동 교환이 비동기로 완료될 수 있으므로 auth 이벤트도 감지
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
-        setUser(session.user);
-      }
-    });
-
-    return () => subscription.unsubscribe();
   }, [mounted, user]);
 
   if (!mounted) {
