@@ -30,11 +30,6 @@ export default function Index() {
   const outletContext = useOutletContext<{ user: any; userRole: string | null }>();
   const navigation = useNavigation();
   const [user, setUser] = useState<any>(outletContext?.user || null);
-
-  // Safari 호환성을 위한 안전한 네비게이션 상태 체크
-  if (navigation.state === "loading" && navigation.location?.pathname && navigation.location.pathname !== "/") {
-    return <HomeSkeleton />;
-  }
   const [mounted, setMounted] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
@@ -66,6 +61,11 @@ export default function Index() {
     };
     checkSession();
   }, [mounted, user]);
+
+  // Safari 호환성을 위한 안전한 네비게이션 상태 체크 (hooks 이후에 위치)
+  if (navigation.state === "loading" && navigation.location?.pathname && navigation.location.pathname !== "/") {
+    return <HomeSkeleton />;
+  }
 
   if (!mounted) {
     return null;
@@ -126,13 +126,12 @@ export default function Index() {
                     </div>
                   </div>
                   <button
-                    onClick={async () => {
-                      try {
-                        await supabase.auth.signOut();
-                        window.location.href = '/';
-                      } catch (error) {
-                        console.error('로그아웃 실패:', error);
-                      }
+                    onClick={() => {
+                      // signOut이 hang될 수 있으므로 로컬 세션 정리 후 즉시 리로드
+                      supabase.auth.signOut().catch(() => {});
+                      localStorage.removeItem('theway-cafe-auth-token');
+                      sessionStorage.clear();
+                      window.location.href = '/';
                     }}
                     className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-lg font-medium transition-all text-xs"
                   >
