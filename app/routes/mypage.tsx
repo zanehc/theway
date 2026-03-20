@@ -108,9 +108,11 @@ export default function MyPage() {
     }
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate('/');
+  const handleLogout = () => {
+    supabase.auth.signOut().catch(() => {});
+    localStorage.removeItem('theway-cafe-auth-token');
+    sessionStorage.clear();
+    window.location.href = '/';
   };
 
   const handlePasswordChange = async (e: React.FormEvent) => {

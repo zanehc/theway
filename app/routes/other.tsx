@@ -170,13 +170,11 @@ export default function OtherPage() {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await supabase.auth.signOut();
-      navigate("/");
-    } catch (err) {
-      setError("로그아웃 중 오류가 발생했습니다.");
-    }
+  const handleLogout = () => {
+    supabase.auth.signOut().catch(() => {});
+    localStorage.removeItem('theway-cafe-auth-token');
+    sessionStorage.clear();
+    window.location.href = '/';
   };
 
   const handleForgotPassword = async (e: React.FormEvent) => {
