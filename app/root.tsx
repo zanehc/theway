@@ -67,70 +67,35 @@ export default function App() {
 
     const getInitialUser = async () => {
       try {
-        console.log('🔐 Root - 초기 사용자 인증 상태 확인 (getSession 사용)');
-
-        // getSession()으로 로컬 캐시된 세션을 먼저 확인 (더 빠름)
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-        if (sessionError) {
-          console.error('🔐 Root - 세션 가져오기 실패:', sessionError);
-          setUser(null);
-          setUserRole(null);
-          return;
-        }
-
+        const { data: { session } } = await supabase.auth.getSession();
         const user = session?.user || null;
-        console.log('🔐 Root - 세션에서 사용자 정보:', user?.email || 'null');
         setUser(user);
 
         if (user) {
-          // Safari 호환성을 위한 안전한 세션스토리지 접근
+          // 캐시된 역할 즉시 적용 (없으면 낙관적으로 'customer')
           let cachedRole: string | null = null;
           try {
             cachedRole = sessionStorage.getItem(`user_role_${user.id}`);
-            if (cachedRole) {
-              console.log('🔐 Root - 캐시된 역할 사용:', cachedRole);
-              setUserRole(cachedRole);
+          } catch {}
+          setUserRole(cachedRole || 'customer');
+
+          // ✅ 세션 확인 즉시 authChecked=true → orders.history 바로 로딩 가능
+          setAuthChecked(true);
+
+          // DB 역할 조회는 백그라운드 (admin 여부 확인용)
+          supabase.from('users').select('role').eq('id', user.id).single().then(({ data, error }) => {
+            if (!error && data?.role) {
+              setUserRole(data.role);
+              try { sessionStorage.setItem(`user_role_${user.id}`, data.role); } catch {}
             }
-          } catch (storageError) {
-            console.warn('🔐 Root - 세션스토리지 접근 실패:', storageError);
-          }
-
-          // 역할 정보 업데이트
-          try {
-            const { data: userData, error: roleError } = await supabase
-              .from('users')
-              .select('role')
-              .eq('id', user.id)
-              .single();
-
-            if (!roleError && userData?.role) {
-              const roleValue = userData.role as string;
-              console.log('🔐 Root - DB에서 역할 확인:', roleValue);
-              setUserRole(roleValue);
-
-              // Safari 호환성을 위한 안전한 세션스토리지 저장
-              try {
-                sessionStorage.setItem(`user_role_${user.id}`, roleValue);
-              } catch (storageError) {
-                console.warn('🔐 Root - 세션스토리지 저장 실패:', storageError);
-              }
-            } else {
-              console.log('🔐 Root - 역할 정보 없음, 기본값 설정');
-              setUserRole('customer');
-            }
-          } catch (roleError) {
-            console.error('🔐 Root - 역할 정보 가져오기 실패:', roleError);
-            setUserRole('customer');
-          }
+          });
         } else {
           setUserRole(null);
+          setAuthChecked(true);
         }
-      } catch (error) {
-        console.error('🔐 Root - 초기 인증 처리 실패:', error);
+      } catch {
         setUser(null);
         setUserRole(null);
-      } finally {
         setAuthChecked(true);
       }
     };
