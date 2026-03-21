@@ -108,8 +108,9 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
       console.log('🔄 updateUser result:', result);
 
       if (result.success) {
-        console.log('✅ Update successful, refreshing user data');
-        await fetchUserData();
+        console.log('✅ Update successful');
+        // DB 재조회 없이 로컬 상태만 즉시 업데이트 (Mumbai 레이턴시 방지)
+        setUser(prev => prev ? { ...prev, name: name.trim(), church_group: churchGroup.trim() || null } : prev);
         setProfileSuccess('정보가 성공적으로 수정되었습니다!');
         addToast('정보가 성공적으로 수정되었습니다!', 'success');
         setTimeout(() => setProfileSuccess(''), 3000);

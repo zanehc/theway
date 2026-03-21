@@ -92,8 +92,9 @@ export default function MyPage() {
       console.log('🔄 updateUser result:', result);
 
       if (result.success) {
-        console.log('✅ Update successful, refreshing user data');
-        if (authUser) await fetchUserData(authUser);
+        console.log('✅ Update successful');
+        // DB 재조회 없이 로컬 상태만 즉시 업데이트 (Mumbai 레이턴시 방지)
+        setUser(prev => prev ? { ...prev, name: name.trim(), church_group: churchGroup.trim() || null } : prev);
         addToast('정보가 성공적으로 수정되었습니다!', 'success');
       } else {
         console.error('❌ Update failed:', result.error);
@@ -108,8 +109,16 @@ export default function MyPage() {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate('/');
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {}
+    try {
+      localStorage.removeItem('theway-cafe-auth-token');
+      Object.keys(sessionStorage).forEach(key => {
+        if (key.startsWith('user_role_')) sessionStorage.removeItem(key);
+      });
+    } catch (e) {}
+    window.location.replace('/');
   };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
