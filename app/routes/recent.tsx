@@ -212,14 +212,26 @@ export default function RecentPage() {
     }
   }, [location.search, mounted]);
 
-  // 주문 데이터 로딩 (user 상태 기반)
+  // 주문 데이터 로딩 (authReady 대기 후 실행)
+  const authReady = outletContext?.authReady ?? false;
+
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || !authReady) return;
 
     let isCancelled = false;
 
     const loadOrders = async () => {
-      const currentUser = user;
+      // authReady 이후에도 user가 없으면 세션 확인
+      let currentUser = user;
+      if (!currentUser) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            currentUser = session.user;
+            setUser(session.user);
+          }
+        } catch {}
+      }
 
       if (!currentUser) {
         setOrders([]);
@@ -230,9 +242,15 @@ export default function RecentPage() {
       try {
         const role = userRoleState || 'customer';
 
-        const result = role === 'admin'
-          ? await getOrders()
-          : await getOrdersByUserId(currentUser.id);
+        // 10초 타임아웃
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), 10000)
+        );
+
+        const result = await Promise.race([
+          role === 'admin' ? getOrders() : getOrdersByUserId(currentUser.id),
+          timeoutPromise
+        ]);
 
         if (!isCancelled) {
           setOrders(result || []);
@@ -254,7 +272,7 @@ export default function RecentPage() {
     return () => {
       isCancelled = true;
     };
-  }, [mounted, user, userRoleState]);
+  }, [mounted, authReady, user, userRoleState]);
 
 
 
