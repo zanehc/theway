@@ -169,7 +169,21 @@ export default function App() {
           console.log('🔐 Root - 로그인/토큰 갱신 처리');
           setUser(session.user);
 
-          // 역할 정보 가져오기
+          // 캐시 확인 → 있으면 즉시 적용하고 DB 쿼리 스킵
+          let cachedRole: string | null = null;
+          try {
+            cachedRole = sessionStorage.getItem(`user_role_${session.user.id}`);
+          } catch (e) {}
+
+          if (cachedRole) {
+            console.log('🔐 Root - 캐시된 역할 즉시 적용:', cachedRole);
+            setUserRole(cachedRole);
+            return;
+          }
+
+          // 캐시 미스: 낙관적으로 'customer' 즉시 설정 후 DB에서 실제 역할 확인
+          setUserRole('customer');
+
           try {
             const { data: userData } = await supabase
               .from('users')
@@ -178,10 +192,9 @@ export default function App() {
               .single();
 
             const role = (userData?.role as string) || 'customer';
-            console.log('🔐 Root - 새 역할 설정:', role);
+            console.log('🔐 Root - DB 역할 확인 후 업데이트:', role);
             setUserRole(role);
 
-            // Safari 호환성을 위한 안전한 세션스토리지 저장
             try {
               sessionStorage.setItem(`user_role_${session.user.id}`, role);
             } catch (storageError) {
@@ -189,7 +202,6 @@ export default function App() {
             }
           } catch (error) {
             console.error('🔐 Root - 역할 정보 실패:', error);
-            setUserRole('customer');
           }
         }
       }
