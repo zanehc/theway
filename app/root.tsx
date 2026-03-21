@@ -106,8 +106,20 @@ export default function App() {
       async (event, session) => {
         console.log('🔐 Root - 인증 상태 변경:', event, session?.user?.email || 'null');
 
-        // 명시적 로그아웃만 처리 (INITIAL_SESSION 등에서 false logout 방지)
+        // SIGNED_OUT 처리 - 네트워크 오류로 인한 거짓 로그아웃 방지
         if (event === 'SIGNED_OUT') {
+          // localStorage에 세션 토큰이 남아있으면 네트워크 오류로 인한 거짓 SIGNED_OUT
+          try {
+            const stored = localStorage.getItem('theway-cafe-auth-token');
+            if (stored) {
+              const parsed = JSON.parse(stored);
+              if (parsed?.access_token) {
+                console.log('🔐 Root - 네트워크 오류로 인한 거짓 SIGNED_OUT 무시');
+                return;
+              }
+            }
+          } catch {}
+
           console.log('🔐 Root - 로그아웃 처리');
           setUser(null);
           setUserRole(null);
