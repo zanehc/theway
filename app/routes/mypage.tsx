@@ -53,7 +53,18 @@ export default function MyPage() {
         const history = await getUserOrderHistory(authUser.id);
         setOrderHistory(history);
       } else {
-        console.error('❌ MyPage: failed to get/create user data');
+        // DB 조회/생성 실패 시 auth 세션 정보로 폴백하여 폼이 동작하도록 함
+        console.warn('⚠️ MyPage: DB user not found, using auth session fallback');
+        const fallbackUser: User = {
+          id: authUser.id,
+          email: authUser.email || '',
+          name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || '',
+          church_group: null,
+          role: 'customer',
+        };
+        setUser(fallbackUser);
+        setName(fallbackUser.name);
+        setChurchGroup('');
       }
     } catch (error) {
       console.error('❌ MyPage: Error fetching user data:', error);
@@ -63,18 +74,17 @@ export default function MyPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log('🔄 MyPage handleSubmit called');
-    
-    if (!user) {
+
+    const userId = user?.id || authUser?.id;
+    if (!userId) {
       console.error('❌ No user found');
+      addToast('사용자 정보를 불러올 수 없습니다. 다시 로그인해주세요.', 'error');
       return;
     }
 
-    console.log('🔄 Current user:', user);
-    console.log('🔄 Form data:', { name: name.trim(), church_group: churchGroup.trim() });
-
     setLoading(true);
     try {
-      const result = await updateUser(user.id, {
+      const result = await updateUser(userId, {
         name: name.trim(),
         church_group: churchGroup.trim() || undefined,
       });
@@ -83,14 +93,11 @@ export default function MyPage() {
 
       if (result.success) {
         console.log('✅ Update successful, refreshing user data');
-        // 업데이트된 사용자 정보 다시 조회
-        await fetchUserData();
-        
-        // 성공 토스트 알림 표시
-        addToast('정보가 성공적으로 수정되었습니다! 🎉', 'success');
+        if (authUser) await fetchUserData(authUser);
+        addToast('정보가 성공적으로 수정되었습니다!', 'success');
       } else {
         console.error('❌ Update failed:', result.error);
-        throw new Error('사용자 정보 업데이트에 실패했습니다.');
+        addToast('정보 수정에 실패했습니다. 다시 시도해주세요.', 'error');
       }
     } catch (error) {
       console.error('❌ Error updating user:', error);
