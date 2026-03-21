@@ -21,6 +21,8 @@ export default function MyPage() {
   const [name, setName] = useState('');
   const [churchGroup, setChurchGroup] = useState('');
   const [loading, setLoading] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [authEmail, setAuthEmail] = useState(''); // auth 계정 이메일 (구글/카카오 포함)
   const [orderHistory, setOrderHistory] = useState<UserOrderHistory | null>(null);
   const [activeTab, setActiveTab] = useState<'profile' | 'orders' | 'password'>('profile');
   
@@ -45,13 +47,13 @@ export default function MyPage() {
         authUser = session?.user;
       }
       if (authUser) {
-        console.log('🔄 MyPage: fetching user data for', authUser.id);
-        
+        // auth 계정 이메일 저장 (구글/카카오 등 소셜 로그인 이메일 포함)
+        setAuthEmail(authUser.email || '');
+
         // 사용자 정보 조회 (없으면 생성)
         const userData = await getUserByIdOrCreate(authUser);
 
         if (userData) {
-          console.log('🔄 MyPage: user data found/created:', userData);
           setUser(userData);
           setName(userData.name || '');
           setChurchGroup(userData.church_group || '');
@@ -105,12 +107,10 @@ export default function MyPage() {
       console.log('🔄 updateUser result:', result);
 
       if (result.success) {
-        console.log('✅ Update successful, refreshing user data');
-        // 업데이트된 사용자 정보 다시 조회
         await fetchUserData();
-        
-        // 성공 토스트 알림 표시
-        addToast('정보가 성공적으로 수정되었습니다! 🎉', 'success');
+        setSaveSuccess(true);
+        addToast('정보가 성공적으로 수정되었습니다!', 'success');
+        setTimeout(() => setSaveSuccess(false), 3000);
       } else {
         console.error('❌ Update failed:', result.error);
         throw new Error('사용자 정보 업데이트에 실패했습니다.');
@@ -272,12 +272,17 @@ export default function MyPage() {
             {activeTab === 'profile' && (
               <div>
                 <h2 className="text-lg font-medium text-gray-900 mb-6">프로필 정보</h2>
+                {saveSuccess && (
+                  <div className="mb-4 bg-green-50 border border-green-300 text-green-700 px-4 py-3 rounded-lg text-sm font-medium">
+                    정보가 성공적으로 저장되었습니다.
+                  </div>
+                )}
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">이메일</label>
+                    <label className="block text-sm font-medium text-gray-700">이메일 (로그인 계정)</label>
                     <input
                       type="email"
-                      value={user?.email || ''}
+                      value={authEmail || user?.email || ''}
                       disabled
                       className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 text-gray-500"
                     />
