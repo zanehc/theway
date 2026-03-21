@@ -1,11 +1,10 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from '@remix-run/react';
 import { supabase } from '~/lib/supabase';
 
 export default function AuthCallback() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [status, setStatus] = useState('인증 처리 중...');
   const isProcessing = useRef(false);
 
   useEffect(() => {
@@ -13,63 +12,17 @@ export default function AuthCallback() {
     console.log('🔍 AuthCallback - 전체 URL:', window.location.href);
     console.log('🔍 AuthCallback - Search Params:', window.location.search);
 
-    const handleUserProfile = async (user: any) => {
-      if (isProcessing.current) {
-        console.log('⚠️ 이미 처리 중, 중복 실행 방지');
-        return;
-      }
+    const handleUserProfile = (user: any) => {
+      if (isProcessing.current) return;
       isProcessing.current = true;
 
-      try {
-        setStatus('프로필 확인 중...');
-        console.log('👤 프로필 확인 시작:', user.email, user.id);
+      // DB 조회 없이 created_at으로 신규 유저 판별 (60초 이내 가입 = 신규)
+      const createdAt = new Date(user.created_at).getTime();
+      const isNewUser = Date.now() - createdAt < 60000;
 
-        // 프로필 확인에 3초 타임아웃 적용 (기존 15초 → 3초)
-        const profileCheckPromise = (async () => {
-          const { data: existingUser, error: userError } = await supabase
-            .from('users')
-            .select('id, name, church_group')
-            .eq('id', user.id)
-            .single();
-
-          console.log('📊 ID 조회 완료:', { found: !!existingUser, error: userError?.code });
-          return { existingUser, userError };
-        })();
-
-        const timeoutPromise = new Promise<{ existingUser: null; userError: { code: string } }>((resolve) =>
-          setTimeout(() => {
-            console.warn('⏱️ Supabase 조회 타임아웃, 홈으로 이동');
-            resolve({ existingUser: null, userError: { code: 'TIMEOUT' } });
-          }, 3000)
-        );
-
-        const result = await Promise.race([profileCheckPromise, timeoutPromise]);
-        let { existingUser, userError } = result;
-
-        // 타임아웃이거나 조회 오류면 홈으로 (기존 사용자로 간주)
-        if ((userError as any)?.code === 'TIMEOUT') {
-          console.log('⏱️ 타임아웃 - 홈으로 이동');
-          navigate('/?success=' + encodeURIComponent('로그인되었습니다.'));
-          return;
-        }
-
-        if (userError && (userError as any).code !== 'PGRST116') {
-          console.error('❌ 사용자 조회 오류:', userError);
-        }
-
-        if (!existingUser) {
-          console.log('🆕 새 사용자, 프로필 설정 페이지로 이동:', user.email);
-          setStatus('프로필 설정 페이지로 이동 중...');
-          navigate('/auth/profile-setup');
-          return;
-        }
-
-        console.log('✅ 기존 사용자 로그인 완료:', existingUser.name);
-        setStatus('로그인 완료!');
-        navigate('/?success=' + encodeURIComponent('로그인되었습니다.'));
-
-      } catch (err: any) {
-        console.error('❌ 프로필 확인 오류:', err);
+      if (isNewUser) {
+        navigate('/auth/profile-setup');
+      } else {
         navigate('/?success=' + encodeURIComponent('로그인되었습니다.'));
       }
     };
@@ -110,8 +63,6 @@ export default function AuthCallback() {
 
       // code가 있으면 교환 시도
       if (code) {
-        console.log('🔄 OAuth 코드 교환 중:', code.substring(0, 10) + '...');
-        setStatus('로그인 처리 중...');
 
         try {
           const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
@@ -161,7 +112,7 @@ export default function AuthCallback() {
     <div className="min-h-screen bg-gradient-warm flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-large p-8 w-full max-w-md text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-wine-600 mx-auto mb-4"></div>
-        <p className="text-wine-700 font-medium">{status}</p>
+        <p className="text-wine-700 font-medium">로그인 중...</p>
       </div>
     </div>
   );
