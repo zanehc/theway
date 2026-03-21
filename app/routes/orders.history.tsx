@@ -19,11 +19,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 export default function OrdersHistoryPage() {
   const { error, success } = useLoaderData<typeof loader>();
-  const outletContext = useOutletContext<{ user: any; userRole: string | null }>();
+  const outletContext = useOutletContext<{ user: any; userRole: string | null; authChecked: boolean }>();
   const navigation = useNavigation();
   const navigate = useNavigate();
 
   const contextUser = outletContext?.user || null;
+  const authChecked = outletContext?.authChecked ?? false;
   const [user, setUser] = useState<any>(contextUser);
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,7 +39,8 @@ export default function OrdersHistoryPage() {
   }, [contextUser]);
 
   useEffect(() => {
-    if (!mounted) return;
+    // authChecked가 true가 될 때까지 대기 (로그인 상태 확인 전에 "로그인 필요" 표시 방지)
+    if (!mounted || !authChecked) return;
     if (!user) {
       setOrders([]);
       setLoading(false);
@@ -47,6 +49,7 @@ export default function OrdersHistoryPage() {
 
     let isCancelled = false;
     const loadOrders = async () => {
+      setLoading(true);
       try {
         const result = await getOrdersByUserId(user.id);
         if (!isCancelled) setOrders(result || []);
@@ -59,7 +62,7 @@ export default function OrdersHistoryPage() {
 
     loadOrders();
     return () => { isCancelled = true; };
-  }, [mounted, user]);
+  }, [mounted, authChecked, user]);
 
   useEffect(() => {
     if (!mounted || toasts.length === 0 || !user) return;

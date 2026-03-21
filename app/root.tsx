@@ -46,6 +46,7 @@ export default function App() {
   const [user, setUser] = useState<any>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
 
   // Safari 호환성을 위해 항상 useLoaderData 호출
   const loaderData = useLoaderData<typeof loader>();
@@ -129,6 +130,8 @@ export default function App() {
         console.error('🔐 Root - 초기 인증 처리 실패:', error);
         setUser(null);
         setUserRole(null);
+      } finally {
+        setAuthChecked(true);
       }
     };
 
@@ -217,7 +220,7 @@ export default function App() {
         <NotificationProvider userId={user?.id} userRole={userRole}>
           <div className="app-container">
             <div className="main-content pb-24">
-              <Outlet context={{ user, userRole }} />
+              <Outlet context={{ user, userRole, authChecked }} />
             </div>
             <div id="modal-root" />
             {isClient && <BottomNavigation user={user} />}
