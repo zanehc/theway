@@ -143,7 +143,7 @@ export default function App() {
         console.log('🔐 Root - 인증 상태 변경:', event, session?.user?.email || 'null');
 
         if (event === 'SIGNED_OUT') {
-          // localStorage에 토큰이 남아있으면 네트워크 오류/탭이동으로 인한 가짜 SIGNED_OUT → 무시
+          // localStorage에 토큰이 남아있으면 탭이동/네트워크 오류로 인한 가짜 SIGNED_OUT → 무시
           try {
             const stored = localStorage.getItem('theway-cafe-auth-token');
             if (stored) {
