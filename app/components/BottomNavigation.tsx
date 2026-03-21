@@ -13,7 +13,6 @@ export default function BottomNavigation({ user }: BottomNavigationProps) {
   // 각 탭의 데이터를 미리 로드하기 위한 fetcher들
   const recentFetcher = useFetcher();
   const ordersFetcher = useFetcher();
-  const reportsFetcher = useFetcher();
 
   // Props 변경 시 로그
   useEffect(() => {
@@ -27,9 +26,9 @@ export default function BottomNavigation({ user }: BottomNavigationProps) {
     // Safari에서 안전한 프리로딩을 위한 예외 처리
     try {
       switch (path) {
-        case '/recent':
+        case '/orders/history':
           if (recentFetcher.state === 'idle' && !recentFetcher.data) {
-            recentFetcher.load('/recent');
+            recentFetcher.load('/orders/history');
           }
           break;
         case '/orders/new':
@@ -37,25 +36,18 @@ export default function BottomNavigation({ user }: BottomNavigationProps) {
             ordersFetcher.load('/orders/new');
           }
           break;
-        case '/reports':
-          if (user?.role === 'staff' || user?.role === 'admin') {
-            if (reportsFetcher.state === 'idle' && !reportsFetcher.data) {
-              reportsFetcher.load('/reports');
-            }
-          }
-          break;
       }
     } catch (error) {
       console.warn('Tab prefetch failed:', error);
     }
-  }, [user, recentFetcher, ordersFetcher, reportsFetcher]);
+  }, [user, recentFetcher, ordersFetcher]);
 
   // 현재 탭이 아닌 다른 탭들의 데이터를 미리 로드
   useEffect(() => {
     if (!user) return;
     
     const currentPath = location.pathname;
-    const tabsToPreload = ['/recent', '/orders/new', '/reports'].filter(path => path !== currentPath);
+    const tabsToPreload = ['/orders/history', '/orders/new'].filter(path => path !== currentPath);
     
     // 500ms 지연 후 프리로딩 시작 (현재 페이지 로딩을 방해하지 않기 위해)
     const timer = setTimeout(() => {
@@ -73,7 +65,7 @@ export default function BottomNavigation({ user }: BottomNavigationProps) {
 
   const handleNavClick = (item: any, e: React.MouseEvent) => {
     // 로그인되지 않은 상태에서 최근주문이나 새 주문 탭 클릭 시
-    if (!user && (item.path === "/recent" || item.path === "/orders/new")) {
+    if (!user && (item.path === "/orders/history" || item.path === "/orders/new")) {
       e.preventDefault();
       setShowLoginModal(true);
       return;
@@ -103,7 +95,7 @@ export default function BottomNavigation({ user }: BottomNavigationProps) {
       showWhenLoggedOut: true,
     },
     {
-      path: "/recent",
+      path: "/orders/history",
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
