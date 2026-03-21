@@ -212,26 +212,37 @@ export default function RecentPage() {
     }
   }, [location.search, mounted]);
 
-  // 주문 데이터 로딩 (user 상태 기반) - 최적화됨
+  // 주문 데이터 로딩 (user 상태 기반) - 세션 fallback 포함
   useEffect(() => {
     if (!mounted) return;
-
-    // user가 없으면 빠르게 로딩 종료
-    if (!user) {
-      setOrders([]);
-      setLoading(false);
-      return;
-    }
 
     let isCancelled = false;
 
     const loadOrders = async () => {
+      // outletContext user가 아직 없으면 getSession으로 fallback
+      let currentUser = user;
+      if (!currentUser) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            currentUser = session.user;
+            setUser(session.user);
+          }
+        } catch {}
+      }
+
+      if (!currentUser) {
+        setOrders([]);
+        setLoading(false);
+        return;
+      }
+
       try {
         const role = userRoleState || 'customer';
 
         const result = role === 'admin'
           ? await getOrders()
-          : await getOrdersByUserId(user.id);
+          : await getOrdersByUserId(currentUser.id);
 
         if (!isCancelled) {
           setOrders(result || []);
