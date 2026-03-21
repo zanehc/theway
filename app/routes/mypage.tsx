@@ -37,7 +37,8 @@ export default function MyPage() {
 
   const fetchUserData = async () => {
     try {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const authUser = session?.user;
       if (authUser) {
         console.log('🔄 MyPage: fetching user data for', authUser.id);
         
