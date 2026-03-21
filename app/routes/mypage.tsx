@@ -34,7 +34,7 @@ export default function MyPage() {
 
   useEffect(() => {
     fetchUserData();
-  }, []);
+  }, [outletContext?.user]);
 
   const fetchUserData = async () => {
     try {
@@ -71,18 +71,33 @@ export default function MyPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log('🔄 MyPage handleSubmit called');
-    
-    if (!user) {
+
+    // user가 없으면 세션에서 직접 조회
+    let currentUser = user;
+    if (!currentUser) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const userData = await getUserByIdOrCreate(session.user);
+          if (userData) {
+            setUser(userData);
+            currentUser = userData;
+          }
+        }
+      } catch {}
+    }
+    if (!currentUser) {
       console.error('❌ No user found');
+      addToast('사용자 정보를 불러오지 못했습니다. 다시 시도해주세요.', 'error');
       return;
     }
 
-    console.log('🔄 Current user:', user);
+    console.log('🔄 Current user:', currentUser);
     console.log('🔄 Form data:', { name: name.trim(), church_group: churchGroup.trim() });
 
     setLoading(true);
     try {
-      const result = await updateUser(user.id, {
+      const result = await updateUser(currentUser.id, {
         name: name.trim(),
         church_group: churchGroup.trim() || undefined,
       });
