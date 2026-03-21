@@ -139,17 +139,25 @@ export default function App() {
       async (event, session) => {
         console.log('🔐 Root - 인증 상태 변경:', event, session?.user?.email || 'null');
 
-        // 로그아웃 이벤트 처리
-        if (event === 'SIGNED_OUT' || !session?.user) {
+        // 로그아웃 이벤트 처리 (SIGNED_OUT 이벤트만 처리 - !session?.user 조건 제거로 탭 이동시 로그아웃 방지)
+        if (event === 'SIGNED_OUT') {
           console.log('🔐 Root - 로그아웃 처리');
           setUser(null);
           setUserRole(null);
           // 캐시 정리
-          Object.keys(sessionStorage).forEach(key => {
-            if (key.startsWith('user_role_')) {
-              sessionStorage.removeItem(key);
-            }
-          });
+          try {
+            Object.keys(sessionStorage).forEach(key => {
+              if (key.startsWith('user_role_')) {
+                sessionStorage.removeItem(key);
+              }
+            });
+          } catch (e) {}
+          return;
+        }
+
+        // 세션 없는 이벤트는 무시 (탭 이동 등 INITIAL_SESSION 이벤트에서 세션 없을 수 있음)
+        if (!session?.user) {
+          console.log('🔐 Root - 세션 없음, 무시:', event);
           return;
         }
 

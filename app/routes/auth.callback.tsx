@@ -24,10 +24,9 @@ export default function AuthCallback() {
         setStatus('프로필 확인 중...');
         console.log('👤 프로필 확인 시작:', user.email, user.id);
 
-        // 전체 프로필 확인에 5초 타임아웃 적용
+        // 프로필 확인에 3초 타임아웃 적용 (기존 15초 → 3초)
         const profileCheckPromise = (async () => {
-          // users 테이블에서 사용자 프로필 확인 (ID로 먼저 검색)
-          let { data: existingUser, error: userError } = await supabase
+          const { data: existingUser, error: userError } = await supabase
             .from('users')
             .select('id, name, church_group')
             .eq('id', user.id)
@@ -37,54 +36,25 @@ export default function AuthCallback() {
           return { existingUser, userError };
         })();
 
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Supabase 조회 타임아웃')), 15000)
+        const timeoutPromise = new Promise<{ existingUser: null; userError: { code: string } }>((resolve) =>
+          setTimeout(() => {
+            console.warn('⏱️ Supabase 조회 타임아웃, 홈으로 이동');
+            resolve({ existingUser: null, userError: { code: 'TIMEOUT' } });
+          }, 3000)
         );
 
-        let result: any;
-        try {
-          result = await Promise.race([profileCheckPromise, timeoutPromise]);
-        } catch (timeoutErr: any) {
-          console.warn('⏱️ Supabase 조회 타임아웃, 홈으로 이동');
+        const result = await Promise.race([profileCheckPromise, timeoutPromise]);
+        let { existingUser, userError } = result;
+
+        // 타임아웃이거나 조회 오류면 홈으로 (기존 사용자로 간주)
+        if ((userError as any)?.code === 'TIMEOUT') {
+          console.log('⏱️ 타임아웃 - 홈으로 이동');
           navigate('/?success=' + encodeURIComponent('로그인되었습니다.'));
           return;
         }
 
-        let { existingUser, userError } = result;
-
-        if (userError && userError.code !== 'PGRST116') {
-          console.error('❌ 사용자 조회 오류 (ID):', userError);
-        } else if (existingUser) {
-          console.log('✅ 사용자 발견 (ID):', existingUser.name);
-        }
-
-        // ID로 못 찾으면 이메일로 검색
-        if (!existingUser && user.email) {
-          console.log('🔍 이메일로 사용자 검색 중...');
-          const { data: userByEmail, error: emailError } = await supabase
-            .from('users')
-            .select('id, name, church_group')
-            .eq('email', user.email)
-            .single();
-
-          if (emailError && emailError.code !== 'PGRST116') {
-            console.error('❌ 사용자 조회 오류 (이메일):', emailError);
-          }
-
-          if (userByEmail) {
-            console.log('✅ 사용자 발견 (이메일), ID 업데이트 중:', user.email);
-            const { error: updateError } = await supabase
-              .from('users')
-              .update({ id: user.id, updated_at: new Date().toISOString() })
-              .eq('email', user.email);
-
-            if (updateError) {
-              console.error('❌ 사용자 ID 업데이트 실패:', updateError);
-            } else {
-              console.log('✅ 사용자 ID 업데이트 완료');
-            }
-            existingUser = { ...userByEmail, id: user.id };
-          }
+        if (userError && (userError as any).code !== 'PGRST116') {
+          console.error('❌ 사용자 조회 오류:', userError);
         }
 
         if (!existingUser) {
@@ -96,12 +66,11 @@ export default function AuthCallback() {
 
         console.log('✅ 기존 사용자 로그인 완료:', existingUser.name);
         setStatus('로그인 완료!');
-        // 즉시 홈으로 이동 (불필요한 500ms 지연 제거)
         navigate('/?success=' + encodeURIComponent('로그인되었습니다.'));
 
       } catch (err: any) {
         console.error('❌ 프로필 확인 오류:', err);
-        navigate('/?error=' + encodeURIComponent('프로필 확인 중 오류가 발생했습니다.'));
+        navigate('/?success=' + encodeURIComponent('로그인되었습니다.'));
       }
     };
 

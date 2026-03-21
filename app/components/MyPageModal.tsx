@@ -27,6 +27,10 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
   const [orderHistory, setOrderHistory] = useState<UserOrderHistory | null>(null);
   const [activeTab, setActiveTab] = useState<'profile' | 'orders' | 'password' | 'notifications'>('profile');
   
+  // 프로필 저장 관련 상태
+  const [profileSuccess, setProfileSuccess] = useState('');
+  const [profileError, setProfileError] = useState('');
+
   // 비밀번호 변경 관련 상태
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -93,6 +97,8 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
     console.log('🔄 Form data:', { name: name.trim(), church_group: churchGroup.trim() });
 
     setLoading(true);
+    setProfileSuccess('');
+    setProfileError('');
     try {
       const result = await updateUser(user.id, {
         name: name.trim(),
@@ -103,18 +109,21 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
 
       if (result.success) {
         console.log('✅ Update successful, refreshing user data');
-        // 업데이트된 사용자 정보 다시 조회
         await fetchUserData();
-        
-        // 성공 토스트 알림 표시
-        addToast('정보가 성공적으로 수정되었습니다! 🎉', 'success');
+        setProfileSuccess('정보가 성공적으로 수정되었습니다!');
+        addToast('정보가 성공적으로 수정되었습니다!', 'success');
+        setTimeout(() => setProfileSuccess(''), 3000);
       } else {
         console.error('❌ Update failed:', result.error);
-        throw new Error('사용자 정보 업데이트에 실패했습니다.');
+        const errMsg = '정보 수정에 실패했습니다. 다시 시도해주세요.';
+        setProfileError(errMsg);
+        addToast(errMsg, 'error');
       }
     } catch (error) {
       console.error('❌ Error updating user:', error);
-      addToast('정보 수정 중 오류가 발생했습니다. 다시 시도해주세요.', 'error');
+      const errMsg = '정보 수정 중 오류가 발생했습니다. 다시 시도해주세요.';
+      setProfileError(errMsg);
+      addToast(errMsg, 'error');
     } finally {
       setLoading(false);
     }
@@ -319,6 +328,17 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
                   className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-ivory-300 rounded-lg text-sm sm:text-lg font-medium bg-white text-gray-600 cursor-not-allowed"
                 />
               </div>
+
+              {profileSuccess && (
+                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-green-600 text-sm font-medium">{profileSuccess}</p>
+                </div>
+              )}
+              {profileError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-red-600 text-sm font-medium">{profileError}</p>
+                </div>
+              )}
 
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                 <button
