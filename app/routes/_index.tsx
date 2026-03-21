@@ -229,13 +229,17 @@ export default function Index() {
                 setShowLogin(false);
                 setShowSignup(true);
               }}
-              onLoginSuccess={() => {
+              onLoginSuccess={async () => {
                 setShowLogin(false);
                 setLoginSuccess(true);
-                setTimeout(() => {
-                  setLoginSuccess(false);
-                  window.location.reload();
-                }, 300);
+                // reload 대신 세션에서 user 직접 반영
+                try {
+                  const { data: { session } } = await supabase.auth.getSession();
+                  if (session?.user) {
+                    setUser(session.user);
+                  }
+                } catch {}
+                setTimeout(() => setLoginSuccess(false), 1500);
               }}
             />
           </div>
