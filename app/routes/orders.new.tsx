@@ -9,27 +9,13 @@ import { supabase } from "~/lib/supabase";
 import { useNotifications } from "~/contexts/NotificationContext";
 import { MenuListSkeleton } from "~/components/LoadingSkeleton";
 
-// 메뉴 데이터 캐시 (메뉴는 자주 변경되지 않으므로 더 긴 캐시 시간)
-const menuCache = { data: null as any, timestamp: 0 };
-const MENU_CACHE_DURATION = 300000; // 5분
-
 export async function loader({ request }: LoaderFunctionArgs) {
   try {
-    // 캐시된 메뉴 데이터가 유효한지 확인
-    if (menuCache.data && Date.now() - menuCache.timestamp < MENU_CACHE_DURATION) {
-      return json({ menus: menuCache.data, cached: true });
-    }
-
     const menus = await getMenus();
-    
-    // 캐시 업데이트
-    menuCache.data = menus;
-    menuCache.timestamp = Date.now();
-    
-    return json({ menus, cached: false });
+    return json({ menus });
   } catch (error) {
     console.error('New order loader error:', error);
-    return json({ menus: menuCache.data || [], cached: false });
+    return json({ menus: [] });
   }
 }
 
@@ -52,25 +38,13 @@ export async function action({ request }: ActionFunctionArgs) {
 
       const totalAmount = items.reduce((sum: number, item: any) => sum + item.total_price, 0);
 
-      // 서버 사이드에서도 사용자 확인 (백업)
-      let finalUserId: string | undefined = userId || undefined;
-      if (!finalUserId) {
-        const { data: { user } } = await supabase.auth.getUser();
-        finalUserId = user?.id || undefined;
-      }
+      // 클라이언트에서 전송한 userId 사용 (서버에는 세션이 없으므로 getUser 불가)
+      const finalUserId: string | undefined = userId || undefined;
 
-      // userId가 없으면 주문 생성 거부
       if (!finalUserId) {
         return json({ error: '로그인 정보가 확인되지 않아 주문을 생성할 수 없습니다. 다시 로그인 해주세요.' }, { status: 400 });
       }
       
-      console.log('🔍 Creating order with user info:', {
-        clientUserId: userId,
-        finalUserId,
-        customerName,
-        userExists: !!finalUserId
-      });
-
       const result = await createOrder({
         user_id: finalUserId || undefined,
         customer_name: customerName,
@@ -81,8 +55,6 @@ export async function action({ request }: ActionFunctionArgs) {
         items: items,
       });
 
-      console.log('📝 Order created successfully:', result);
-      console.log('📝 Order user_id check:', { orderUserId: result.user_id, finalUserId });
       return json({ success: true, orderId: result.id });
     } catch (error) {
       console.error('Create order error:', error);
@@ -101,7 +73,7 @@ type CartItem = {
 
 export default function NewOrder() {
   const { menus } = useLoaderData<typeof loader>();
-  const outletContext = useOutletContext<{ user: any; userRole: string | null }>();
+  const outletContext = useOutletContext<{ user: any; userRole: string | null; authReady: boolean }>();
   const navigation = useNavigation();
   const fetcher = useFetcher();
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -123,14 +95,7 @@ export default function NewOrder() {
 
   useEffect(() => {
     async function fetchUserInfo() {
-      // outletContext의 user를 우선 사용, 없을 때만 getSession 호출
-      const currentUser = outletContext?.user;
-      let userId = currentUser?.id;
-
-      if (!userId) {
-        const { data: { session } } = await supabase.auth.getSession();
-        userId = session?.user?.id;
-      }
+      const userId = outletContext?.user?.id;
 
       if (userId) {
         const { data: userData } = await supabase
@@ -200,7 +165,6 @@ export default function NewOrder() {
     if (actionData?.error) {
       alert(actionData.error);
     } else if (actionData?.success) {
-      console.log('✅ Order created successfully, redirecting to home...');
       alert('주문이 성공적으로 생성되었습니다!');
       // 주문 완료 후 홈탭으로 이동
       window.location.href = '/';
@@ -284,34 +248,26 @@ export default function NewOrder() {
       return;
     }
 
-    // outletContext user 우선 사용, 없으면 getSession으로 fallback
-    const getUserId = async () => {
-      if (outletContext?.user?.id) return outletContext.user.id;
-      const { data: { session } } = await supabase.auth.getSession();
-      return session?.user?.id;
-    };
+    const userId = outletContext?.user?.id;
+    if (!userId) {
+      alert('로그인 정보가 확인되지 않아 주문을 생성할 수 없습니다. 다시 로그인 해주세요.');
+      return;
+    }
+    const formData = new FormData();
+    formData.append('intent', 'createOrder');
+    formData.append('customerName', customerName);
+    formData.append('churchGroup', churchGroup);
+    formData.append('paymentMethod', paymentMethod);
+    formData.append('notes', notes);
+    formData.append('userId', userId || ''); // 사용자 ID 추가
+    formData.append('items', JSON.stringify(cart.map(item => ({
+      menu_id: item.menu.id,
+      quantity: item.quantity,
+      unit_price: item.menu.price,
+      total_price: item.total_price,
+    }))));
 
-    getUserId().then(userId => {
-      if (!userId) {
-        alert('로그인 정보가 확인되지 않아 주문을 생성할 수 없습니다. 다시 로그인 해주세요.');
-        return;
-      }
-      const formData = new FormData();
-      formData.append('intent', 'createOrder');
-      formData.append('customerName', customerName);
-      formData.append('churchGroup', churchGroup);
-      formData.append('paymentMethod', paymentMethod);
-      formData.append('notes', notes);
-      formData.append('userId', userId || ''); // 사용자 ID 추가
-      formData.append('items', JSON.stringify(cart.map(item => ({
-        menu_id: item.menu.id,
-        quantity: item.quantity,
-        unit_price: item.menu.price,
-        total_price: item.total_price,
-      }))));
-
-      fetcher.submit(formData, { method: 'post' });
-    });
+    fetcher.submit(formData, { method: 'post' });
   };
 
   return (
@@ -367,12 +323,9 @@ export default function NewOrder() {
                           className="w-full h-full object-cover"
                           loading="lazy"
                           key={`order-image-${menu.id}-${menu.image_url}`}
-                          onLoad={() => {
-                            console.log('✅ Order page image loaded:', menu.image_url);
-                          }}
                           onError={(e) => {
-                            console.error('❌ Order page image load failed:', menu.image_url);
-                          }}
+                            console.error('Order page image load failed:', menu.image_url);
+                          }
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">

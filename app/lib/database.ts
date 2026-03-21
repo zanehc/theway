@@ -228,7 +228,6 @@ export async function createOrder(orderData: {
           type: 'order_confirmation',
           message: `주문이 접수되었습니다. ${menuNames}`
         });
-        console.log('📱 Order confirmation sent to user:', orderData.user_id);
       }
 
       // 2. 모든 관리자에게 새 주문 알림
@@ -248,7 +247,6 @@ export async function createOrder(orderData: {
         await Promise.all(
           adminNotifications.map(notification => createNotification(notification))
         );
-        console.log('📱 New order notifications sent to', adminUsers.length, 'admins');
       }
 
     } catch (notificationError) {
@@ -264,8 +262,6 @@ export async function createOrder(orderData: {
 }
 
 export async function updateOrderStatus(id: string, status: string, cancellationReason?: string) {
-  console.log('🔄 updateOrderStatus called:', { id, status, cancellationReason });
-
   // 일단 기본 상태만 업데이트 (취소사유는 나중에 컬럼 추가 후 활성화)
   const { data, error } = await supabase
     .from('orders')
@@ -281,9 +277,6 @@ export async function updateOrderStatus(id: string, status: string, cancellation
     console.error('Update order status error:', error);
     throw error;
   }
-
-  console.log('✅ Order status updated successfully:', data);
-  return data;
 
   // 주문 상태 변경 알림 전송
   try {
@@ -313,7 +306,6 @@ export async function updateOrderStatus(id: string, status: string, cancellation
         message: message
       });
 
-      console.log('📱 Order status notification sent:', status);
     }
   } catch (notificationError) {
     console.error('Failed to send order status notification:', notificationError);
@@ -348,7 +340,6 @@ export async function updatePaymentStatus(id: string, payment_status: string) {
         message: `결제가 확인되었습니다. 감사합니다! (주문번호: ${id.slice(-8)})`
       });
 
-      console.log('📱 Payment confirmation notification sent');
     }
   } catch (notificationError) {
     console.error('Failed to send payment notification:', notificationError);
@@ -478,8 +469,6 @@ export async function getUserById(id: string) {
 
 // 새 사용자 생성 (가입 시 자동 호출)
 export async function createUserProfile(authUser: any) {
-  console.log('🔄 Creating user profile for:', authUser.id);
-
   try {
     const { data, error } = await supabase
       .from('users')
@@ -494,28 +483,24 @@ export async function createUserProfile(authUser: any) {
       .single();
 
     if (error) {
-      console.error('❌ Error creating user profile:', error);
+      console.error('Error creating user profile:', error);
       throw error;
     }
 
-    console.log('✅ User profile created successfully:', data);
     return data as User;
   } catch (error) {
-    console.error('❌ Create user profile error:', error);
+    console.error('Create user profile error:', error);
     return null;
   }
 }
 
 // 사용자 정보 조회 및 없으면 생성
 export async function getUserByIdOrCreate(authUser: any) {
-  console.log('🔄 Getting or creating user:', authUser.id);
-
   // 먼저 기존 사용자 조회
   let user = await getUserById(authUser.id);
 
   // 사용자가 없으면 새로 생성
   if (!user) {
-    console.log('🔄 User not found, creating new profile');
     user = await createUserProfile(authUser);
   }
 
@@ -538,8 +523,6 @@ export async function getUsersByRole(role: string) {
 
 // 사용자 정보 업데이트
 export async function updateUser(userId: string, userData: { name?: string; church_group?: string }) {
-  console.log('🔄 updateUser called with:', { userId, userData });
-
   try {
     const updateData: Record<string, any> = {
       updated_at: new Date().toISOString(),
@@ -555,8 +538,6 @@ export async function updateUser(userId: string, userData: { name?: string; chur
       updateData.church_group = userData.church_group.trim() || null;
     }
 
-    console.log('🔄 Update data prepared:', updateData);
-
     const { data, error } = await supabase
       .from('users')
       .update(updateData)
@@ -564,17 +545,14 @@ export async function updateUser(userId: string, userData: { name?: string; chur
       .select()
       .single();
 
-    console.log('🔄 Supabase response:', { data, error });
-
     if (error) {
-      console.error('❌ Supabase error:', error);
+      console.error('Supabase error:', error);
       throw error;
     }
 
-    console.log('✅ User updated successfully:', userId, data);
     return { success: true, data };
   } catch (error) {
-    console.error('❌ Update user error:', error);
+    console.error('Update user error:', error);
     return { success: false, error };
   }
 }

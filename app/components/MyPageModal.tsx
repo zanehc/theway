@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '~/lib/supabase';
+import { logout } from '~/lib/auth-utils';
 import { getUserOrderHistory, updateUser, getUserByIdOrCreate } from '~/lib/database';
 import type { UserOrderHistory } from '~/types';
 import ModalPortal from './ModalPortal';
@@ -120,10 +121,9 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
     }
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
+  const handleLogout = () => {
     onClose();
-    window.location.replace('/'); // 항상 첫화면으로 이동
+    logout();
   };
 
   const handlePasswordChange = async (e: React.FormEvent) => {

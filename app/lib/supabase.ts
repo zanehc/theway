@@ -23,9 +23,8 @@ function getSupabaseAnonKey(): string {
 }
 
 function getSupabaseServiceKey(): string | undefined {
-  if (isBrowser) {
-    return (window as any).__ENV?.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-  }
+  // SERVICE_ROLE_KEY는 서버에서만 사용 (브라우저 노출 금지)
+  if (isBrowser) return undefined;
   return process.env.SUPABASE_SERVICE_ROLE_KEY;
 }
 
@@ -44,7 +43,6 @@ function initSupabaseClient(): ReturnType<typeof createClient> {
   // 환경변수가 아직 없으면 (window.__ENV 미설정) 재시도 가능하도록 null 유지
   if (!url || !key) {
     if (isBrowser) {
-      console.warn('⚠️ Supabase 환경 변수 대기 중... window.__ENV:', (window as any).__ENV);
     }
     throw new Error('Supabase URL 또는 Anon Key가 아직 설정되지 않았습니다.');
   }
@@ -73,7 +71,6 @@ function initSupabaseClient(): ReturnType<typeof createClient> {
     }
   });
 
-  console.log('✅ Supabase 클라이언트 초기화 완료:', url);
   return supabaseClient;
 }
 
@@ -91,7 +88,7 @@ function getSupabaseClient(): ReturnType<typeof createClient> {
   try {
     return initSupabaseClient();
   } catch (error) {
-    console.error('❌ Supabase 클라이언트 초기화 실패:', error);
+    console.error('Supabase 클라이언트 초기화 실패:', error);
     throw error;
   }
 }
@@ -111,9 +108,6 @@ export const supabase = new Proxy({} as ReturnType<typeof createClient>, {
 // Storage 헬퍼 함수들
 export const uploadMenuImage = async (file: File, menuId: string): Promise<string | null> => {
   try {
-    console.log('🔄 Starting image upload for menu:', menuId);
-    console.log('📁 File details:', { name: file.name, size: file.size, type: file.type });
-
     // 서버에서는 서비스 롤, 클라이언트에서는 anon
     const client = !isBrowser && getSupabaseServiceKey() ? createServerSupabaseClient() : getSupabaseClient();
 
@@ -121,8 +115,6 @@ export const uploadMenuImage = async (file: File, menuId: string): Promise<strin
     const timestamp = Date.now();
     const randomId = Math.random().toString(36).substring(2, 15);
     const fileName = `${menuId}-${timestamp}-${randomId}.${fileExt}`;
-
-    console.log('📝 Generated filename:', fileName);
 
     const { data, error } = await client.storage
       .from('menu-images')
@@ -132,11 +124,9 @@ export const uploadMenuImage = async (file: File, menuId: string): Promise<strin
       });
 
     if (error) {
-      console.error('❌ Storage upload error:', error);
+      console.error('Storage upload error:', error);
       return null;
     }
-
-    console.log('✅ Upload successful:', data);
 
     // 공개 URL 생성
     const { data: { publicUrl } } = client.storage
@@ -146,22 +136,19 @@ export const uploadMenuImage = async (file: File, menuId: string): Promise<strin
     // 캐시 버스팅을 위한 타임스탬프 추가
     const finalUrl = `${publicUrl}?t=${timestamp}`;
 
-    console.log('🔗 Generated public URL:', finalUrl);
     return finalUrl;
   } catch (error) {
-    console.error('❌ Upload error:', error);
+    console.error('Upload error:', error);
     return null;
   }
 };
 
 export const deleteMenuImage = async (imageUrl: string): Promise<boolean> => {
   try {
-    console.log('🗑️ Starting image deletion:', imageUrl);
-
     // URL에서 파일명 추출 (캐시 버스팅 파라미터 제거)
     let fileName = imageUrl.split('/').pop();
     if (!fileName) {
-      console.error('❌ No filename found in URL:', imageUrl);
+      console.error('No filename found in URL:', imageUrl);
       return false;
     }
 
@@ -170,22 +157,19 @@ export const deleteMenuImage = async (imageUrl: string): Promise<boolean> => {
       fileName = fileName.split('?')[0];
     }
 
-    console.log('📝 Extracted filename:', fileName);
-
     const client = !isBrowser && getSupabaseServiceKey() ? createServerSupabaseClient() : getSupabaseClient();
     const { error } = await client.storage
       .from('menu-images')
       .remove([fileName]);
 
     if (error) {
-      console.error('❌ Delete error:', error);
+      console.error('Delete error:', error);
       return false;
     }
 
-    console.log('✅ Image deleted successfully:', fileName);
     return true;
   } catch (error) {
-    console.error('❌ Delete error:', error);
+    console.error('Delete error:', error);
     return false;
   }
 };
@@ -204,7 +188,6 @@ declare global {
     __ENV?: {
       SUPABASE_URL?: string;
       SUPABASE_ANON_KEY?: string;
-      SUPABASE_SERVICE_ROLE_KEY?: string;
     };
   }
 } 

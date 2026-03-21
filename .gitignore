@@ -2,7 +2,14 @@ node_modules
 
 /.cache
 /build
+/dist
 .env
+.env.local
+
+# Logs & backups
+server.log
+*.backup
+*.log
 
 # macOS
 .DS_Store

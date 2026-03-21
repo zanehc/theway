@@ -6,41 +6,20 @@ import { getSalesStatistics } from "~/lib/database";
 import { useNotifications } from "~/contexts/NotificationContext";
 import { ReportsSkeleton } from "~/components/LoadingSkeleton";
 
-
-// 리포트 데이터 캐시 (기간별로 캐시)
-const reportsCache = new Map<string, { data: any, timestamp: number }>();
-const REPORTS_CACHE_DURATION = 60000; // 1분 (통계는 실시간성이 중요하므로 짧게)
-
 export async function loader({ request }: LoaderFunctionArgs) {
   try {
     const url = new URL(request.url);
     const period = url.searchParams.get('period') || 'today';
 
-    // 캐시 키 생성
-    const cacheKey = `reports-${period}`;
-    const cached = reportsCache.get(cacheKey);
-    
-    // 캐시된 데이터가 있고 아직 유효한 경우
-    if (cached && Date.now() - cached.timestamp < REPORTS_CACHE_DURATION) {
-      return json({ ...cached.data, cached: true });
-    }
-
-    // 새로운 매출 통계 함수 사용
     const salesStats = await getSalesStatistics(period as 'today' | 'week' | 'month');
 
-    const result = {
+    return json({
       period,
       ...salesStats,
-      cached: false
-    };
-
-    // 캐시에 저장
-    reportsCache.set(cacheKey, { data: result, timestamp: Date.now() });
-
-    return json(result);
+    });
   } catch (error) {
     console.error('Reports loader error:', error);
-    const errorResult = {
+    return json({
       period: 'today',
       totalRevenue: 0,
       totalOrders: 0,
@@ -55,17 +34,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
         completed: 0,
         cancelled: 0,
       },
-      cached: false
-    };
-    
-    // 에러 상황에서도 기본값을 캐시 (5초간)
-    const errorUrl = new URL(request.url);
-    reportsCache.set(`reports-${errorUrl.searchParams.get('period') || 'today'}`, { 
-      data: errorResult, 
-      timestamp: Date.now() - REPORTS_CACHE_DURATION + 5000 
     });
-    
-    return json(errorResult);
   }
 }
 

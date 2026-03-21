@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { supabase } from "~/lib/supabase";
+import { logout } from '~/lib/auth-utils';
 import { useNavigate, useOutletContext } from "@remix-run/react";
 import { SignupForm } from "~/components/SignupForm";
 
 export default function OtherPage() {
   // root.tsx에서 관리하는 인증 상태를 사용
-  const outletContext = useOutletContext<{ user: any; userRole: string | null }>();
+  const outletContext = useOutletContext<{ user: any; userRole: string | null; authReady: boolean }>();
   const contextUser = outletContext?.user || null;
 
   const [user, setUser] = useState<any>(contextUser);
@@ -30,27 +31,8 @@ export default function OtherPage() {
 
   // context에서 user가 변경되면 로컬 상태도 업데이트
   useEffect(() => {
-    console.log('📱 기타탭 - Context 동기화:', contextUser?.email || 'null');
     setUser(contextUser);
   }, [contextUser]);
-
-  // 세션 재확인 (outletContext에 user가 없을 때만 fallback)
-  useEffect(() => {
-    if (!mounted || user) return;
-
-    const checkSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          setUser(session.user);
-        }
-      } catch {}
-    };
-
-    // outletContext가 아직 로딩 중일 수 있으므로 짧은 지연 후 확인
-    const timer = setTimeout(checkSession, 200);
-    return () => clearTimeout(timer);
-  }, [mounted, user]);
 
   // 사용자 정보 및 역할 로드
   useEffect(() => {
@@ -79,14 +61,12 @@ export default function OtherPage() {
   // 로그인/로그아웃 이벤트 리스닝 (로컬 로그인 시 즉시 반영을 위해)
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('📱 기타탭 - 인증 상태 변경:', event, session?.user?.email || 'null');
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user);
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setUserData(null);
       } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-        console.log('📱 기타탭 - 토큰 갱신됨');
         setUser(session.user);
       }
     });
@@ -171,10 +151,7 @@ export default function OtherPage() {
   };
 
   const handleLogout = () => {
-    supabase.auth.signOut().catch(() => {});
-    localStorage.removeItem('theway-cafe-auth-token');
-    sessionStorage.clear();
-    window.location.href = '/';
+    logout();
   };
 
   const handleForgotPassword = async (e: React.FormEvent) => {

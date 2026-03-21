@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '~/lib/supabase';
+import { logout } from '~/lib/auth-utils';
 import { getUserOrderHistory, updateUser, getUserByIdOrCreate } from '~/lib/database';
 import type { UserOrderHistory } from '~/types';
 import { useNavigate, useOutletContext } from '@remix-run/react';
@@ -15,7 +16,7 @@ interface User {
 
 export default function MyPage() {
   const navigate = useNavigate();
-  const outletContext = useOutletContext<{ user: any; userRole: string | null }>();
+  const outletContext = useOutletContext<{ user: any; userRole: string | null; authReady: boolean }>();
   const { addToast } = useNotifications();
   const [user, setUser] = useState<User | null>(null);
   const [name, setName] = useState('');
@@ -40,12 +41,7 @@ export default function MyPage() {
 
   const fetchUserData = async () => {
     try {
-      // outletContext user 우선 사용, 없으면 getSession fallback
-      let authUser = outletContext?.user;
-      if (!authUser) {
-        const { data: { session } } = await supabase.auth.getSession();
-        authUser = session?.user;
-      }
+      const authUser = outletContext?.user;
       if (authUser) {
         // auth 계정 이메일 저장 (구글/카카오 등 소셜 로그인 이메일 포함)
         setAuthEmail(authUser.email || '');
@@ -62,40 +58,22 @@ export default function MyPage() {
           const history = await getUserOrderHistory(authUser.id);
           setOrderHistory(history);
         } else {
-          console.error('❌ MyPage: failed to get/create user data');
+          console.error('MyPage: failed to get/create user data');
         }
       }
     } catch (error) {
-      console.error('❌ MyPage: Error fetching user data:', error);
+      console.error('MyPage: Error fetching user data:', error);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('🔄 MyPage handleSubmit called');
-
-    // user가 없으면 세션에서 직접 조회
     let currentUser = user;
     if (!currentUser) {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          const userData = await getUserByIdOrCreate(session.user);
-          if (userData) {
-            setUser(userData);
-            currentUser = userData;
-          }
-        }
-      } catch {}
-    }
-    if (!currentUser) {
-      console.error('❌ No user found');
+      console.error('MyPage: No user found');
       addToast('사용자 정보를 불러오지 못했습니다. 다시 시도해주세요.', 'error');
       return;
     }
-
-    console.log('🔄 Current user:', currentUser);
-    console.log('🔄 Form data:', { name: name.trim(), church_group: churchGroup.trim() });
 
     setLoading(true);
     try {
@@ -104,19 +82,17 @@ export default function MyPage() {
         church_group: churchGroup.trim() || undefined,
       });
 
-      console.log('🔄 updateUser result:', result);
-
       if (result.success) {
         await fetchUserData();
         setSaveSuccess(true);
         addToast('정보가 성공적으로 수정되었습니다!', 'success');
         setTimeout(() => setSaveSuccess(false), 3000);
       } else {
-        console.error('❌ Update failed:', result.error);
+        console.error('MyPage: Update failed:', result.error);
         throw new Error('사용자 정보 업데이트에 실패했습니다.');
       }
     } catch (error) {
-      console.error('❌ Error updating user:', error);
+      console.error('MyPage: Error updating user:', error);
       addToast('정보 수정 중 오류가 발생했습니다. 다시 시도해주세요.', 'error');
     } finally {
       setLoading(false);
@@ -124,10 +100,7 @@ export default function MyPage() {
   };
 
   const handleLogout = () => {
-    supabase.auth.signOut().catch(() => {});
-    localStorage.removeItem('theway-cafe-auth-token');
-    sessionStorage.clear();
-    window.location.href = '/';
+    logout();
   };
 
   const handlePasswordChange = async (e: React.FormEvent) => {

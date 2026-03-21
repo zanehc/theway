@@ -150,7 +150,7 @@ export async function action({ request }: ActionFunctionArgs) {
 
 export default function RecentPage() {
   const { initialOrders, currentStatus, currentPaymentStatus, error, success } = useLoaderData<typeof loader>();
-  const outletContext = useOutletContext<{ user: any; userRole: string | null }>();
+  const outletContext = useOutletContext<{ user: any; userRole: string | null; authReady: boolean }>();
   const navigation = useNavigation();
   const fetcher = useFetcher();
   const [orders, setOrders] = useState<any[]>([]);
@@ -212,24 +212,14 @@ export default function RecentPage() {
     }
   }, [location.search, mounted]);
 
-  // 주문 데이터 로딩 (user 상태 기반) - 세션 fallback 포함
+  // 주문 데이터 로딩 (user 상태 기반)
   useEffect(() => {
     if (!mounted) return;
 
     let isCancelled = false;
 
     const loadOrders = async () => {
-      // outletContext user가 아직 없으면 getSession으로 fallback
-      let currentUser = user;
-      if (!currentUser) {
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user) {
-            currentUser = session.user;
-            setUser(session.user);
-          }
-        } catch {}
-      }
+      const currentUser = user;
 
       if (!currentUser) {
         setOrders([]);
@@ -311,21 +301,12 @@ export default function RecentPage() {
   const handleOrderCancelConfirm = async (reason: string) => {
     if (!cancellationModal.order) return;
 
-    console.log('🔄 handleOrderCancelConfirm called:', {
-      orderId: cancellationModal.order.id,
-      reason,
-      userRole: userRoleState
-    });
-
     try {
-      console.log('📞 updateOrderStatus 호출 중...');
       await updateOrderStatus(cancellationModal.order.id, 'cancelled', reason);
-      console.log('✅ updateOrderStatus 완료');
 
       addToast(`주문이 취소되었습니다. (사유: ${reason})`, 'warning');
 
       // 주문 목록 새로고침
-      console.log('🔄 주문 목록 새로고침 중...');
       if (userRoleState === 'admin') {
         const allOrders = await getOrders(selectedStatus || undefined);
         setOrders(allOrders || []);
@@ -333,9 +314,8 @@ export default function RecentPage() {
         const userOrders = await getOrdersByUserId(user.id);
         setOrders(userOrders || []);
       }
-      console.log('✅ 취소 처리 전체 완료');
     } catch (error) {
-      console.error('❌ Cancel order error:', error);
+      console.error('Cancel order error:', error);
       addToast('주문 취소에 실패했습니다.', 'error');
       throw error; // 모달에서 에러 처리하도록 다시 throw
     }
@@ -360,11 +340,8 @@ export default function RecentPage() {
 
   // 주문 상태 변경
   const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
-    console.log('🔄 주문 상태 변경 시작:', { orderId, newStatus });
-
     try {
-      const updatedOrder = await updateOrderStatus(orderId, newStatus);
-      console.log('✅ 주문 상태 변경 완료:', updatedOrder);
+      await updateOrderStatus(orderId, newStatus);
 
       addToast('주문 상태가 업데이트되었습니다.', 'success');
 
@@ -385,12 +362,6 @@ export default function RecentPage() {
   // 결제 확인
   const handlePaymentConfirm = async (order: any) => {
     try {
-      console.log('💳 결제 확인 시작 - 기존 주문 상태:', {
-        orderId: order.id,
-        currentStatus: order.status,
-        currentPaymentStatus: order.payment_status
-      });
-
       const { data, error } = await supabase
         .from('orders')
         .update({ payment_status: 'confirmed' })
@@ -399,12 +370,6 @@ export default function RecentPage() {
         .single();
 
       if (error) throw error;
-
-      console.log('💳 결제 확인 완료 - 업데이트된 주문 상태:', {
-        orderId: data.id,
-        newStatus: data.status,
-        newPaymentStatus: data.payment_status
-      });
 
       addToast('결제가 확인되었습니다.', 'success');
 
@@ -468,11 +433,8 @@ export default function RecentPage() {
 
   // 빠른 주문
   const handleQuickOrder = (order: any) => {
-    console.log('🚀 빠른주문 시작:', order.order_items);
-
     try {
       const orderItems = order.order_items.map((item: any) => {
-        console.log('📦 주문 아이템:', item);
         return {
           menu_id: item.menu_id,
           quantity: item.quantity,
@@ -481,15 +443,12 @@ export default function RecentPage() {
         };
       });
 
-      console.log('💾 localStorage에 저장할 주문 데이터:', orderItems);
       localStorage.setItem('quickOrderItems', JSON.stringify(orderItems));
 
       // React Router navigate 사용으로 변경 (세션 유지)
-      console.log('🔄 주문 페이지로 이동 중...');
       navigate('/orders/new');
-      console.log('✅ 빠른주문 설정 완료');
     } catch (error) {
-      console.error('❌ 빠른주문 처리 실패:', error);
+      console.error('빠른주문 처리 실패:', error);
       addToast('빠른주문 처리에 실패했습니다.', 'error');
     }
   };

@@ -1,6 +1,7 @@
 import { Link } from "@remix-run/react";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "~/lib/supabase";
+import { logout } from '~/lib/auth-utils';
 import { LoginForm } from "./LoginForm";
 import { SignupForm } from "./SignupForm";
 import { MyPageModal } from "./MyPageModal";
@@ -74,11 +75,8 @@ export default function Header({ user, userRole }: HeaderProps) {
     };
   }, []);
 
-  const handleLogout = async () => {
-    try {
-      await supabase.auth.signOut();
-      window.location.replace('/');
-    } catch (error) {}
+  const handleLogout = () => {
+    logout();
   };
 
   const handleLoginClick = () => {

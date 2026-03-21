@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { getMenus } from "~/lib/database";
 import { supabase } from "~/lib/supabase";
 import { useNotifications } from "~/contexts/NotificationContext";
+import { logout } from '~/lib/auth-utils';
 import { LoginForm } from "~/components/LoginForm";
 import { SignupForm } from "~/components/SignupForm";
 import ModalPortal from "~/components/ModalPortal";
@@ -27,7 +28,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 export default function Index() {
   const { error, success, menus } = useLoaderData<typeof loader>();
-  const outletContext = useOutletContext<{ user: any; userRole: string | null }>();
+  const outletContext = useOutletContext<{ user: any; userRole: string | null; authReady: boolean }>();
   const navigation = useNavigation();
   const [user, setUser] = useState<any>(outletContext?.user || null);
   const [mounted, setMounted] = useState(false);
@@ -47,20 +48,6 @@ export default function Index() {
       setUser(outletContext.user);
     }
   }, [outletContext?.user]);
-
-  // 비로그인 시 세션 확인
-  useEffect(() => {
-    if (!mounted || user) return;
-    const checkSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          setUser(session.user);
-        }
-      } catch {}
-    };
-    checkSession();
-  }, [mounted, user]);
 
   // Safari 호환성을 위한 안전한 네비게이션 상태 체크 (hooks 이후에 위치)
   if (navigation.state === "loading" && navigation.location?.pathname && navigation.location.pathname !== "/") {
@@ -126,13 +113,7 @@ export default function Index() {
                     </div>
                   </div>
                   <button
-                    onClick={() => {
-                      // signOut이 hang될 수 있으므로 로컬 세션 정리 후 즉시 리로드
-                      supabase.auth.signOut().catch(() => {});
-                      localStorage.removeItem('theway-cafe-auth-token');
-                      sessionStorage.clear();
-                      window.location.href = '/';
-                    }}
+                    onClick={() => logout()}
                     className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-lg font-medium transition-all text-xs"
                   >
                     로그아웃

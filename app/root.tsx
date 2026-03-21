@@ -36,7 +36,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
     ENV: {
       SUPABASE_URL: process.env.SUPABASE_URL,
       SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY,
-      SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     },
   });
 }
@@ -45,6 +44,7 @@ export default function App() {
   const [user, setUser] = useState<any>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
   
   // Safari 호환성을 위해 항상 useLoaderData 호출
   const loaderData = useLoaderData<typeof loader>();
@@ -115,6 +115,8 @@ export default function App() {
       } catch {
         setUser(null);
         setUserRole(null);
+      } finally {
+        setAuthReady(true);
       }
     };
 
@@ -122,8 +124,6 @@ export default function App() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('🔐 Root - 인증 상태 변경:', event, session?.user?.email || 'null');
-
         // SIGNED_OUT 처리 - 네트워크 오류로 인한 거짓 로그아웃 방지
         if (event === 'SIGNED_OUT') {
           // localStorage에 세션 토큰이 남아있으면 네트워크 오류로 인한 거짓 SIGNED_OUT
@@ -132,13 +132,11 @@ export default function App() {
             if (stored) {
               const parsed = JSON.parse(stored);
               if (parsed?.access_token) {
-                console.log('🔐 Root - 네트워크 오류로 인한 거짓 SIGNED_OUT 무시');
                 return;
               }
             }
           } catch {}
 
-          console.log('🔐 Root - 로그아웃 처리');
           setUser(null);
           setUserRole(null);
           try {
@@ -172,7 +170,7 @@ export default function App() {
               sessionStorage.setItem(`user_role_${session.user.id}`, role);
             } catch {}
           } catch (error) {
-            console.error('🔐 Root - 역할 정보 실패:', error);
+            console.error('Root - role fetch failed:', error);
             setUserRole('customer');
           }
         }
@@ -180,7 +178,6 @@ export default function App() {
     );
 
     return () => {
-      console.log('🔐 Root - 인증 리스너 정리');
       subscription.unsubscribe();
     };
   }, []);
@@ -205,7 +202,7 @@ export default function App() {
         <NotificationProvider userId={user?.id} userRole={userRole}>
           <div className="app-container">
             <div className="main-content pb-24">
-              <Outlet context={{ user, userRole }} />
+              <Outlet context={{ user, userRole, authReady }} />
             </div>
             <div id="modal-root" />
             {isClient && <BottomNavigation user={user} />}

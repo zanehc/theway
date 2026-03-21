@@ -62,7 +62,6 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
   };
 
   const addToast = useCallback((message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
-    console.log('🔔 NotificationContext - 새 알림 추가:', { message, type, userId, userRole });
     const id = Math.random().toString(36).substr(2, 9);
     const newToast: ToastNotification = {
       id,
@@ -71,11 +70,7 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
       timestamp: Date.now(),
     };
 
-    setToasts(prev => {
-      const newToasts = [newToast, ...prev];
-      console.log('🔔 NotificationContext - 업데이트된 toasts:', newToasts);
-      return newToasts;
-    });
+    setToasts(prev => [newToast, ...prev]);
 
     // TTS 음성 알림 (iOS Safari 호환성 개선)
     if ('speechSynthesis' in window) {
@@ -89,7 +84,7 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
           speakMessage(message);
         }
       } catch (error) {
-        console.warn('TTS 재생 실패:', error);
+        // TTS playback failed silently
       }
     }
 
@@ -113,20 +108,11 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
         );
         if (koreanVoice) {
           utterance.voice = koreanVoice;
-          console.log('🎵 TTS - 한국어 음성 사용:', koreanVoice.name);
         }
 
         // 에러 핸들링
         utterance.onerror = (event) => {
           console.error('TTS 오류:', event.error);
-        };
-
-        utterance.onstart = () => {
-          console.log('🎵 TTS 시작:', text);
-        };
-
-        utterance.onend = () => {
-          console.log('🎵 TTS 완료');
         };
 
         // iOS에서 약간의 지연 후 재생
@@ -135,7 +121,7 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
         }, 100);
 
       } catch (error) {
-        console.warn('TTS speakMessage 실패:', error);
+        // TTS speakMessage failed silently
       }
     }
   }, [userId, userRole]);
@@ -162,59 +148,35 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
         testUtterance.volume = 0;
         window.speechSynthesis.speak(testUtterance);
         setTtsInitialized(true);
-        console.log('🎵 TTS 초기화 완료');
       } catch (error) {
-        console.warn('TTS 초기화 실패:', error);
+        // TTS initialization failed silently
       }
     }
   }, [ttsInitialized]);
 
   useEffect(() => {
-    console.log('🔔 NotificationContext - useEffect 실행:', { userId, userRole });
     if (!userId) {
-      console.log('🔔 NotificationContext - userId 없음, 구독 건너뜀');
       return;
     }
 
-    console.log('🔔 NotificationContext - 주문 실시간 구독 시작');
     const ordersChannel = supabase
       .channel('orders-realtime-for-all')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders' },
         (payload) => {
-          console.log('🔔 NotificationContext - 주문 이벤트 수신:', payload);
           if (payload.eventType === 'INSERT') {
             const newOrder = payload.new as any;
-            console.log('🔔 NotificationContext - 새 주문:', { newOrder, userRole });
             if (userRole === 'admin') {
               addToast(`새 주문: ${newOrder.customer_name} (${newOrder.church_group})`, 'info');
             }
           } else if (payload.eventType === 'UPDATE') {
             const updatedOrder = payload.new as any;
             const oldOrder = payload.old as any;
-            console.log('🔔 NotificationContext - 주문 업데이트:', { 
-              updatedOrder, 
-              oldStatus: oldOrder.status, 
-              newStatus: updatedOrder.status,
-              oldPaymentStatus: oldOrder.payment_status,
-              newPaymentStatus: updatedOrder.payment_status,
-              userRole, 
-              userId 
-            });
-            
+
             // 결제 상태와 주문 상태가 동시에 변경되었는지 확인
             const paymentStatusChanged = oldOrder.payment_status !== updatedOrder.payment_status;
             const orderStatusChanged = oldOrder.status !== updatedOrder.status;
-            
-            console.log('🔔 NotificationContext - 상태 변경 감지:', {
-              paymentStatusChanged,
-              orderStatusChanged,
-              oldPaymentStatus: oldOrder.payment_status,
-              newPaymentStatus: updatedOrder.payment_status,
-              oldOrderStatus: oldOrder.status,
-              newOrderStatus: updatedOrder.status
-            });
             
             // 픽업완료 버튼으로 인한 상태 변경 감지
             const isPickupCompleted = orderStatusChanged && 
@@ -232,8 +194,6 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
                 updatedOrder.status, 
                 updatedOrder.cancellation_reason
               );
-              console.log('🏃‍♂️ 픽업완료 알림 전송:', statusMessage);
-              
               if (userRole === 'admin') {
                 addToast(`[관리자] ${statusMessage}`, 'success');
               } else if (updatedOrder.user_id === userId) {
@@ -244,8 +204,6 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
             else if (isPaymentConfirmed) {
               const paymentMessage = getPaymentMessage(updatedOrder.payment_status);
               if (paymentMessage) {
-                console.log('💳 결제완료 알림 전송:', paymentMessage);
-                
                 if (userRole === 'admin') {
                   addToast(`[관리자] ${paymentMessage}`, 'info');
                 } else if (updatedOrder.user_id === userId) {
@@ -261,8 +219,6 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
               );
               const toastType = updatedOrder.status === 'cancelled' ? 'warning' : 'success';
               
-              console.log('📢 기타 주문 상태 변경 알림 전송:', statusMessage);
-              
               if (userRole === 'admin') {
                 addToast(`[관리자] ${statusMessage}`, toastType);
               } else if (updatedOrder.user_id === userId) {
@@ -270,13 +226,6 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
               }
             }
             
-            // 동시 변경된 경우 로그
-            if (paymentStatusChanged && orderStatusChanged) {
-              console.log('⚡ 주문 상태와 결제 상태가 동시 변경됨:', {
-                isPickupCompleted,
-                isPaymentConfirmed
-              });
-            }
           }
         }
       )
@@ -298,7 +247,6 @@ export function useNotifications() {
   const context = useContext(NotificationContext);
   if (context === undefined) {
     // SSR이나 Context 초기화 중에는 기본값 반환
-    console.warn('useNotifications called outside of NotificationProvider, returning default values');
     return {
       toasts: [],
       addToast: () => {},

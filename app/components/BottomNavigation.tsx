@@ -15,11 +15,6 @@ export default function BottomNavigation({ user }: BottomNavigationProps) {
   const ordersFetcher = useFetcher();
   const reportsFetcher = useFetcher();
 
-  // Props 변경 시 로그
-  useEffect(() => {
-    console.log('📱 BottomNavigation - Props 업데이트:', { user: user?.email || 'null' });
-  }, [user]);
-
   // 데이터 프리로딩 함수 (Safari 호환성 개선)
   const prefetchTabData = useCallback((path: string) => {
     if (!user) return; // 로그인하지 않은 사용자는 스킵
@@ -46,7 +41,7 @@ export default function BottomNavigation({ user }: BottomNavigationProps) {
           break;
       }
     } catch (error) {
-      console.warn('Tab prefetch failed:', error);
+      // Tab prefetch failed silently
     }
   }, [user, recentFetcher, ordersFetcher, reportsFetcher]);
 

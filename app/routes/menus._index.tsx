@@ -10,8 +10,6 @@ import type { Menu } from "~/types";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   try {
-    console.log('🔍 Loading menus from database...');
-    
     const { data: menus, error } = await supabase
       .from('menus')
       .select('*')
@@ -20,40 +18,22 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
     if (error) throw error;
 
-    console.log('📊 Loaded menus count:', menus?.length || 0);
-    
-    // 이미지가 있는 메뉴들 확인
-    const menusWithImages = menus?.filter(menu => menu.image_url) || [];
-    console.log('🖼️ Menus with images:', menusWithImages.map(menu => ({
-      id: menu.id,
-      name: menu.name,
-      image_url: menu.image_url
-    })));
-
     return json({ menus: menus || [] });
   } catch (error) {
-    console.error('❌ Menus loader error:', error);
+    console.error('Menus loader error:', error);
     return json({ menus: [] });
   }
 }
 
 export async function action({ request }: ActionFunctionArgs) {
-  console.log('🚀 === SERVER ACTION START === 🚀');
-  console.log('Request method:', request.method);
-  console.log('Request URL:', request.url);
-  
-
-  
   let formData: FormData;
   let intent: string;
   
   try {
     formData = await request.formData();
     intent = formData.get('intent') as string;
-    console.log('✅ Server action - intent:', intent);
-    console.log('✅ Server action - formData keys:', Array.from(formData.keys()));
   } catch (error) {
-    console.error('❌ Server action error:', error);
+    console.error('Server action error:', error);
     return json({ error: '서버 액션 처리 중 오류가 발생했습니다.' }, { status: 500 });
   }
 
@@ -108,7 +88,6 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 
   if (intent === 'updateMenu') {
-    console.log('=== UPDATE MENU ACTION START ===');
     try {
       const id = formData.get('id') as string;
       const name = formData.get('name') as string;
@@ -120,22 +99,7 @@ export async function action({ request }: ActionFunctionArgs) {
       const hasNewImage = formData.get('hasNewImage') === 'true';
       const imageFileSelected = formData.get('imageFileSelected') === 'true';
 
-      console.log('🔍 Raw FormData entry for image:', formData.get('image'));
-      console.log('🔍 FormData has image:', formData.has('image'));
-      console.log('🔍 All FormData entries:');
-      for (const [key, value] of formData.entries()) {
-        if (key === 'image') {
-          console.log(`  ${key}:`, value instanceof File ? { name: value.name, size: value.size, type: value.type } : value);
-        } else {
-          console.log(`  ${key}:`, value);
-        }
-      }
-
-      console.log('Form data:', { id, name, description, price, category, removeImage, hasNewImage, imageFileSelected });
-      console.log('Image file:', imageFile ? { name: imageFile.name, size: imageFile.size } : 'null');
-
       if (!id || !name || !price || !category) {
-        console.log('Validation failed');
         return json({ error: '필수 필드를 입력해주세요.' }, { status: 400 });
       }
 
@@ -145,8 +109,6 @@ export async function action({ request }: ActionFunctionArgs) {
         price,
         category
       };
-
-      console.log('Initial update data:', updateData);
 
       // 서버에서는 서비스 롤 키를 사용
       const serverSupabase = createServerSupabaseClient();
@@ -163,55 +125,30 @@ export async function action({ request }: ActionFunctionArgs) {
         return json({ error: '기존 메뉴 정보를 가져오는데 실패했습니다.' }, { status: 400 });
       }
 
-      console.log('Existing menu:', existingMenu);
-
       // 이미지 처리 로직 개선
       if (removeImage && !imageFileSelected) {
-        console.log('Removing existing image only (no new image selected):', existingMenu?.image_url);
         // 기존 이미지만 삭제
         if (existingMenu?.image_url) {
-          const deleteResult = await deleteMenuImage(existingMenu.image_url);
-          console.log('Delete result:', deleteResult);
+          await deleteMenuImage(existingMenu.image_url);
         }
         updateData.image_url = null;
       } else if (imageFile && imageFile.size > 0) {
-        console.log('🔄 Uploading new image for menu:', id);
-        console.log('📁 Image file details:', {
-          name: imageFile.name,
-          size: imageFile.size,
-          type: imageFile.type,
-          lastModified: imageFile.lastModified
-        });
-        
         // 새 이미지 업로드
         const imageUrl = await uploadMenuImage(imageFile, id);
-        console.log('📤 Upload result:', imageUrl);
-        
+
         if (imageUrl) {
           // 기존 이미지가 있으면 삭제
           if (existingMenu?.image_url) {
-            console.log('🗑️ Deleting old image:', existingMenu.image_url);
-            const deleteResult = await deleteMenuImage(existingMenu.image_url);
-            console.log('🗑️ Delete result:', deleteResult);
+            await deleteMenuImage(existingMenu.image_url);
           }
           updateData.image_url = imageUrl;
-          console.log('✅ New image URL set in updateData:', imageUrl);
         } else {
-          console.log('❌ Image upload failed, keeping existing image');
           return json({ error: '이미지 업로드에 실패했습니다.' }, { status: 400 });
         }
       } else if (imageFileSelected && (!imageFile || imageFile.size === 0)) {
-        console.log('Image was selected but file is missing or empty');
-        // 이미지가 선택되었지만 파일이 없는 경우 처리
-        if (existingMenu?.image_url) {
-          console.log('Keeping existing image due to missing file');
-        }
+        // 이미지가 선택되었지만 파일이 없는 경우 - 기존 이미지 유지
       }
 
-      console.log('Final update data:', updateData);
-
-      console.log('💾 Updating database with data:', updateData);
-      
       const { data: updateResult, error: updateError } = await serverSupabase
         .from('menus')
         .update(updateData)
@@ -219,23 +156,10 @@ export async function action({ request }: ActionFunctionArgs) {
         .select();
 
       if (updateError) {
-        console.error('❌ Database update error:', updateError);
+        console.error('Database update error:', updateError);
         throw updateError;
       }
 
-      console.log('✅ Database update result:', updateResult);
-      
-      // 업데이트된 데이터 확인
-      if (updateResult && updateResult.length > 0) {
-        const updatedMenu = updateResult[0];
-        console.log('🔍 Updated menu data:', {
-          id: updatedMenu.id,
-          name: updatedMenu.name,
-          image_url: updatedMenu.image_url
-        });
-      }
-      
-      console.log('=== UPDATE MENU ACTION SUCCESS ===');
       return json({ success: true, message: '메뉴가 성공적으로 수정되었습니다.' });
     } catch (error) {
       console.error('Update menu error:', error);
@@ -274,14 +198,8 @@ export async function action({ request }: ActionFunctionArgs) {
   return json({ error: '잘못된 요청입니다.' }, { status: 400 });
 }
 
-console.log('📝 Menus file loaded');
-
 export default function Menus() {
-  console.log('🚀 Menus component mounting...');
-  console.log('🚀 Menus component mounted!');
-  
   const { menus } = useLoaderData<typeof loader>();
-  console.log('📊 Raw menus data:', menus);
   const { toasts } = useNotifications();
   const fetcher = useFetcher();
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -290,46 +208,14 @@ export default function Menus() {
   const [shouldRemoveImage, setShouldRemoveImage] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // 메뉴 데이터 로깅
-  useEffect(() => {
-    console.log('🎯 Client: Received menus data:', menus?.length || 0);
-    const menusWithImages = menus?.filter(menu => menu.image_url) || [];
-    console.log('🖼️ Client: Menus with images:', menusWithImages.map(menu => ({
-      id: menu.id,
-      name: menu.name,
-      image_url: menu.image_url
-    })));
-    
-    // 아이스카페라떼 찾기
-    const iceCafeLatte = menus?.find(menu => 
-      menu.name.includes('아이스카페라떼') || 
-      menu.name.includes('아이스') && menu.name.includes('카페') && menu.name.includes('라떼')
-    );
-    if (iceCafeLatte) {
-      console.log('☕ 아이스카페라떼 메뉴:', {
-        id: iceCafeLatte.id,
-        name: iceCafeLatte.name,
-        image_url: iceCafeLatte.image_url,
-        updated_at: iceCafeLatte.updated_at
-      });
-    } else {
-      console.log('❌ 아이스카페라떼 메뉴를 찾을 수 없습니다.');
-    }
-  }, [menus]);
-
   // 액션 결과 처리
   useEffect(() => {
-    console.log('Fetcher state changed:', fetcher.state);
-    console.log('Fetcher data:', fetcher.data);
-    
     const actionData = fetcher.data as { error?: string; success?: boolean; message?: string } | undefined;
     
     if (actionData?.error) {
       console.error('Action error:', actionData.error);
       alert(actionData.error);
     } else if (actionData?.success && actionData?.message && fetcher.state === 'idle') {
-      console.log('Action success:', actionData.message);
-      
       // 성공 메시지 설정
       setSuccessMessage(actionData.message);
       
@@ -354,14 +240,6 @@ export default function Menus() {
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    console.log('🔍 File input changed:', { 
-      hasFile: !!file, 
-      fileName: file?.name, 
-      fileSize: file?.size,
-      inputId: e.target.id || 'no-id',
-      inputName: e.target.name
-    });
-    
     if (file) {
       // 파일 크기/타입 체크
       if (file.size > 5 * 1024 * 1024) {
@@ -377,12 +255,10 @@ export default function Menus() {
       // 미리보기만 state로 저장
       const reader = new FileReader();
       reader.onload = (e) => {
-        console.log('✅ File preview ready');
         setImagePreview(e.target?.result as string);
       };
       reader.readAsDataURL(file);
     } else {
-      console.log('❌ No file selected');
       setImagePreview(null);
     }
   };
@@ -441,11 +317,7 @@ export default function Menus() {
                      alt={menu.name} 
                      className="w-full h-full object-cover object-center"
                      key={`menu-image-${menu.id}-${menu.image_url}`} // 이미지 변경 시 재렌더링 강제
-                     onLoad={() => {
-                       console.log('✅ Image loaded successfully:', menu.image_url);
-                     }}
                      onError={(e) => {
-                       console.error('❌ Image load failed:', menu.image_url);
                        // 이미지 로드 실패 시 기본 아이콘 표시
                        e.currentTarget.style.display = 'none';
                        e.currentTarget.nextElementSibling?.classList.remove('hidden');
@@ -673,12 +545,9 @@ export default function Menus() {
                          alt="Current" 
                          className="w-32 h-32 object-cover object-center rounded-lg border border-ivory-300"
                          key={`edit-image-${editingMenu.id}-${editingMenu.image_url}`}
-                         onLoad={() => {
-                           console.log('✅ Edit modal image loaded:', editingMenu.image_url);
-                         }}
-                         onError={(e) => {
-                           console.error('❌ Edit modal image load failed:', editingMenu.image_url);
-                         }}
+                         onError={() => {
+                           // Image load failed
+                         }
                        />
                        <p className="text-xs text-gray-500 mt-1">현재 이미지</p>
                        <button
@@ -701,7 +570,6 @@ export default function Menus() {
                      id="edit-image-input"
                      accept="image/*"
                      onChange={(e) => {
-                       console.log('🔥 FILE INPUT CHANGE EVENT:', e.target.files?.[0]?.name || 'NO FILE');
                        handleImageChange(e);
                      }}
                      className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500"
@@ -726,9 +594,6 @@ export default function Menus() {
                      type="button"
                      disabled={fetcher.state === 'submitting'}
                      onClick={() => {
-                       alert('버튼 클릭됨!');
-                       console.log('🚀 Button click - Manual form submission started');
-                       
                        const nameInput = document.querySelector('input[name="name"]') as HTMLInputElement;
                        const descInput = document.querySelector('textarea[name="description"]') as HTMLTextAreaElement;
                        const priceInput = document.querySelector('input[name="price"]') as HTMLInputElement;
@@ -751,23 +616,11 @@ export default function Menus() {
                        const fileInput = document.getElementById('edit-image-input') as HTMLInputElement;
                        const file = fileInput?.files?.[0];
                        
-                       console.log('📝 Button click - Manual FormData creation:', {
-                         fileInputExists: !!fileInput,
-                         filesLength: fileInput?.files?.length || 0,
-                         file: file ? { name: file.name, size: file.size, type: file.type } : 'null',
-                         imagePreview: !!imagePreview
-                       });
-                       
                        if (file && file.size > 0) {
-                         console.log('✅ Adding file to FormData:', file.name);
                          formData.append('image', file);
                        } else {
-                         console.log('❌ No valid file found, adding empty string');
                          formData.append('image', '');
                        }
-                       
-                       // 네이티브 fetch를 사용하여 직접 업로드
-                       console.log('🚀 Using native fetch instead of fetcher.submit');
                        
                        fetch('/menus?index', {
                          method: 'POST',
@@ -777,12 +630,7 @@ export default function Menus() {
                          }
                        })
                        .then(async response => {
-                         console.log('🔍 Response status:', response.status);
-                         console.log('🔍 Response ok:', response.ok);
-                         console.log('🔍 Response headers:', Object.fromEntries(response.headers.entries()));
-                         
                          const text = await response.text();
-                         console.log('🔍 Raw response text:', text);
                          
                          if (!response.ok) {
                            throw new Error(`HTTP ${response.status}: ${text}`);
@@ -791,13 +639,10 @@ export default function Menus() {
                          try {
                            return JSON.parse(text);
                          } catch (parseError) {
-                           console.error('❌ JSON parse error:', parseError);
-                           console.error('❌ Response text that failed to parse:', text);
                            throw new Error('서버 응답을 파싱할 수 없습니다: ' + text);
                          }
                        })
                        .then(data => {
-                         console.log('✅ Native fetch response:', data);
                          if (data.success) {
                            setSuccessMessage(data.message);
                            setEditingMenu(null);
@@ -812,7 +657,6 @@ export default function Menus() {
                          }
                        })
                        .catch(error => {
-                         console.error('❌ Native fetch error:', error);
                          alert('업로드 중 오류가 발생했습니다: ' + error.message);
                        });
                      }}
