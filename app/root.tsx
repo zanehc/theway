@@ -54,16 +54,34 @@ export default function App() {
 
     const getInitialUser = async () => {
       try {
-        // getSession()은 로컬 캐시에서 먼저 읽어 getUser()보다 훨씬 빠름
-        const { data: { session }, error } = await supabase.auth.getSession();
+        // getSession()으로 먼저 시도
+        let currentUser = null;
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          currentUser = session?.user || null;
+        } catch {}
 
-        if (error || !session?.user) {
+        // getSession 실패 시 localStorage에서 직접 복구 시도
+        if (!currentUser) {
+          try {
+            const stored = localStorage.getItem('theway-cafe-auth-token');
+            if (stored) {
+              const parsed = JSON.parse(stored);
+              if (parsed?.access_token) {
+                // 토큰이 있으면 getUser로 검증
+                const { data: { user } } = await supabase.auth.getUser();
+                currentUser = user;
+              }
+            }
+          } catch {}
+        }
+
+        if (!currentUser) {
           setUser(null);
           setUserRole(null);
           return;
         }
 
-        const currentUser = session.user;
         setUser(currentUser);
 
         // 캐시된 역할을 즉시 표시 (깜빡임 방지)
