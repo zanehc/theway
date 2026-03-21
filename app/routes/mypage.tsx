@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '~/lib/supabase';
 import { getUserOrderHistory, updateUser, getUserByIdOrCreate } from '~/lib/database';
 import type { UserOrderHistory } from '~/types';
-import { useNavigate } from '@remix-run/react';
+import { useNavigate, useOutletContext } from '@remix-run/react';
 import { useNotifications } from '~/contexts/NotificationContext';
 
 interface User {
@@ -16,13 +16,14 @@ interface User {
 export default function MyPage() {
   const navigate = useNavigate();
   const { addToast } = useNotifications();
+  const { user: authUser } = useOutletContext<{ user: any; userRole: string | null }>();
   const [user, setUser] = useState<User | null>(null);
   const [name, setName] = useState('');
   const [churchGroup, setChurchGroup] = useState('');
   const [loading, setLoading] = useState(false);
   const [orderHistory, setOrderHistory] = useState<UserOrderHistory | null>(null);
   const [activeTab, setActiveTab] = useState<'profile' | 'orders' | 'password'>('profile');
-  
+
   // 비밀번호 변경 관련 상태
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -32,32 +33,27 @@ export default function MyPage() {
   const [passwordSuccess, setPasswordSuccess] = useState('');
 
   useEffect(() => {
-    fetchUserData();
-  }, []);
+    if (authUser) {
+      fetchUserData(authUser);
+    }
+  }, [authUser?.id]);
 
-  const fetchUserData = async () => {
+  const fetchUserData = async (authUser: any) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const authUser = session?.user;
-      if (authUser) {
-        console.log('🔄 MyPage: fetching user data for', authUser.id);
-        
-        // 사용자 정보 조회 (없으면 생성)
-        const userData = await getUserByIdOrCreate(authUser);
+      console.log('🔄 MyPage: fetching user data for', authUser.id);
 
-        if (userData) {
-          console.log('🔄 MyPage: user data found/created:', userData);
-          // DB에 email이 없는 경우 auth 세션의 email로 보완
-          setUser({ ...userData, email: userData.email || authUser.email });
-          setName(userData.name || '');
-          setChurchGroup(userData.church_group || '');
-          
-          // 주문 내역 조회
-          const history = await getUserOrderHistory(authUser.id);
-          setOrderHistory(history);
-        } else {
-          console.error('❌ MyPage: failed to get/create user data');
-        }
+      const userData = await getUserByIdOrCreate(authUser);
+
+      if (userData) {
+        console.log('🔄 MyPage: user data found/created:', userData);
+        setUser({ ...userData, email: userData.email || authUser.email });
+        setName(userData.name || '');
+        setChurchGroup(userData.church_group || '');
+
+        const history = await getUserOrderHistory(authUser.id);
+        setOrderHistory(history);
+      } else {
+        console.error('❌ MyPage: failed to get/create user data');
       }
     } catch (error) {
       console.error('❌ MyPage: Error fetching user data:', error);
@@ -128,7 +124,7 @@ export default function MyPage() {
     try {
       // 현재 비밀번호 확인
       const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: user?.email || '',
+        email: authUser?.email || user?.email || '',
         password: currentPassword,
       });
       
