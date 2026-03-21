@@ -47,7 +47,8 @@ export default function MyPage() {
 
         if (userData) {
           console.log('🔄 MyPage: user data found/created:', userData);
-          setUser(userData);
+          // DB에 email이 없는 경우 auth 세션의 email로 보완
+          setUser({ ...userData, email: userData.email || authUser.email });
           setName(userData.name || '');
           setChurchGroup(userData.church_group || '');
           
