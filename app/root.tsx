@@ -142,19 +142,23 @@ export default function App() {
       async (event, session) => {
         console.log('🔐 Root - 인증 상태 변경:', event, session?.user?.email || 'null');
 
-        // 로그아웃 이벤트 처리 (SIGNED_OUT 이벤트만 처리 - !session?.user 조건 제거로 탭 이동시 로그아웃 방지)
         if (event === 'SIGNED_OUT') {
-          console.log('🔐 Root - 로그아웃 처리');
+          // localStorage에 토큰이 남아있으면 네트워크 오류/탭이동으로 인한 가짜 SIGNED_OUT → 무시
+          try {
+            const stored = localStorage.getItem('theway-cafe-auth-token');
+            if (stored) {
+              const parsed = JSON.parse(stored);
+              if (parsed?.access_token) return;
+            }
+          } catch {}
+
           setUser(null);
           setUserRole(null);
-          // 캐시 정리
           try {
             Object.keys(sessionStorage).forEach(key => {
-              if (key.startsWith('user_role_')) {
-                sessionStorage.removeItem(key);
-              }
+              if (key.startsWith('user_role_')) sessionStorage.removeItem(key);
             });
-          } catch (e) {}
+          } catch {}
           return;
         }
 

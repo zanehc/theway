@@ -110,13 +110,13 @@ export default function MyPage() {
 
   const handleLogout = async () => {
     try {
-      await supabase.auth.signOut();
-    } catch (e) {}
-    try {
       localStorage.removeItem('theway-cafe-auth-token');
       Object.keys(sessionStorage).forEach(key => {
         if (key.startsWith('user_role_')) sessionStorage.removeItem(key);
       });
+    } catch (e) {}
+    try {
+      await supabase.auth.signOut();
     } catch (e) {}
     window.location.replace('/');
   };
