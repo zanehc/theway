@@ -103,6 +103,8 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
       const result = await updateUser(user.id, {
         name: name.trim(),
         church_group: churchGroup.trim() || undefined,
+        email: user.email || undefined,
+        role: user.role || 'customer',
       });
 
       console.log('🔄 updateUser result:', result);
@@ -131,9 +133,17 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    try {
+      localStorage.removeItem('theway-cafe-auth-token');
+      Object.keys(sessionStorage).forEach(key => {
+        if (key.startsWith('user_role_')) sessionStorage.removeItem(key);
+      });
+    } catch (e) {}
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch (e) {}
     onClose();
-    window.location.replace('/'); // 항상 첫화면으로 이동
+    window.location.replace('/');
   };
 
   const handlePasswordChange = async (e: React.FormEvent) => {

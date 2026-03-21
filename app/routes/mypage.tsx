@@ -87,6 +87,8 @@ export default function MyPage() {
       const result = await updateUser(userId, {
         name: name.trim(),
         church_group: churchGroup.trim() || undefined,
+        email: user?.email || authUser?.email || undefined,
+        role: user?.role || 'customer',
       });
 
       console.log('🔄 updateUser result:', result);
@@ -116,7 +118,7 @@ export default function MyPage() {
       });
     } catch (e) {}
     try {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'local' });
     } catch (e) {}
     window.location.replace('/');
   };

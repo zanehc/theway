@@ -537,32 +537,42 @@ export async function getUsersByRole(role: string) {
 }
 
 // 사용자 정보 업데이트
-export async function updateUser(userId: string, userData: { name?: string; church_group?: string }) {
+export async function updateUser(userId: string, userData: { name?: string; church_group?: string; email?: string; role?: string }) {
   console.log('🔄 updateUser called with:', { userId, userData });
 
   try {
-    const updateData: Record<string, any> = {
+    const upsertData: Record<string, any> = {
+      id: userId,
       updated_at: new Date().toISOString(),
     };
 
-    // name이 있으면 추가
     if (userData.name !== undefined) {
-      updateData.name = userData.name.trim();
+      upsertData.name = userData.name.trim();
     }
-
-    // church_group 처리 (빈 문자열이면 null로 설정)
     if (userData.church_group !== undefined) {
-      updateData.church_group = userData.church_group.trim() || null;
+      upsertData.church_group = userData.church_group.trim() || null;
+    }
+    if (userData.email !== undefined) {
+      upsertData.email = userData.email;
+    }
+    if (userData.role !== undefined) {
+      upsertData.role = userData.role;
     }
 
-    console.log('🔄 Update data prepared:', updateData);
+    console.log('🔄 Upsert data prepared:', upsertData);
 
-    const { data, error } = await supabase
+    // 5초 타임아웃 적용
+    const upsertPromise = supabase
       .from('users')
-      .update(updateData)
-      .eq('id', userId)
+      .upsert(upsertData, { onConflict: 'id' })
       .select()
       .single();
+
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('updateUser timeout')), 5000)
+    );
+
+    const { data, error } = await Promise.race([upsertPromise, timeoutPromise]);
 
     console.log('🔄 Supabase response:', { data, error });
 
@@ -571,7 +581,7 @@ export async function updateUser(userId: string, userData: { name?: string; chur
       throw error;
     }
 
-    console.log('✅ User updated successfully:', userId, data);
+    console.log('✅ User upserted successfully:', userId, data);
     return { success: true, data };
   } catch (error) {
     console.error('❌ Update user error:', error);
