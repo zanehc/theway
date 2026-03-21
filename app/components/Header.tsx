@@ -74,11 +74,16 @@ export default function Header({ user, userRole }: HeaderProps) {
     };
   }, []);
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     try {
-      await supabase.auth.signOut();
-      window.location.replace('/');
-    } catch (error) {}
+      const keysToRemove = Object.keys(localStorage).filter(key =>
+        key.includes('supabase') || key.includes('theway-cafe-auth') || key.includes('sb-')
+      );
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+      localStorage.removeItem('theway-cafe-auth-token');
+    } catch (e) {}
+    try { sessionStorage.clear(); } catch (e) {}
+    window.location.replace('/');
   };
 
   const handleLoginClick = () => {

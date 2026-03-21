@@ -137,6 +137,7 @@ export default function App() {
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
           console.log('🔐 Root - 로그인/토큰 갱신 처리');
           setUser(session.user);
+          setAuthChecked(true);
 
           // 캐시 확인 → 있으면 즉시 적용하고 DB 쿼리 스킵
           let cachedRole: string | null = null;

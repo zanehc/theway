@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '~/lib/supabase';
-import { getUserOrderHistory, updateUser, getUserByIdOrCreate } from '~/lib/database';
+import { getUserOrderHistory } from '~/lib/database';
 import type { UserOrderHistory } from '~/types';
 import ModalPortal from './ModalPortal';
 import { useNotifications } from '~/contexts/NotificationContext';
@@ -62,21 +62,22 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (authUser) {
         console.log('🔄 MyPageModal: fetching user data for', authUser.id);
-        
-        // 사용자 정보 조회 (없으면 생성)
-        const userData = await getUserByIdOrCreate(authUser);
 
-        if (userData) {
-          console.log('🔄 MyPageModal: user data found/created:', userData);
+        // 서버 API를 통해 service_role key로 RLS 우회하여 조회
+        const response = await fetch(`/api/get-user?userId=${authUser.id}`);
+        const result = await response.json();
+
+        if (result.success && result.data) {
+          const userData = result.data;
+          console.log('🔄 MyPageModal: user data found:', userData);
           setUser(userData);
           setName(userData.name || '');
           setChurchGroup(userData.church_group || '');
-          
-          // 주문 내역 조회
+
           const history = await getUserOrderHistory(authUser.id);
           setOrderHistory(history);
         } else {
-          console.error('❌ MyPageModal: failed to get/create user data');
+          console.error('❌ MyPageModal: failed to get user data');
         }
       }
     } catch (error) {
@@ -100,14 +101,20 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
     setProfileSuccess('');
     setProfileError('');
     try {
-      const result = await updateUser(user.id, {
-        name: name.trim(),
-        church_group: churchGroup.trim() || undefined,
-        email: user.email || undefined,
-        role: user.role || 'customer',
+      const response = await fetch('/api/update-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          name: name.trim(),
+          church_group: churchGroup.trim() || null,
+          email: user.email || undefined,
+          role: user.role || 'customer',
+        }),
       });
+      const result = await response.json();
 
-      console.log('🔄 updateUser result:', result);
+      console.log('🔄 update-profile result:', result);
 
       if (result.success) {
         console.log('✅ Update successful');
@@ -132,16 +139,15 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
     }
   };
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     try {
+      const keysToRemove = Object.keys(localStorage).filter(key =>
+        key.includes('supabase') || key.includes('theway-cafe-auth') || key.includes('sb-')
+      );
+      keysToRemove.forEach(key => localStorage.removeItem(key));
       localStorage.removeItem('theway-cafe-auth-token');
-      Object.keys(sessionStorage).forEach(key => {
-        if (key.startsWith('user_role_')) sessionStorage.removeItem(key);
-      });
     } catch (e) {}
-    try {
-      await supabase.auth.signOut({ scope: 'local' });
-    } catch (e) {}
+    try { sessionStorage.clear(); } catch (e) {}
     onClose();
     window.location.replace('/');
   };

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '~/lib/supabase';
-import { getUserOrderHistory, updateUser, getUserByIdOrCreate } from '~/lib/database';
+import { getUserOrderHistory } from '~/lib/database';
 import type { UserOrderHistory } from '~/types';
 import { useNavigate, useOutletContext } from '@remix-run/react';
 import { useNotifications } from '~/contexts/NotificationContext';
@@ -42,10 +42,13 @@ export default function MyPage() {
     try {
       console.log('🔄 MyPage: fetching user data for', authUser.id);
 
-      const userData = await getUserByIdOrCreate(authUser);
+      // 서버 API를 통해 service_role key로 RLS 우회하여 조회
+      const response = await fetch(`/api/get-user?userId=${authUser.id}`);
+      const result = await response.json();
 
-      if (userData) {
-        console.log('🔄 MyPage: user data found/created:', userData);
+      if (result.success && result.data) {
+        const userData = result.data;
+        console.log('🔄 MyPage: user data found:', userData);
         setUser({ ...userData, email: userData.email || authUser.email });
         setName(userData.name || '');
         setChurchGroup(userData.church_group || '');
@@ -53,7 +56,7 @@ export default function MyPage() {
         const history = await getUserOrderHistory(authUser.id);
         setOrderHistory(history);
       } else {
-        // DB 조회/생성 실패 시 auth 세션 정보로 폴백하여 폼이 동작하도록 함
+        // DB에 유저가 없으면 auth 세션 정보로 폴백
         console.warn('⚠️ MyPage: DB user not found, using auth session fallback');
         const fallbackUser: User = {
           id: authUser.id,
@@ -84,14 +87,20 @@ export default function MyPage() {
 
     setLoading(true);
     try {
-      const result = await updateUser(userId, {
-        name: name.trim(),
-        church_group: churchGroup.trim() || undefined,
-        email: user?.email || authUser?.email || undefined,
-        role: user?.role || 'customer',
+      const response = await fetch('/api/update-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          name: name.trim(),
+          church_group: churchGroup.trim() || null,
+          email: user?.email || authUser?.email || undefined,
+          role: user?.role || 'customer',
+        }),
       });
+      const result = await response.json();
 
-      console.log('🔄 updateUser result:', result);
+      console.log('🔄 update-profile result:', result);
 
       if (result.success) {
         console.log('✅ Update successful');
@@ -110,16 +119,15 @@ export default function MyPage() {
     }
   };
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     try {
+      const keysToRemove = Object.keys(localStorage).filter(key =>
+        key.includes('supabase') || key.includes('theway-cafe-auth') || key.includes('sb-')
+      );
+      keysToRemove.forEach(key => localStorage.removeItem(key));
       localStorage.removeItem('theway-cafe-auth-token');
-      Object.keys(sessionStorage).forEach(key => {
-        if (key.startsWith('user_role_')) sessionStorage.removeItem(key);
-      });
     } catch (e) {}
-    try {
-      await supabase.auth.signOut({ scope: 'local' });
-    } catch (e) {}
+    try { sessionStorage.clear(); } catch (e) {}
     window.location.replace('/');
   };
 

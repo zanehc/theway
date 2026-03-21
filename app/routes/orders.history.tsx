@@ -25,23 +25,14 @@ export default function OrdersHistoryPage() {
 
   const contextUser = outletContext?.user || null;
   const authChecked = outletContext?.authChecked ?? false;
-  const [user, setUser] = useState<any>(contextUser);
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [mounted, setMounted] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const { toasts, addToast } = useNotifications();
 
-  useEffect(() => { setMounted(true); }, []);
-
   useEffect(() => {
-    setUser(contextUser);
-  }, [contextUser]);
-
-  useEffect(() => {
-    // authChecked가 true가 될 때까지 대기 (로그인 상태 확인 전에 "로그인 필요" 표시 방지)
-    if (!mounted || !authChecked) return;
-    if (!user) {
+    if (!authChecked) return;
+    if (!contextUser) {
       setOrders([]);
       setLoading(false);
       return;
@@ -51,9 +42,9 @@ export default function OrdersHistoryPage() {
     const loadOrders = async () => {
       setLoading(true);
       try {
-        const result = await getOrdersByUserId(user.id);
+        const result = await getOrdersByUserId(contextUser.id);
         if (!isCancelled) setOrders(result || []);
-      } catch (err) {
+      } catch {
         if (!isCancelled) setOrders([]);
       } finally {
         if (!isCancelled) setLoading(false);
@@ -62,15 +53,11 @@ export default function OrdersHistoryPage() {
 
     loadOrders();
     return () => { isCancelled = true; };
-  }, [mounted, authChecked, user]);
+  }, [authChecked, contextUser]);
 
   useEffect(() => {
-    if (!mounted || toasts.length === 0 || !user) return;
-    const refresh = async () => {
-      const userOrders = await getOrdersByUserId(user.id);
-      setOrders(userOrders || []);
-    };
-    refresh();
+    if (toasts.length === 0 || !contextUser) return;
+    getOrdersByUserId(contextUser.id).then(result => setOrders(result || []));
   }, [toasts]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (navigation.state === "loading" && navigation.location?.pathname && navigation.location.pathname !== "/orders/history") {
@@ -92,10 +79,8 @@ export default function OrdersHistoryPage() {
     }
   };
 
-  if (!mounted) return null;
-
   // 비로그인 처리
-  if (!loading && !user) {
+  if (!loading && !contextUser) {
     return (
       <div className="min-h-screen bg-ivory-50 pb-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -182,10 +167,10 @@ export default function OrdersHistoryPage() {
       )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {user && (
+        {contextUser && (
           <div className="mb-6">
             <h1 className="text-xl sm:text-2xl font-bold text-wine-800">
-              {user.email}님의 주문 내역
+              {contextUser.email}님의 주문 내역
             </h1>
           </div>
         )}

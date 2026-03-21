@@ -1,8 +1,9 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useOutletContext, useNavigation } from "@remix-run/react";
+import { useLoaderData, useFetcher, useOutletContext, useNavigation, useSearchParams } from "@remix-run/react";
 import { useState, useEffect } from "react";
-import { getMenus, createOrder } from "~/lib/database";
+import { createClient } from "@supabase/supabase-js";
+import { getMenus } from "~/lib/database";
 
 import type { Menu } from "~/types";
 import { supabase } from "~/lib/supabase";
@@ -71,19 +72,51 @@ export async function action({ request }: ActionFunctionArgs) {
         userExists: !!finalUserId
       });
 
-      const result = await createOrder({
-        user_id: finalUserId || undefined,
-        customer_name: customerName,
-        church_group: churchGroup || undefined,
-        payment_method: paymentMethod,
-        notes: notes || undefined,
-        total_amount: totalAmount,
-        items: items,
-      });
+      // service_role key로 RLS 우회하여 주문 생성
+      const adminSupabase = createClient(
+        process.env.SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
 
-      console.log('📝 Order created successfully:', result);
-      console.log('📝 Order user_id check:', { orderUserId: result.user_id, finalUserId });
-      return json({ success: true, orderId: result.id });
+      const { data: order, error: orderError } = await adminSupabase
+        .from('orders')
+        .insert({
+          user_id: finalUserId,
+          customer_name: customerName,
+          church_group: churchGroup || null,
+          total_amount: totalAmount,
+          payment_method: paymentMethod,
+          notes: notes || null,
+          status: 'pending',
+          payment_status: 'pending',
+        })
+        .select()
+        .single();
+
+      if (orderError) {
+        console.error('❌ Order insert error:', orderError);
+        throw new Error(orderError.message);
+      }
+
+      const orderItemsData = items.map((item: any) => ({
+        order_id: order.id,
+        menu_id: item.menu_id,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        total_price: item.total_price,
+      }));
+
+      const { error: itemsError } = await adminSupabase
+        .from('order_items')
+        .insert(orderItemsData);
+
+      if (itemsError) {
+        console.error('❌ Order items insert error:', itemsError);
+        throw new Error(itemsError.message);
+      }
+
+      console.log('📝 Order created successfully:', order.id);
+      return json({ success: true, orderId: order.id });
     } catch (error) {
       console.error('Create order error:', error);
       return json({ error: '주문 생성에 실패했습니다.' }, { status: 400 });
@@ -114,31 +147,36 @@ export default function NewOrder() {
   const [churchGroup, setChurchGroup] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('transfer');
   const [notes, setNotes] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('ice coffee');
+  const [searchParams] = useSearchParams();
+  const [selectedCategory, setSelectedCategory] = useState(searchParams.get('category') || 'ice coffee');
   const { toasts } = useNotifications();
 
   // 주문 제출 상태 확인
   const isSubmitting = fetcher.state === 'submitting';
   const actionData = fetcher.data as { error?: string; success?: boolean; orderId?: string } | undefined;
 
+  // 회원정보에서 이름/목장 자동 채우기
   useEffect(() => {
+    const userId = outletContext?.user?.id;
+    if (!userId) return;
+
     async function fetchUserInfo() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('name, church_group')
-          .eq('id', user.id)
-          .single();
-        if (userData) {
-          setCustomerName(userData.name || '');
-          setChurchGroup(userData.church_group || '');
+      try {
+        const response = await fetch(`/api/get-user?userId=${userId}`);
+        const result = await response.json();
+        if (result.success && result.data) {
+          setCustomerName(result.data.name || '');
+          setChurchGroup(result.data.church_group || '');
         }
+      } catch (e) {
+        console.error('❌ 사용자 정보 조회 실패:', e);
       }
     }
     fetchUserInfo();
+  }, [outletContext?.user?.id]);
 
-    // 재주문 정보가 있으면 자동 채우기
+  // 재주문 정보가 있으면 자동 채우기 (회원정보보다 우선)
+  useEffect(() => {
     const reorderRaw = localStorage.getItem('reorder');
     if (reorderRaw) {
       try {
@@ -276,33 +314,28 @@ export default function NewOrder() {
       return;
     }
 
-    // 클라이언트에서 사용자 ID 가져오기
-    const getCurrentUserId = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      return user?.id;
-    };
+    // outletContext에서 사용자 ID 가져오기 (네트워크 요청 불필요)
+    const userId = outletContext?.user?.id;
+    if (!userId) {
+      alert('로그인 정보가 확인되지 않아 주문을 생성할 수 없습니다. 다시 로그인 해주세요.');
+      return;
+    }
 
-    getCurrentUserId().then(userId => {
-      if (!userId) {
-        alert('로그인 정보가 확인되지 않아 주문을 생성할 수 없습니다. 다시 로그인 해주세요.');
-        return;
-      }
-      const formData = new FormData();
-      formData.append('intent', 'createOrder');
-      formData.append('customerName', customerName);
-      formData.append('churchGroup', churchGroup);
-      formData.append('paymentMethod', paymentMethod);
-      formData.append('notes', notes);
-      formData.append('userId', userId || ''); // 사용자 ID 추가
-      formData.append('items', JSON.stringify(cart.map(item => ({
-        menu_id: item.menu.id,
-        quantity: item.quantity,
-        unit_price: item.menu.price,
-        total_price: item.total_price,
-      }))));
+    const formData = new FormData();
+    formData.append('intent', 'createOrder');
+    formData.append('customerName', customerName);
+    formData.append('churchGroup', churchGroup);
+    formData.append('paymentMethod', paymentMethod);
+    formData.append('notes', notes);
+    formData.append('userId', userId);
+    formData.append('items', JSON.stringify(cart.map(item => ({
+      menu_id: item.menu.id,
+      quantity: item.quantity,
+      unit_price: item.menu.price,
+      total_price: item.total_price,
+    }))));
 
-      fetcher.submit(formData, { method: 'post' });
-    });
+    fetcher.submit(formData, { method: 'post' });
   };
 
   return (

@@ -139,46 +139,37 @@ export function ReportsSkeleton() {
 
 export function HomeSkeleton() {
   return (
-    <div className="min-h-screen bg-gradient-warm pb-20">
-      <main className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-12">
-        {/* 브랜딩 섹션 스켈레톤 */}
-        <div className="text-center mb-12 animate-pulse">
-          <div className="h-16 bg-gray-200 rounded-lg w-96 mx-auto mb-4"></div>
-          <div className="h-6 bg-gray-200 rounded-lg w-64 mx-auto"></div>
+    <div className="min-h-screen bg-ivory-100 pb-20">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-3 sm:py-4">
+        {/* 헤더 스켈레톤 */}
+        <div className="flex justify-between items-center mb-3 animate-pulse">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-9 h-9 bg-ivory-200 rounded-xl"></div>
+            <div className="h-5 bg-ivory-200 rounded w-20"></div>
+          </div>
+          <div className="h-5 bg-ivory-200 rounded w-16"></div>
         </div>
 
-        {/* 통계 카드 스켈레톤 */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12">
+        {/* 주문 버튼 스켈레톤 */}
+        <div className="h-14 bg-ivory-200 rounded-xl mb-4 animate-pulse"></div>
+
+        {/* 카테고리 스켈레톤 */}
+        <div className="grid grid-cols-4 gap-2 mb-4 animate-pulse">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 animate-pulse">
-              <div className="text-center">
-                <div className="w-12 h-12 bg-gray-200 rounded-full mx-auto mb-3"></div>
-                <div className="h-4 bg-gray-200 rounded w-16 mx-auto mb-2"></div>
-                <div className="h-8 bg-gray-200 rounded w-12 mx-auto"></div>
-              </div>
-            </div>
+            <div key={i} className="h-16 bg-ivory-200 rounded-xl"></div>
           ))}
         </div>
 
-        {/* 교회소식 스켈레톤 */}
-        <div className="mb-12 animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-32 mb-6"></div>
-          <div className="grid grid-cols-2 gap-4">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="bg-white/70 backdrop-blur-sm rounded-2xl p-4 h-32">
-                <div className="text-center mb-3">
-                  <div className="w-8 h-8 bg-gray-200 rounded-full mx-auto mb-2"></div>
-                  <div className="h-4 bg-gray-200 rounded w-16 mx-auto"></div>
-                </div>
-                <div className="space-y-2">
-                  <div className="h-3 bg-gray-200 rounded w-full"></div>
-                  <div className="h-3 bg-gray-200 rounded w-3/4"></div>
-                </div>
-              </div>
+        {/* 인기 메뉴 스켈레톤 */}
+        <div className="animate-pulse">
+          <div className="h-5 bg-ivory-200 rounded w-20 mb-2"></div>
+          <div className="flex gap-3 overflow-hidden">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex-shrink-0 w-36 bg-ivory-200 rounded-xl h-44"></div>
             ))}
           </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
