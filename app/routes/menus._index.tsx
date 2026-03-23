@@ -547,7 +547,7 @@ export default function Menus() {
                          key={`edit-image-${editingMenu.id}-${editingMenu.image_url}`}
                          onError={() => {
                            // Image load failed
-                         }
+                         }}
                        />
                        <p className="text-xs text-gray-500 mt-1">현재 이미지</p>
                        <button

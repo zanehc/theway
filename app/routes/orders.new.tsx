@@ -323,9 +323,7 @@ export default function NewOrder() {
                           className="w-full h-full object-cover"
                           loading="lazy"
                           key={`order-image-${menu.id}-${menu.image_url}`}
-                          onError={(e) => {
-                            console.error('Order page image load failed:', menu.image_url);
-                          }
+                          onError={() => {}}
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
