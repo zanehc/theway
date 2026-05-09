@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '~/lib/supabase';
-import { updateUser } from '~/lib/database';
 import { fetchOrderHistoryForCurrentUser } from '~/lib/orderHistoryClient';
 import type { UserOrderHistory } from '~/types';
 import { useNavigate, useOutletContext } from '@remix-run/react';
@@ -110,18 +109,26 @@ function writeSessionCache<T>(key: string, value: T) {
   }
 }
 
-async function fetchUserProfileFast(authUser: any): Promise<User | null> {
-  const { data, error } = await supabase
-    .from('users')
-    .select('id, email, name, church_group, role')
-    .eq('id', authUser.id)
-    .maybeSingle();
+async function getAccessToken() {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token || null;
+}
 
-  if (error) {
-    console.warn('MyPage profile fetch failed:', error);
+async function fetchUserProfileFast(authUser: any): Promise<User | null> {
+  const token = await getAccessToken();
+  if (!token) return null;
+
+  const res = await fetch(`/api/profile-load?email=${encodeURIComponent(authUser.email || '')}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) {
+    console.warn('MyPage profile fetch failed:', res.status);
     return null;
   }
 
+  const result = await res.json().catch(() => ({}));
+  const data = result.user;
   if (!data) return null;
 
   return {
@@ -294,14 +301,29 @@ export default function MyPage() {
 
     setLoading(true);
     try {
-      const result = await updateUser(userId, {
-        name: name.trim(),
-        church_group: churchGroup.trim() || undefined,
+      const token = await getAccessToken();
+      if (!token) {
+        addToast('로그인 세션이 만료됐습니다. 다시 로그인해주세요.', 'error');
+        return;
+      }
+
+      const res = await fetch('/api/profile-save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: name.trim(),
+          church_group: churchGroup.trim(),
+          email: user?.email || authUser?.email || '',
+        }),
       });
 
+      const result = await res.json().catch(() => ({}));
       console.log('🔄 updateUser result:', result);
 
-      if (result.success) {
+      if (res.ok && result.success) {
         console.log('✅ Update successful, refreshing user data');
         if (authUser) await fetchUserData(authUser);
         addToast('정보가 성공적으로 수정되었습니다!', 'success');

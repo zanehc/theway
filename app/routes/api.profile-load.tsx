@@ -33,6 +33,16 @@ function isCompleteProfile(profile: any) {
   );
 }
 
+function pickBestProfile(rows: any[] | null | undefined, userId: string) {
+  const profiles = rows || [];
+  return (
+    profiles.find((profile) => profile.id === userId) ||
+    profiles.find(isCompleteProfile) ||
+    profiles[0] ||
+    null
+  );
+}
+
 export async function loader({ request }: LoaderFunctionArgs) {
   const token = request.headers.get("Authorization")?.replace(/^Bearer\s+/i, "");
   if (!token) {
@@ -72,14 +82,19 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   // 2) 이메일로 row 탐색 (다른 OAuth 제공자로 가입한 동일인)
   if (email) {
-    const { data: byEmail } = await db
+    const { data: byEmail, error: emailError } = await db
       .from("users")
       .select("*")
       .eq("email", email)
-      .maybeSingle();
+      .limit(10);
 
-    if (isCompleteProfile(byEmail)) {
-      return json({ user: byEmail }, { headers: { "Cache-Control": "no-store" } });
+    if (emailError) {
+      console.error("[profile-load] lookup-by-email error:", emailError);
+    }
+
+    const emailProfile = pickBestProfile(byEmail, userId);
+    if (isCompleteProfile(emailProfile)) {
+      return json({ user: emailProfile }, { headers: { "Cache-Control": "no-store" } });
     }
   }
 

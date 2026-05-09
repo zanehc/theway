@@ -12,6 +12,45 @@ function getUserIdFromJWT(token: string): string | null {
   }
 }
 
+function isCompleteProfile(profile: any) {
+  return Boolean(
+    typeof profile?.name === "string" &&
+    profile.name.trim() &&
+    typeof profile?.church_group === "string" &&
+    profile.church_group.trim()
+  );
+}
+
+function pickBestProfile(rows: any[] | null | undefined, userId: string) {
+  const profiles = rows || [];
+  return (
+    profiles.find((profile) => profile.id === userId) ||
+    profiles.find(isCompleteProfile) ||
+    profiles[0] ||
+    null
+  );
+}
+
+async function insertCurrentProfile(
+  db: ReturnType<typeof createClient>,
+  payload: { userId: string; email: string; name: string; churchGroup: string }
+) {
+  const { error } = await db
+    .from("users")
+    .insert({
+      id: payload.userId,
+      email: payload.email,
+      name: payload.name,
+      church_group: payload.churchGroup,
+      role: "customer",
+      updated_at: new Date().toISOString(),
+    });
+
+  if (error) {
+    console.warn("[profile-save] insert current profile skipped:", error.code, error.message);
+  }
+}
+
 export async function action({ request }: ActionFunctionArgs) {
   if (request.method !== "POST") {
     return json({ error: "Method not allowed" }, { status: 405 });
@@ -75,57 +114,71 @@ export async function action({ request }: ActionFunctionArgs) {
 
   // 2) 현재 UUID로 row 없음 → 이메일로 기존 row 탐색 (다른 OAuth 제공자로 가입한 동일인)
   if (body.email) {
-    const { data: existingByEmail } = await db
+    const { data: existingByEmail, error: emailLookupError } = await db
       .from("users")
-      .select("id")
+      .select("id, name, church_group")
       .eq("email", body.email)
-      .maybeSingle();
+      .limit(10);
 
-    if (existingByEmail) {
-      console.log("[profile-save] found existing row by email, updating:", existingByEmail.id);
+    if (emailLookupError) {
+      console.error("[profile-save] lookup-by-email error:", emailLookupError);
+      return json({ error: `저장에 실패했습니다. (${emailLookupError.code})` }, { status: 500 });
+    }
+
+    const emailProfile = pickBestProfile(existingByEmail, userId);
+    if (emailProfile) {
+      console.log("[profile-save] found existing row by email, updating:", emailProfile.id);
       const { error } = await db
         .from("users")
         .update({ name, church_group: churchGroup, updated_at: new Date().toISOString() })
-        .eq("id", existingByEmail.id);
+        .eq("id", emailProfile.id);
       if (error) {
         console.error("[profile-save] update-by-email error:", error);
         return json({ error: `저장에 실패했습니다. (${error.code})` }, { status: 500 });
+      }
+      if (emailProfile.id !== userId) {
+        await insertCurrentProfile(db, {
+          userId,
+          email: body.email || "",
+          name,
+          churchGroup,
+        });
       }
       return json({ success: true, name, church_group: churchGroup });
     }
   }
 
   // 3) 이름으로도 탐색 — 이메일 없는 경우(카카오 등) 또는 이메일 불일치 시
-  const { data: existingByName } = await db
+  const { data: existingByName, error: nameLookupError } = await db
     .from("users")
-    .select("id")
+    .select("id, name, church_group")
     .eq("name", name)
-    .maybeSingle();
+    .limit(10);
 
-  if (existingByName) {
-    console.log("[profile-save] found existing row by name, updating and linking current auth id:", existingByName.id);
+  if (nameLookupError) {
+    console.error("[profile-save] lookup-by-name error:", nameLookupError);
+    return json({ error: `저장에 실패했습니다. (${nameLookupError.code})` }, { status: 500 });
+  }
+
+  const nameProfile = pickBestProfile(existingByName, userId);
+  if (nameProfile) {
+    console.log("[profile-save] found existing row by name, updating and linking current auth id:", nameProfile.id);
     const { error } = await db
       .from("users")
       .update({ church_group: churchGroup, updated_at: new Date().toISOString() })
-      .eq("id", existingByName.id);
+      .eq("id", nameProfile.id);
     if (error) {
       console.error("[profile-save] update-by-name error:", error);
       return json({ error: `저장에 실패했습니다. (${error.code})` }, { status: 500 });
     }
 
-    const { error: linkError } = await db
-      .from("users")
-      .insert({
-        id: userId,
+    if (nameProfile.id !== userId) {
+      await insertCurrentProfile(db, {
+        userId,
         email: body.email || "",
         name,
-        church_group: churchGroup,
-        role: "customer",
-        updated_at: new Date().toISOString(),
+        churchGroup,
       });
-
-    if (linkError) {
-      console.error("[profile-save] insert-linked-profile error:", linkError.code, linkError.message);
     }
 
     return json({ success: true, name, church_group: churchGroup });
