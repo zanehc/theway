@@ -107,19 +107,8 @@ export default function App() {
         console.log('🔐 Root - 인증 상태 변경:', event, session?.user?.email || 'null');
 
         if (event === 'SIGNED_OUT') {
-          // getSession()으로 재확인 - 세션이 살아있으면 가짜 이벤트(탭이동 등) → 무시
-          try {
-            const { data: { session: currentSession } } = await supabase.auth.getSession();
-            if (currentSession?.user) return;
-          } catch {}
-          setUser(null);
-          setUserRole(null);
-          setAuthChecked(true);
-          try {
-            Object.keys(sessionStorage).forEach(key => {
-              if (key.startsWith('user_role_')) sessionStorage.removeItem(key);
-            });
-          } catch {}
+          // SIGNED_OUT은 무시: Supabase v2는 탭전환·네트워크 오류 시 가짜 SIGNED_OUT을 발생시킴
+          // 명시적 로그아웃은 signOutAndClearSession() + window.location.replace('/') 로 처리
           return;
         }
 

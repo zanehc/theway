@@ -3,7 +3,6 @@ import { json } from "@remix-run/node";
 import { useLoaderData, Link, useOutletContext, useNavigation } from "@remix-run/react";
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "~/lib/supabase";
-import { getOrdersByUserId } from "~/lib/database";
 import { signOutAndClearSession } from "~/lib/authClient";
 import { useNotifications } from "~/contexts/NotificationContext";
 import { LoginForm } from "~/components/LoginForm";
@@ -62,9 +61,6 @@ export default function Index() {
   const { error, success, news } = useLoaderData<typeof loader>();
   const outletContext = useOutletContext<{ user: any; userRole: string | null }>();
   const navigation = useNavigation();
-  const [recentOrder, setRecentOrder] = useState<any>(null);
-
-  const [userDataLoading, setUserDataLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   const user = outletContext?.user || null;
@@ -151,17 +147,6 @@ export default function Index() {
     }
   }, [error, success, showNotification]);
 
-  // 최근 주문 로딩
-  useEffect(() => {
-    if (!mounted || !user) return;
-
-    setUserDataLoading(true);
-    getOrdersByUserId(user.id, 1)
-      .then(orders => setRecentOrder(orders?.[0] || null))
-      .catch(() => setRecentOrder(null))
-      .finally(() => setUserDataLoading(false));
-  }, [mounted, user]);
-
   // Safari 호환성을 위한 안전한 네비게이션 상태 체크 (모든 훅 호출 후에 조건부 return)
   if (navigation.state === "loading" && navigation.location?.pathname && navigation.location.pathname !== "/") {
     return <HomeSkeleton />;
@@ -170,27 +155,6 @@ export default function Index() {
   if (!mounted) {
     return null;
   }
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'pending': return '대기중';
-      case 'preparing': return '제조중';
-      case 'ready': return '제조완료';
-      case 'completed': return '픽업완료';
-      case 'cancelled': return '취소';
-      default: return '대기중';
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed': return 'bg-green-100 text-green-800';
-      case 'ready': return 'bg-blue-100 text-blue-800';
-      case 'preparing': return 'bg-yellow-100 text-yellow-800';
-      case 'cancelled': return 'bg-red-100 text-red-800';
-      default: return 'bg-secondary-bg text-body';
-    }
-  };
 
   return (
     <div className="min-h-screen bg-surface-soft pb-20">
@@ -222,6 +186,7 @@ export default function Index() {
                 <div className="flex items-center space-x-3">
                   <Link
                     to="/mypage"
+                    prefetch="intent"
                     className="text-right rounded-2xl px-2 py-1 transition-colors hover:bg-surface-soft focus:outline-none focus:ring-2 focus:ring-focus-outer"
                     aria-label="마이페이지로 이동"
                   >
@@ -551,116 +516,6 @@ export default function Index() {
           </div>
         </div>
 
-        {/* 최근 주문 섹션 - 여백 최소화 */}
-        <div className="mb-3 sm:mb-4">
-          <div className="bg-white border-2 border-hairline-soft rounded-2xl p-3 sm:p-4">
-            <div className="flex justify-between items-center mb-3 sm:mb-4">
-              <h2 className="text-lg sm:text-xl font-bold text-ink">최근 주문</h2>
-              {user && (
-                <Link
-                  to="/orders/history"
-                  className="text-mute hover:text-body text-sm font-medium"
-                >
-                  전체보기 →
-                </Link>
-              )}
-            </div>
-
-            {userDataLoading ? (
-              // 로딩 중 - 스켈레톤 표시
-              <div className="space-y-3 py-4">
-                <div className="h-4 bg-surface-card rounded w-3/4 animate-pulse"></div>
-                <div className="h-4 bg-surface-card rounded w-1/2 animate-pulse"></div>
-                <div className="h-4 bg-surface-card rounded w-2/3 animate-pulse"></div>
-              </div>
-            ) : user ? (
-              // 로그인된 사용자 - 기존 주문 내역 표시
-              recentOrder ? (
-                <div className="border-2 border-hairline-soft rounded-2xl p-3 bg-canvas">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h3 className="font-semibold text-ink text-sm sm:text-base">
-                        {recentOrder.church_group}
-                      </h3>
-                      <p className="text-xs sm:text-sm text-mute">
-                        {new Date(recentOrder.created_at).toLocaleDateString('ko-KR')}
-                      </p>
-                    </div>
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(recentOrder.status)}`}>
-                      {getStatusLabel(recentOrder.status)}
-                    </span>
-                  </div>
-
-                  <div className="space-y-1.5 mb-2">
-                    {recentOrder.order_items.map((item: any, index: number) => (
-                      <div key={index} className="flex justify-between text-xs sm:text-sm text-body">
-                        <span>{item.menu?.name || '메뉴명 없음'}</span>
-                        <span className="text-mute">x{item.quantity}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="flex justify-between items-center pt-2 border-t-2 border-hairline">
-                    <span className="font-semibold text-ink text-sm sm:text-base">
-                      총 {recentOrder.total_amount.toLocaleString()}원
-                    </span>
-                    <Link
-                      to="/orders/history"
-                      className="text-mute hover:text-body text-xs sm:text-sm font-medium"
-                    >
-                      자세히 보기
-                    </Link>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-6 sm:py-8">
-                  <div className="text-mute mb-3 sm:mb-4 text-sm">아직 주문 내역이 없습니다.</div>
-                  <Link
-                    to="/orders/new"
-                    className="inline-flex items-center px-3 sm:px-4 py-1.5 sm:py-2 border-2 border-primary text-mute bg-white hover:bg-surface-soft text-xs sm:text-sm font-medium rounded-2xl transition-colors"
-                  >
-                    첫 주문하기
-                  </Link>
-                </div>
-              )
-            ) : (
-              // 비로그인 사용자 - 로그인 유도, 여백 최소화
-              <div className="text-center py-6 sm:py-8">
-                <div className="mb-4 sm:mb-5">
-                  <svg className="mx-auto h-12 w-12 sm:h-14 sm:w-14 text-stone" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 11V7a4 4 0 00-8 0v4M8 11v6a2 2 0 002 2h4a2 2 0 002-2v-6M8 11h8" />
-                  </svg>
-                </div>
-                <h3 className="text-base sm:text-lg font-semibold text-ink mb-1.5 sm:mb-2">
-                  주문 내역을 확인하려면 로그인이 필요합니다
-                </h3>
-                <p className="text-mute mb-4 sm:mb-5 text-xs sm:text-sm">
-                  이메일과 비밀번호로 로그인하고<br />주문 내역을 확인해보세요.
-                </p>
-                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center">
-                  <button
-                    onClick={() => setShowLogin(true)}
-                    className="inline-flex items-center justify-center px-4 sm:px-5 py-2 sm:py-2.5 border-2 border-primary text-sm sm:text-base font-medium rounded-2xl text-white bg-primary hover:bg-primary-pressed transition-colors"
-                  >
-                    <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                    </svg>
-                    로그인
-                  </button>
-                  <button
-                    onClick={() => setShowSignup(true)}
-                    className="inline-flex items-center justify-center px-4 sm:px-5 py-2 sm:py-2.5 border-2 border-primary text-mute bg-white rounded-2xl font-medium hover:bg-canvas transition-colors text-sm sm:text-base"
-                  >
-                    <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                    </svg>
-                    회원가입
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
 
       </div>
 
