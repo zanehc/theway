@@ -41,30 +41,39 @@ export async function action({ request }: ActionFunctionArgs) {
     return json({ error: "이름과 소속 목장을 모두 입력해주세요." }, { status: 400 });
   }
 
-  // service role로 RLS 우회 upsert
-  const serviceClient = createClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false, autoRefreshToken: false } }
-  );
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const anonKey = process.env.SUPABASE_ANON_KEY;
 
-  const { error } = await serviceClient
+  if (!supabaseUrl || (!serviceKey && !anonKey)) {
+    return json({ error: "서버 설정 오류입니다." }, { status: 500 });
+  }
+
+  // service role 키가 있으면 RLS 우회, 없으면 유저 JWT로 시도
+  const client = serviceKey
+    ? createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } })
+    : createClient(supabaseUrl, anonKey!, {
+        global: { headers: { Authorization: `Bearer ${token}` } },
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+
+  const upsertData: Record<string, any> = {
+    id: userId,
+    name,
+    church_group: churchGroup,
+    updated_at: new Date().toISOString(),
+  };
+  if (body.email) upsertData.email = body.email;
+  // service role 없이 INSERT가 발생할 수 있는 경우에만 role 포함
+  if (serviceKey) upsertData.role = "customer";
+
+  const { error } = await client
     .from("users")
-    .upsert(
-      {
-        id: userId,
-        email: body.email || "",
-        name,
-        church_group: churchGroup,
-        role: "customer",
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "id", ignoreDuplicates: false }
-    );
+    .upsert(upsertData, { onConflict: "id", ignoreDuplicates: false });
 
   if (error) {
     console.error("[profile-save] upsert error:", error);
-    return json({ error: "저장에 실패했습니다." }, { status: 500 });
+    return json({ error: `저장에 실패했습니다. (${error.code ?? error.message})` }, { status: 500 });
   }
 
   return json({ success: true, name, church_group: churchGroup });
