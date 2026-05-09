@@ -1,8 +1,7 @@
-import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
-import { json, redirect } from "@remix-run/node";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
+import { json } from "@remix-run/node";
 import { useLoaderData, useOutletContext, useNavigation } from "@remix-run/react";
 import { useState, useEffect } from "react";
-import { updateOrderStatus } from "~/lib/database";
 import { supabase } from "~/lib/supabase";
 import type { OrderStatus } from "~/types";
 import { useNotifications } from "~/contexts/NotificationContext";
@@ -18,37 +17,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
   return json({ error, success });
 }
 
-export async function action({ request }: ActionFunctionArgs) {
-  const formData = await request.formData();
-  const orderId = formData.get('orderId') as string;
-  const status = formData.get('status') as OrderStatus;
-  const paymentStatus = formData.get('paymentStatus') as string;
-  const intent = formData.get('intent') as string;
-
-  if (intent === 'updateStatus' && orderId && status) {
-    try {
-      await updateOrderStatus(orderId, status);
-      return redirect('/admin/orders');
-    } catch (error) {
-      return json({ error: '상태 업데이트에 실패했습니다.' }, { status: 400 });
-    }
-  }
-
-  if (intent === 'updatePayment' && orderId && paymentStatus) {
-    try {
-      const { supabase } = await import('~/lib/supabase');
-      const { error } = await supabase
-        .from('orders')
-        .update({ payment_status: paymentStatus })
-        .eq('id', orderId);
-      if (error) throw error;
-      return redirect('/admin/orders');
-    } catch (error) {
-      return json({ error: '결제 상태 업데이트에 실패했습니다.' }, { status: 400 });
-    }
-  }
-
-  return json({ error: '잘못된 요청입니다.' }, { status: 400 });
+export async function action(_args: ActionFunctionArgs) {
+  return json({ error: '관리자 주문 변경은 /api/admin-orders를 사용해주세요.' }, { status: 405 });
 }
 
 export default function AdminOrdersPage() {
@@ -66,15 +36,40 @@ export default function AdminOrdersPage() {
     order: any | null;
   }>({ isOpen: false, order: null });
 
-  const fetchAdminOrders = async () => {
+  const getAccessToken = async () => {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) return [];
+    return session?.access_token || null;
+  };
+
+  const fetchAdminOrders = async () => {
+    const accessToken = await getAccessToken();
+    if (!accessToken) return [];
     const res = await fetch('/api/admin-orders', {
-      headers: { Authorization: `Bearer ${session.access_token}` },
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (!res.ok) return [];
     const data = await res.json();
     return data.orders || [];
+  };
+
+  const requestAdminOrderUpdate = async (payload: Record<string, unknown>) => {
+    const accessToken = await getAccessToken();
+    if (!accessToken) throw new Error('로그인 세션을 확인하지 못했습니다.');
+
+    const res = await fetch('/api/admin-orders', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || '주문 업데이트에 실패했습니다.');
+    }
+    return data.order;
   };
 
   useEffect(() => { setMounted(true); }, []);
@@ -122,7 +117,12 @@ export default function AdminOrdersPage() {
   const handleOrderCancelConfirm = async (reason: string) => {
     if (!cancellationModal.order) return;
     try {
-      await updateOrderStatus(cancellationModal.order.id, 'cancelled', reason);
+      await requestAdminOrderUpdate({
+        intent: 'updateStatus',
+        orderId: cancellationModal.order.id,
+        status: 'cancelled',
+        cancellationReason: reason,
+      });
       addToast(`주문이 취소되었습니다. (사유: ${reason})`, 'warning');
       setOrders(await fetchAdminOrders());
     } catch (err) {
@@ -133,7 +133,11 @@ export default function AdminOrdersPage() {
 
   const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
     try {
-      await updateOrderStatus(orderId, newStatus);
+      await requestAdminOrderUpdate({
+        intent: 'updateStatus',
+        orderId,
+        status: newStatus,
+      });
       addToast('주문 상태가 업데이트되었습니다.', 'success');
       setOrders(await fetchAdminOrders());
     } catch (err) {
@@ -143,11 +147,11 @@ export default function AdminOrdersPage() {
 
   const handlePaymentConfirm = async (order: any) => {
     try {
-      const { error } = await supabase
-        .from('orders')
-        .update({ payment_status: 'confirmed' })
-        .eq('id', order.id);
-      if (error) throw error;
+      await requestAdminOrderUpdate({
+        intent: 'updatePayment',
+        orderId: order.id,
+        paymentStatus: 'confirmed',
+      });
       addToast('결제가 확인되었습니다.', 'success');
       setOrders(await fetchAdminOrders());
     } catch (err) {
@@ -157,7 +161,11 @@ export default function AdminOrdersPage() {
 
   const handleStatusChangeWithNotification = async (order: any, newStatus: OrderStatus) => {
     try {
-      await updateOrderStatus(order.id, newStatus);
+      await requestAdminOrderUpdate({
+        intent: 'updateStatus',
+        orderId: order.id,
+        status: newStatus,
+      });
       addToast('주문 상태가 업데이트되었습니다.', 'success');
       setOrders(await fetchAdminOrders());
     } catch (err) {

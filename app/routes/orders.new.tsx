@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { getMenus, createOrder } from "~/lib/database";
 
 import type { Menu } from "~/types";
-import { supabase } from "~/lib/supabase";
+import { createServerSupabaseClient, supabase } from "~/lib/supabase";
 import { MenuListSkeleton } from "~/components/LoadingSkeleton";
 
 // 메뉴 데이터 캐시 (메뉴는 자주 변경되지 않으므로 더 긴 캐시 시간)
@@ -43,7 +43,7 @@ export async function action({ request }: ActionFunctionArgs) {
       const paymentMethod = formData.get('paymentMethod') as 'cash' | 'transfer';
       const notes = formData.get('notes') as string;
       const items = JSON.parse(formData.get('items') as string);
-      const userId = formData.get('userId') as string; // 클라이언트에서 전송한 사용자 ID
+      const accessToken = formData.get('accessToken') as string;
 
       if (!customerName || !items || items.length === 0) {
         return json({ error: '고객명과 주문 항목을 입력해주세요.' }, { status: 400 });
@@ -51,20 +51,17 @@ export async function action({ request }: ActionFunctionArgs) {
 
       const totalAmount = items.reduce((sum: number, item: any) => sum + item.total_price, 0);
 
-      // 서버 사이드에서도 사용자 확인 (백업)
-      let finalUserId: string | undefined = userId || undefined;
-      if (!finalUserId) {
-        const { data: { user } } = await supabase.auth.getUser();
-        finalUserId = user?.id || undefined;
-      }
+      const serverSupabase = createServerSupabaseClient();
+      const { data: authData, error: authError } = accessToken
+        ? await serverSupabase.auth.getUser(accessToken)
+        : { data: { user: null }, error: null };
+      const finalUserId = authData.user?.id;
 
-      // userId가 없으면 주문 생성 거부
-      if (!finalUserId) {
+      if (authError || !finalUserId) {
         return json({ error: '로그인 정보가 확인되지 않아 주문을 생성할 수 없습니다. 다시 로그인 해주세요.' }, { status: 400 });
       }
       
       console.log('🔍 Creating order with user info:', {
-        clientUserId: userId,
         finalUserId,
         customerName,
         userExists: !!finalUserId
@@ -266,14 +263,14 @@ export default function NewOrder() {
       return;
     }
 
-    // 클라이언트에서 사용자 ID 가져오기
-    const getCurrentUserId = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      return user?.id;
+    // 서버에서 검증할 현재 세션 토큰 가져오기
+    const getCurrentAccessToken = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      return session?.access_token || null;
     };
 
-    getCurrentUserId().then(userId => {
-      if (!userId) {
+    getCurrentAccessToken().then(accessToken => {
+      if (!accessToken) {
         alert('로그인 정보가 확인되지 않아 주문을 생성할 수 없습니다. 다시 로그인 해주세요.');
         return;
       }
@@ -283,7 +280,7 @@ export default function NewOrder() {
       formData.append('churchGroup', churchGroup);
       formData.append('paymentMethod', paymentMethod);
       formData.append('notes', notes);
-      formData.append('userId', userId || ''); // 사용자 ID 추가
+      formData.append('accessToken', accessToken);
       formData.append('items', JSON.stringify(cart.map(item => ({
         menu_id: item.menu.id,
         quantity: item.quantity,
