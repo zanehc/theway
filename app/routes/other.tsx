@@ -177,9 +177,8 @@ export default function OtherPage() {
   const handleLogout = async () => {
     try {
       await signOutAndClearSession();
+    } finally {
       window.location.replace("/");
-    } catch (err) {
-      setError("로그아웃 중 오류가 발생했습니다.");
     }
   };
 

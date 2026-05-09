@@ -201,9 +201,8 @@ export default function Index() {
                     onClick={async () => {
                       try {
                         await signOutAndClearSession();
+                      } finally {
                         window.location.replace('/');
-                      } catch (error) {
-                        console.error('로그아웃 실패:', error);
                       }
                     }}
                     className="bg-surface-soft hover:bg-surface-card text-body border border-stone px-3 py-1 rounded-2xl font-medium transition-all text-xs"
