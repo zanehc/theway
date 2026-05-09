@@ -8,7 +8,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    const { data, error } = await adminSupabase
+    const url = new URL(request.url);
+    const search = url.searchParams.get("search") || "";
+
+    let query = adminSupabase
       .from("orders")
       .select(`
         *,
@@ -22,8 +25,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
           menu:menus (id, name, price)
         )
       `)
-      .order("created_at", { ascending: false })
-      .limit(100);
+      .order("created_at", { ascending: false });
+
+    if (search) {
+      query = query.ilike("customer_name", `%${search}%`);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("❌ api.get-orders error:", error);

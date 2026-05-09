@@ -65,7 +65,12 @@ export default function AdminOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [viewMode, setViewMode] = useState<'pipeline' | 'list'>('pipeline');
+  const [dateFilter, setDateFilter] = useState<'today' | 'week' | 'all'>('today');
   const { toasts, addToast } = useNotifications();
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [listPage, setListPage] = useState(1);
+  const LIST_PAGE_SIZE = 20;
 
   const [cancellationModal, setCancellationModal] = useState<{
     isOpen: boolean;
@@ -74,9 +79,10 @@ export default function AdminOrdersPage() {
 
   useEffect(() => { setMounted(true); }, []);
 
-  const loadOrders = async () => {
+  const loadOrders = async (search?: string) => {
     try {
-      const response = await fetch('/api/get-orders');
+      const params = search ? `?search=${encodeURIComponent(search)}` : '';
+      const response = await fetch(`/api/get-orders${params}`);
       const result = await response.json();
       if (result.success) {
         setOrders(result.data || []);
@@ -89,15 +95,78 @@ export default function AdminOrdersPage() {
   };
 
   useEffect(() => {
-    if (!mounted || !user) return;
+    if (!mounted) return;
     loadOrders();
-  }, [mounted, user]);
+  }, [mounted]);
 
   // 토스트(알림) 변경 시 주문 목록 새로고침
   useEffect(() => {
     if (!mounted || toasts.length === 0) return;
-    loadOrders();
+    loadOrders(searchQuery || undefined);
   }, [toasts]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 관리자 전용: Supabase Realtime 구독 + 폴링 폴백
+  useEffect(() => {
+    if (!mounted) return;
+
+    // Realtime 구독 — orders 테이블 변경 시 즉시 새로고침
+    const channel = supabase
+      .channel('admin-orders-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        (payload) => {
+          console.log('📦 관리자 주문 실시간 업데이트:', payload.eventType);
+          loadOrders();
+          // 새 주문 INSERT 시 알림음
+          if (payload.eventType === 'INSERT') {
+            try {
+              // 간단한 알림음 생성 (AudioContext)
+              const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+              const osc = ctx.createOscillator();
+              const gain = ctx.createGain();
+              osc.connect(gain);
+              gain.connect(ctx.destination);
+              osc.frequency.value = 800;
+              gain.gain.value = 0.3;
+              osc.start();
+              osc.stop(ctx.currentTime + 0.2);
+              setTimeout(() => {
+                const osc2 = ctx.createOscillator();
+                const gain2 = ctx.createGain();
+                osc2.connect(gain2);
+                gain2.connect(ctx.destination);
+                osc2.frequency.value = 1000;
+                gain2.gain.value = 0.3;
+                osc2.start();
+                osc2.stop(ctx.currentTime + 0.3);
+              }, 250);
+            } catch {}
+          }
+        }
+      )
+      .subscribe();
+
+    // 폴링 폴백 — 15초마다 주문 목록 갱신 (Realtime 실패 대비)
+    const pollInterval = setInterval(() => {
+      loadOrders();
+    }, 15000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(pollInterval);
+    };
+  }, [mounted]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 검색어 디바운스
+  useEffect(() => {
+    if (!mounted) return;
+    const timer = setTimeout(() => {
+      loadOrders(searchQuery || undefined);
+      setListPage(1);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (navigation.state === "loading" && navigation.location?.pathname && navigation.location.pathname !== "/admin/orders") {
     return <OrderListSkeleton />;
@@ -145,19 +214,31 @@ export default function AdminOrdersPage() {
 
   if (!mounted) return null;
 
-  // 오늘 주문만 필터
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayOrders = orders.filter(o => new Date(o.created_at) >= today);
+  // 날짜 필터 적용
+  const filteredOrders = orders.filter(o => {
+    if (dateFilter === 'all') return true;
+    const orderDate = new Date(o.created_at);
+    const now = new Date();
+    if (dateFilter === 'today') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return orderDate >= today;
+    }
+    if (dateFilter === 'week') {
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      return orderDate >= weekAgo;
+    }
+    return true;
+  });
 
   // 파이프라인 컬럼별 주문 분류
   const ordersByStatus = PIPELINE_COLUMNS.reduce((acc, col) => {
-    acc[col.key] = todayOrders.filter(o => o.status === col.key);
+    acc[col.key] = filteredOrders.filter(o => o.status === col.key);
     return acc;
   }, {} as Record<string, any[]>);
 
   // 취소된 주문
-  const cancelledOrders = todayOrders.filter(o => o.status === 'cancelled');
+  const cancelledOrders = filteredOrders.filter(o => o.status === 'cancelled');
 
   // 다음 상태 버튼 설정
   const getNextAction = (order: any) => {
@@ -191,12 +272,12 @@ export default function AdminOrdersPage() {
 
       <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4">
         {/* 헤더 */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3">
           <div>
             <h1 className="text-xl sm:text-2xl font-black text-wine-800">주문 관리</h1>
             <p className="text-xs sm:text-sm text-wine-500 font-medium">
               {new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}
-              {' · '}오늘 {todayOrders.length}건
+              {' · '}{filteredOrders.length}건
             </p>
           </div>
           <div className="flex gap-1 bg-ivory-200 rounded-lg p-0.5">
@@ -207,12 +288,33 @@ export default function AdminOrdersPage() {
               보드
             </button>
             <button
-              onClick={() => setViewMode('list')}
+              onClick={() => { setViewMode('list'); setListPage(1); }}
               className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${viewMode === 'list' ? 'bg-white text-wine-800 shadow-sm' : 'text-wine-500'}`}
             >
               목록
             </button>
           </div>
+        </div>
+
+        {/* 날짜 필터 */}
+        <div className="flex gap-2 mb-4">
+          {([
+            { key: 'today', label: '오늘' },
+            { key: 'week', label: '최근 7일' },
+            { key: 'all', label: '전체' },
+          ] as const).map(f => (
+            <button
+              key={f.key}
+              onClick={() => setDateFilter(f.key)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                dateFilter === f.key
+                  ? 'bg-wine-600 text-white'
+                  : 'bg-ivory-200 text-wine-600 hover:bg-wine-100'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
         </div>
 
         {loading ? (
@@ -326,7 +428,30 @@ export default function AdminOrdersPage() {
         ) : (
           /* ===== 리스트 뷰 ===== */
           <div className="space-y-3">
-            {todayOrders.length > 0 ? todayOrders.map((order: any) => (
+            {/* 검색 */}
+            <div className="relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-wine-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                placeholder="고객명으로 검색..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-white border-2 border-wine-100 rounded-xl text-sm focus:outline-none focus:border-wine-400"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-wine-400 hover:text-wine-600"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            {filteredOrders.length > 0 ? filteredOrders
+              .slice((listPage - 1) * LIST_PAGE_SIZE, listPage * LIST_PAGE_SIZE)
+              .map((order: any) => (
               <div key={order.id} className="bg-white border-2 border-wine-100 rounded-xl p-3 sm:p-4">
                 {/* 진행 바 */}
                 <div className="mb-3">
@@ -410,7 +535,29 @@ export default function AdminOrdersPage() {
               </div>
             )) : (
               <div className="text-center py-16">
-                <p className="text-wine-400">오늘 주문이 없습니다.</p>
+                <p className="text-wine-400">{searchQuery ? `"${searchQuery}" 검색 결과가 없습니다.` : '주문 내역이 없습니다.'}</p>
+              </div>
+            )}
+            {filteredOrders.length > LIST_PAGE_SIZE && (
+              <div className="flex justify-center items-center gap-2 pt-2">
+                <button
+                  onClick={() => setListPage(p => Math.max(1, p - 1))}
+                  disabled={listPage === 1}
+                  className="px-3 py-1.5 bg-wine-100 text-wine-700 rounded-lg text-xs font-bold disabled:opacity-40 hover:bg-wine-200"
+                >
+                  이전
+                </button>
+                <span className="text-xs text-wine-600 font-bold">
+                  {listPage} / {Math.ceil(filteredOrders.length / LIST_PAGE_SIZE)}
+                  <span className="text-wine-400 font-normal ml-1">({filteredOrders.length}건)</span>
+                </span>
+                <button
+                  onClick={() => setListPage(p => Math.min(Math.ceil(filteredOrders.length / LIST_PAGE_SIZE), p + 1))}
+                  disabled={listPage === Math.ceil(filteredOrders.length / LIST_PAGE_SIZE)}
+                  className="px-3 py-1.5 bg-wine-100 text-wine-700 rounded-lg text-xs font-bold disabled:opacity-40 hover:bg-wine-200"
+                >
+                  다음
+                </button>
               </div>
             )}
           </div>
