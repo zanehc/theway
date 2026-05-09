@@ -74,7 +74,8 @@ export default function OrdersHistoryPage() {
 
     loadOrders();
     return () => { cancelled = true; };
-  }, [mounted, authChecked, user]);
+  // userRole을 포함: role이 DB에서 확인된 뒤 재조회 (customer→admin 전환 대응)
+  }, [mounted, authChecked, user, userRole]);
 
   useEffect(() => {
     if (!mounted || toasts.length === 0 || !user) return;

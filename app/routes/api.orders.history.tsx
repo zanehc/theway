@@ -50,6 +50,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
     return json({ error: "토큰이 유효하지 않습니다.", orders: [] }, { status: 401 });
   }
 
+  console.log("[orders/history] userId:", userId);
+
   // 관리자 여부를 service role로 확인 (RLS 무관하게 역할 조회)
   const serviceClient = createClient(
     process.env.SUPABASE_URL!,
@@ -57,13 +59,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
     { auth: { persistSession: false, autoRefreshToken: false } }
   );
 
-  const { data: profile } = await serviceClient
+  const { data: profile, error: profileError } = await serviceClient
     .from("users")
     .select("role")
     .eq("id", userId)
     .maybeSingle();
 
+  console.log("[orders/history] profile:", profile, "profileError:", profileError);
+
   const isAdmin = profile?.role === "admin" || profile?.role === "staff";
+  console.log("[orders/history] isAdmin:", isAdmin);
 
   // 관리자/스태프: 전체 주문 조회 (service role, RLS 우회)
   // 일반 고객: 본인 주문만 (anon key + JWT)
@@ -73,6 +78,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
       .select(ORDER_SELECT)
       .order("created_at", { ascending: false })
       .limit(limit);
+
+    console.log("[orders/history] admin query result count:", data?.length, "error:", error);
 
     if (error) {
       console.error("Admin order history error:", error);
