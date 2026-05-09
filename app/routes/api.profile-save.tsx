@@ -49,7 +49,6 @@ export async function action({ request }: ActionFunctionArgs) {
     return json({ error: "서버 설정 오류입니다." }, { status: 500 });
   }
 
-  // service role 키가 있으면 RLS 우회, 없으면 유저 JWT로 시도
   const client = serviceKey
     ? createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } })
     : createClient(supabaseUrl, anonKey!, {
@@ -57,23 +56,39 @@ export async function action({ request }: ActionFunctionArgs) {
         auth: { persistSession: false, autoRefreshToken: false },
       });
 
-  const upsertData: Record<string, any> = {
-    id: userId,
-    name,
-    church_group: churchGroup,
-    updated_at: new Date().toISOString(),
-  };
-  if (body.email) upsertData.email = body.email;
-  // service role 없이 INSERT가 발생할 수 있는 경우에만 role 포함
-  if (serviceKey) upsertData.role = "customer";
-
-  const { error } = await client
+  // role은 절대 건드리지 않음 — UPDATE로 name/church_group만 변경
+  const { data: updated, error: updateError } = await client
     .from("users")
-    .upsert(upsertData, { onConflict: "id", ignoreDuplicates: false });
+    .update({
+      name,
+      church_group: churchGroup,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", userId)
+    .select("id");
 
-  if (error) {
-    console.error("[profile-save] upsert error:", error);
-    return json({ error: `저장에 실패했습니다. (${error.code ?? error.message})` }, { status: 500 });
+  if (updateError) {
+    console.error("[profile-save] update error:", updateError);
+    return json({ error: `저장에 실패했습니다. (${updateError.code ?? updateError.message})` }, { status: 500 });
+  }
+
+  // 업데이트된 row가 없으면 신규 유저 → INSERT (role은 customer로만)
+  if (!updated || updated.length === 0) {
+    const { error: insertError } = await client
+      .from("users")
+      .insert({
+        id: userId,
+        email: body.email || "",
+        name,
+        church_group: churchGroup,
+        role: "customer",
+        updated_at: new Date().toISOString(),
+      });
+
+    if (insertError) {
+      console.error("[profile-save] insert error:", insertError);
+      return json({ error: `저장에 실패했습니다. (${insertError.code ?? insertError.message})` }, { status: 500 });
+    }
   }
 
   return json({ success: true, name, church_group: churchGroup });
