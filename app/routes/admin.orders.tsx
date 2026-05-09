@@ -46,7 +46,7 @@ export default function AdminOrdersPage() {
     const accessToken = await getAccessToken();
     if (!accessToken) throw new Error('로그인 세션을 확인하지 못했습니다.');
 
-    const res = await fetch('/api/admin-orders', {
+    const res = await fetch('/api/admin-orders?range=all&limit=500', {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
@@ -236,7 +236,7 @@ export default function AdminOrdersPage() {
           <div className="flex flex-col items-center mb-4">
             <h2 className="text-2xl sm:text-3xl font-black text-ink">주문 관리</h2>
             <span className="mt-1 text-xs sm:text-sm text-mute font-semibold">
-              {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
+              전체 기간 주문 {filteredOrders.length.toLocaleString()}건
             </span>
           </div>
 

@@ -79,8 +79,14 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const admin = await requireAdmin(request);
   if ("error" in admin) return admin.error;
 
-  // service role로 전체 주문 조회 (RLS 우회)
-  const { data: orders, error } = await admin.supabase
+  const url = new URL(request.url);
+  const range = url.searchParams.get("range") || "all";
+  const rawLimit = Number(url.searchParams.get("limit") || 500);
+  const limit = Number.isFinite(rawLimit)
+    ? Math.min(Math.max(rawLimit, 1), 1000)
+    : 500;
+
+  let query = admin.supabase
     .from("orders")
     .select(`
       *,
@@ -90,7 +96,19 @@ export async function loader({ request }: LoaderFunctionArgs) {
       )
     `)
     .order("created_at", { ascending: false })
-    .limit(100);
+    .limit(limit);
+
+  if (range === "today") {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    query = query
+      .gte("created_at", start.toISOString())
+      .lt("created_at", end.toISOString());
+  }
+
+  const { data: orders, error } = await query;
 
   if (error) {
     console.error("API admin orders fetch failed:", error);
