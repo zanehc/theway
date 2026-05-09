@@ -3,6 +3,7 @@ import { json } from "@remix-run/node";
 import { useLoaderData, useOutletContext, useNavigate, useNavigation } from "@remix-run/react";
 import { useState, useEffect } from "react";
 import { supabase } from "~/lib/supabase";
+import { getOrdersByUserId } from "~/lib/database";
 import { useNotifications } from "~/contexts/NotificationContext";
 import { OrderListSkeleton } from "~/components/LoadingSkeleton";
 import OrderStatusProgress from "~/components/orders/OrderStatusProgress";
@@ -35,16 +36,9 @@ export default function OrdersHistoryPage() {
 
   useEffect(() => { setUser(contextUser); }, [contextUser]);
 
-  const fetchOrders = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
-    if (!token) return [];
-    const res = await fetch('/api/orders/history?limit=50', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) return [];
-    const json = await res.json();
-    return json.orders || [];
+  const fetchOrders = async (userId: string) => {
+    await supabase.auth.getSession();
+    return getOrdersByUserId(userId);
   };
 
   useEffect(() => {
@@ -55,7 +49,7 @@ export default function OrdersHistoryPage() {
     const loadOrders = async () => {
       setLoading(true);
       try {
-        const result = await fetchOrders();
+        const result = await fetchOrders(user.id);
         if (!cancelled) setOrders(result);
       } catch {
         if (!cancelled) setOrders([]);
@@ -70,7 +64,7 @@ export default function OrdersHistoryPage() {
 
   useEffect(() => {
     if (!mounted || toasts.length === 0 || !user) return;
-    fetchOrders().then(result => setOrders(result)).catch(() => {});
+    fetchOrders(user.id).then(result => setOrders(result)).catch(() => {});
   }, [toasts]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (navigation.state === "loading" && navigation.location?.pathname && navigation.location.pathname !== "/orders/history") {
