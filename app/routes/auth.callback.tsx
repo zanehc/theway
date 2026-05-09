@@ -13,63 +13,18 @@ export default function AuthCallback() {
     console.log('🔍 AuthCallback - 전체 URL:', window.location.href);
     console.log('🔍 AuthCallback - Search Params:', window.location.search);
 
-    const handleUserProfile = async (user: any) => {
-      if (isProcessing.current) {
-        console.log('⚠️ 이미 처리 중, 중복 실행 방지');
-        return;
-      }
+    const handleUserProfile = (user: any) => {
+      if (isProcessing.current) return;
       isProcessing.current = true;
 
-      try {
-        setStatus('프로필 확인 중...');
-        console.log('👤 프로필 확인 시작:', user.email, user.id);
+      // DB 조회 없이 created_at으로 신규 여부 판단 (2분 이내 = 신규 사용자)
+      const isNewUser = Date.now() - new Date(user.created_at).getTime() < 120_000;
 
-        // 프로필 확인에 3초 타임아웃 적용 (기존 15초 → 3초)
-        const profileCheckPromise = (async () => {
-          const { data: existingUser, error: userError } = await supabase
-            .from('users')
-            .select('id, name, church_group')
-            .eq('id', user.id)
-            .single();
-
-          console.log('📊 ID 조회 완료:', { found: !!existingUser, error: userError?.code });
-          return { existingUser, userError };
-        })();
-
-        const timeoutPromise = new Promise<{ existingUser: null; userError: { code: string } }>((resolve) =>
-          setTimeout(() => {
-            console.warn('⏱️ Supabase 조회 타임아웃, 홈으로 이동');
-            resolve({ existingUser: null, userError: { code: 'TIMEOUT' } });
-          }, 3000)
-        );
-
-        const result = await Promise.race([profileCheckPromise, timeoutPromise]);
-        let { existingUser, userError } = result;
-
-        // 타임아웃이거나 조회 오류면 홈으로 (기존 사용자로 간주)
-        if ((userError as any)?.code === 'TIMEOUT') {
-          console.log('⏱️ 타임아웃 - 홈으로 이동');
-          navigate('/?success=' + encodeURIComponent('로그인되었습니다.'));
-          return;
-        }
-
-        if (userError && (userError as any).code !== 'PGRST116') {
-          console.error('❌ 사용자 조회 오류:', userError);
-        }
-
-        if (!existingUser) {
-          console.log('🆕 새 사용자, 프로필 설정 페이지로 이동:', user.email);
-          setStatus('프로필 설정 페이지로 이동 중...');
-          navigate('/auth/profile-setup');
-          return;
-        }
-
-        console.log('✅ 기존 사용자 로그인 완료:', existingUser.name);
-        setStatus('로그인 완료!');
-        navigate('/?success=' + encodeURIComponent('로그인되었습니다.'));
-
-      } catch (err: any) {
-        console.error('❌ 프로필 확인 오류:', err);
+      if (isNewUser) {
+        console.log('🆕 신규 사용자 → 프로필 설정');
+        navigate('/auth/profile-setup');
+      } else {
+        console.log('✅ 기존 사용자 → 홈');
         navigate('/?success=' + encodeURIComponent('로그인되었습니다.'));
       }
     };
@@ -103,7 +58,7 @@ export default function AuthCallback() {
           if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
             console.log('✅ 인증 성공:', session.user.email);
             authListener.data.subscription.unsubscribe();
-            await handleUserProfile(session.user);
+            handleUserProfile(session.user);
           }
         }
       });
