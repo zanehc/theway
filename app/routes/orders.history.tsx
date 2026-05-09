@@ -167,40 +167,44 @@ export default function OrdersHistoryPage() {
     }
   };
 
-  const AdminActions = ({ order }: { order: any }) => (
-    <div className="flex flex-wrap gap-1">
-      {order.status === 'pending' && (
-        <button onClick={() => handleStatusChange(order, 'preparing')}
-          className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-bold hover:bg-blue-200">
-          제조시작
-        </button>
-      )}
-      {order.status === 'preparing' && (
-        <button onClick={() => handleStatusChange(order, 'ready')}
-          className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-bold hover:bg-green-200">
-          제조완료
-        </button>
-      )}
-      {order.status === 'ready' && (
-        <button onClick={() => handleStatusChange(order, 'completed')}
-          className="px-2 py-1 bg-surface-card text-ink rounded text-xs font-bold hover:bg-secondary-bg">
-          픽업완료
-        </button>
-      )}
-      {order.payment_status !== 'confirmed' && (
-        <button onClick={() => handlePaymentConfirm(order)}
-          className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-bold hover:bg-purple-200">
-          결제확인
-        </button>
-      )}
-      {order.status !== 'cancelled' && (
-        <button onClick={() => setCancellationModal({ isOpen: true, order })}
-          className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-bold hover:bg-red-200">
-          취소
-        </button>
-      )}
-    </div>
-  );
+  const AdminActions = ({ order }: { order: any }) => {
+    const isDone = (order.status === 'completed' || order.status === 'cancelled') && order.payment_status === 'confirmed';
+    if (isDone) return <span className="text-xs text-ash font-medium">처리완료</span>;
+    return (
+      <div className="flex flex-wrap gap-1 justify-center">
+        {order.status === 'pending' && (
+          <button onClick={() => handleStatusChange(order, 'preparing')}
+            className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-bold hover:bg-blue-200">
+            제조시작
+          </button>
+        )}
+        {order.status === 'preparing' && (
+          <button onClick={() => handleStatusChange(order, 'ready')}
+            className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-bold hover:bg-green-200">
+            제조완료
+          </button>
+        )}
+        {order.status === 'ready' && (
+          <button onClick={() => handleStatusChange(order, 'completed')}
+            className="px-2 py-1 bg-surface-card text-ink rounded text-xs font-bold hover:bg-secondary-bg">
+            픽업완료
+          </button>
+        )}
+        {order.payment_status !== 'confirmed' && (
+          <button onClick={() => handlePaymentConfirm(order)}
+            className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-bold hover:bg-purple-200">
+            결제확인
+          </button>
+        )}
+        {order.status !== 'cancelled' && (
+          <button onClick={() => setCancellationModal({ isOpen: true, order })}
+            className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-bold hover:bg-red-200">
+            취소
+          </button>
+        )}
+      </div>
+    );
+  };
 
   if (!mounted) return <OrderListSkeleton />;
 
@@ -308,39 +312,44 @@ export default function OrdersHistoryPage() {
           ) : orders.length > 0 ? (
             <>
               {/* 모바일: 카드형 */}
-              <div className="block sm:hidden space-y-4">
+              <div className="block sm:hidden space-y-3">
                 {orders
                   .slice((currentPage - 1) * ORDERS_PER_PAGE, currentPage * ORDERS_PER_PAGE)
                   .map((order) => (
                     <div key={order.id} className="bg-canvas rounded-2xl border border-hairline p-3">
+                      {/* 헤더: 번호 + 주문인 + 시간 */}
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs text-ash">#{order.id.slice(-6)}</span>
-                        <span className="text-xs text-mute">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-ash">#{order.id.slice(-6)}</span>
+                          <span className="text-sm font-bold text-ink">{order.customer_name}</span>
+                          {order.church_group && <span className="text-xs text-mute">{order.church_group}</span>}
+                        </div>
+                        <span className="text-xs text-mute shrink-0">
                           {new Date(order.created_at).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}
                           {' '}
                           {new Date(order.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
-                      <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
-                      <div className="flex items-center gap-2 mt-2 mb-1">
-                        <span className="text-sm font-bold text-ink">{order.customer_name}</span>
-                        {order.church_group && <span className="text-xs text-mute">{order.church_group}</span>}
+                      {/* 1행: 주문메뉴 */}
+                      <div className="bg-surface-soft rounded-xl px-3 py-2 mb-2">
+                        <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                          {order.order_items?.map((item: any) => (
+                            <span key={item.id} className="text-xs text-body">
+                              {item.menu?.name} × {item.quantity}
+                            </span>
+                          ))}
+                        </div>
+                        <span className="text-xs font-bold text-ink mt-1 block">₩{order.total_amount?.toLocaleString()}</span>
                       </div>
-                      <div className="space-y-0.5 mb-2">
-                        {order.order_items?.map((item: any) => (
-                          <div key={item.id} className="text-xs text-body">
-                            {item.menu?.name} × {item.quantity}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-bold text-ink">₩{order.total_amount?.toLocaleString()}</span>
+                      {/* 2행: 주문상태 + 액션 */}
+                      <div className="flex items-center justify-between gap-2">
+                        <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
                         {isAdmin ? (
                           <AdminActions order={order} />
                         ) : (
                           <button
                             onClick={() => handleQuickOrder(order)}
-                            className="px-3 py-1 bg-red-100 text-red-800 rounded-xl text-xs font-bold hover:bg-red-200"
+                            className="px-3 py-1 bg-red-100 text-red-800 rounded-xl text-xs font-bold hover:bg-red-200 shrink-0"
                           >
                             빠른주문
                           </button>
@@ -350,17 +359,16 @@ export default function OrdersHistoryPage() {
                   ))}
               </div>
 
-              {/* 데스크탑: 테이블 */}
+              {/* 데스크탑: 2행 테이블 */}
               <div className="hidden sm:block overflow-x-auto">
-                <table className="min-w-full text-center border-separate border-spacing-y-2">
+                <table className="min-w-full border-separate border-spacing-y-1">
                   <thead>
-                    <tr className="bg-surface-soft text-body text-sm">
-                      <th className="px-2 py-2">주문번호</th>
-                      <th className="px-2 py-2">주문인</th>
-                      <th className="px-2 py-2">주문시간</th>
-                      <th className="px-2 py-2">주문메뉴</th>
-                      <th className="px-2 py-2">주문상태</th>
-                      <th className="px-2 py-2">{isAdmin ? '액션' : '빠른주문'}</th>
+                    <tr className="bg-surface-soft text-body text-xs">
+                      <th className="px-3 py-2 text-center rounded-l-xl">번호</th>
+                      <th className="px-3 py-2 text-center">주문인</th>
+                      <th className="px-3 py-2 text-center">주문시간</th>
+                      <th className="px-3 py-2 text-center">주문메뉴 / 주문상태</th>
+                      <th className="px-3 py-2 text-center rounded-r-xl">{isAdmin ? '액션' : '빠른주문'}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -368,37 +376,42 @@ export default function OrdersHistoryPage() {
                       .slice((currentPage - 1) * ORDERS_PER_PAGE, currentPage * ORDERS_PER_PAGE)
                       .map((order, idx) => (
                         <tr key={order.id} className="bg-canvas">
-                          <td className="font-bold text-body align-middle text-xs">
-                            #{(currentPage - 1) * ORDERS_PER_PAGE + idx + 1}
+                          {/* 번호 */}
+                          <td className="px-3 py-3 text-center align-middle rounded-l-xl">
+                            <span className="font-bold text-body text-xs">
+                              #{(currentPage - 1) * ORDERS_PER_PAGE + idx + 1}
+                            </span>
                           </td>
-                          <td className="align-middle">
-                            <div className="flex flex-col items-center">
-                              <span className="font-bold text-ink">{order.customer_name}</span>
-                              <span className="text-body text-xs mt-1">{order.church_group}</span>
+                          {/* 주문인 */}
+                          <td className="px-3 py-3 text-center align-middle">
+                            <div className="font-bold text-ink text-sm">{order.customer_name}</div>
+                            <div className="text-body text-xs mt-0.5">{order.church_group}</div>
+                          </td>
+                          {/* 시간 */}
+                          <td className="px-3 py-3 text-center align-middle">
+                            <div className="text-body text-xs">{new Date(order.created_at).toLocaleDateString('ko-KR')}</div>
+                            <div className="text-body text-xs mt-0.5">{new Date(order.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</div>
+                          </td>
+                          {/* 주문메뉴 (1행) / 주문상태 (2행) */}
+                          <td className="px-3 py-2 align-middle">
+                            {/* 1행: 메뉴 */}
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 justify-center mb-1.5">
+                              {order.order_items?.map((item: any) => (
+                                <span key={item.id} className="text-xs text-body">
+                                  {item.menu?.name} × {item.quantity}
+                                </span>
+                              ))}
+                              <span className="text-xs font-bold text-ink">₩{order.total_amount?.toLocaleString()}</span>
+                            </div>
+                            {/* 구분선 */}
+                            <div className="border-t border-hairline mb-1.5" />
+                            {/* 2행: 상태 */}
+                            <div className="flex justify-center">
+                              <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
                             </div>
                           </td>
-                          <td className="align-middle">
-                            <div className="flex flex-col items-center">
-                              <span className="text-body text-xs">{new Date(order.created_at).toLocaleDateString('ko-KR')}</span>
-                              <span className="text-body text-xs mt-1">{new Date(order.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</span>
-                            </div>
-                          </td>
-                          <td className="align-middle">
-                            <div className="flex flex-col items-center">
-                              <div className="flex flex-col gap-1 items-center">
-                                {order.order_items?.map((item: any) => (
-                                  <div key={item.id} className="text-xs text-body">
-                                    {item.menu?.name} x {item.quantity}
-                                  </div>
-                                ))}
-                              </div>
-                              <span className="font-bold text-ink mt-1">₩{order.total_amount?.toLocaleString()}</span>
-                            </div>
-                          </td>
-                          <td className="align-middle">
-                            <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
-                          </td>
-                          <td className="align-middle">
+                          {/* 액션 */}
+                          <td className="px-3 py-3 text-center align-middle rounded-r-xl">
                             {isAdmin ? (
                               <AdminActions order={order} />
                             ) : (
