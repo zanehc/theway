@@ -33,6 +33,7 @@ export default function OrdersHistoryPage() {
   const [user, setUser] = useState<any>(contextUser);
   const [orders, setOrders] = useState<any[]>([]);
   const [loadError, setLoadError] = useState('');
+  const [debugInfo, setDebugInfo] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -56,6 +57,7 @@ export default function OrdersHistoryPage() {
       throw new Error(body.error || `주문 내역 조회 실패 (${res.status})`);
     }
     const body = await res.json();
+    setDebugInfo(`서버 isAdmin=${body.isAdmin}, 주문수=${body.orders?.length ?? 0}, 클라이언트 userRole=${userRole}`);
     return body.orders || [];
   };
 
@@ -213,6 +215,12 @@ export default function OrdersHistoryPage() {
               {new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}
             </span>
           </div>
+
+          {debugInfo && (
+            <div className="mb-3 rounded-xl bg-yellow-50 border border-yellow-300 px-3 py-2 text-xs text-yellow-800 font-mono">
+              🔍 {debugInfo}
+            </div>
+          )}
 
           {loadError ? (
             <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-5 text-center">
