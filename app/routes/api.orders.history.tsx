@@ -2,6 +2,16 @@ import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { createClient } from "@supabase/supabase-js";
 
+function getUserIdFromJWT(token: string): string | null {
+  try {
+    const base64Payload = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(Buffer.from(base64Payload, "base64").toString("utf-8"));
+    return typeof payload.sub === "string" ? payload.sub : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const requestedLimit = Number(url.searchParams.get("limit") || 30);
@@ -14,8 +24,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
     return json({ error: "인증 정보가 없습니다.", orders: [] }, { status: 401 });
   }
 
-  // JWT를 Authorization 헤더에 직접 전달 → PostgREST가 로컬에서 검증 후 RLS 적용
-  // auth.getUser() 네트워크 호출 없이 빠르게 처리
+  const userId = getUserIdFromJWT(token);
+  if (!userId) {
+    return json({ error: "토큰이 유효하지 않습니다.", orders: [] }, { status: 401 });
+  }
+
+  // JWT를 Authorization 헤더에 직접 전달 → PostgREST 로컬 검증, auth.getUser() 네트워크 호출 없음
+  // eq('user_id', userId) 로 명시적 필터도 추가 → RLS 설정 무관하게 본인 주문만 반환
   const supabase = createClient(
     process.env.SUPABASE_URL!,
     process.env.SUPABASE_ANON_KEY!,
@@ -47,6 +62,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
         menu:menus (id, name, price)
       )
     `)
+    .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(limit);
 
