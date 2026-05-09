@@ -1,5 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
+import { createClient } from "@supabase/supabase-js";
 import { createServerSupabaseClient } from "~/lib/supabase";
 
 async function requireAdmin(request: Request) {
@@ -8,20 +9,41 @@ async function requireAdmin(request: Request) {
     return { error: json({ error: "인증 정보가 없습니다.", orders: [] }, { status: 401 }) };
   }
 
-  const supabase = createServerSupabaseClient();
-  const { data: authData, error: authError } = await supabase.auth.getUser(token);
+  const supabaseUrl = process.env.SUPABASE_URL || "";
+  const anonKey = process.env.SUPABASE_ANON_KEY || "";
+
+  if (!supabaseUrl || !anonKey) {
+    return { error: json({ error: "Supabase 환경 변수가 설정되지 않았습니다.", orders: [] }, { status: 500 }) };
+  }
+
+  const authSupabase = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const { data: authData, error: authError } = await authSupabase.auth.getUser(token);
   if (authError || !authData.user) {
     return { error: json({ error: "로그인이 만료되었습니다.", orders: [] }, { status: 401 }) };
   }
 
-  const { data: userData } = await supabase
+  const { data: userData, error: roleError } = await authSupabase
     .from("users")
     .select("role")
     .eq("id", authData.user.id)
     .single();
+
+  if (roleError) {
+    console.error("API admin role check failed:", roleError);
+    return { error: json({ error: "관리자 권한 확인에 실패했습니다.", orders: [] }, { status: 500 }) };
+  }
+
   if (userData?.role !== "admin") {
     return { error: json({ error: "관리자 권한이 필요합니다.", orders: [] }, { status: 403 }) };
   }
+
+  const supabase = process.env.SUPABASE_SERVICE_ROLE_KEY
+    ? createServerSupabaseClient()
+    : authSupabase;
 
   return { supabase, user: authData.user };
 }
@@ -58,7 +80,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   if ("error" in admin) return admin.error;
 
   // service role로 전체 주문 조회 (RLS 우회)
-  const { data: orders } = await admin.supabase
+  const { data: orders, error } = await admin.supabase
     .from("orders")
     .select(`
       *,
@@ -69,6 +91,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
     `)
     .order("created_at", { ascending: false })
     .limit(100);
+
+  if (error) {
+    console.error("API admin orders fetch failed:", error);
+    return json({ error: "관리자 주문 조회에 실패했습니다.", orders: [] }, { status: 500 });
+  }
 
   return json({ orders: orders || [] }, { headers: { "Cache-Control": "no-store" } });
 }

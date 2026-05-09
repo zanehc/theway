@@ -28,6 +28,7 @@ export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [mounted, setMounted] = useState(false);
   const { toasts, addToast } = useNotifications();
 
@@ -43,12 +44,17 @@ export default function AdminOrdersPage() {
 
   const fetchAdminOrders = async () => {
     const accessToken = await getAccessToken();
-    if (!accessToken) return [];
+    if (!accessToken) throw new Error('로그인 세션을 확인하지 못했습니다.');
+
     const res = await fetch('/api/admin-orders', {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    if (!res.ok) return [];
-    const data = await res.json();
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || '관리자 주문 조회에 실패했습니다.');
+    }
+
     return data.orders || [];
   };
 
@@ -81,9 +87,16 @@ export default function AdminOrdersPage() {
     const loadOrders = async () => {
       try {
         const result = await fetchAdminOrders();
-        if (!isCancelled) setOrders(result);
+        if (!isCancelled) {
+          setOrders(result);
+          setLoadError('');
+        }
       } catch (err) {
-        if (!isCancelled) setOrders([]);
+        if (!isCancelled) {
+          const message = err instanceof Error ? err.message : '관리자 주문 조회에 실패했습니다.';
+          setOrders([]);
+          setLoadError(message);
+        }
       } finally {
         if (!isCancelled) setLoading(false);
       }
@@ -96,8 +109,13 @@ export default function AdminOrdersPage() {
   useEffect(() => {
     if (!mounted || toasts.length === 0) return;
     const refresh = async () => {
-      const allOrders = await fetchAdminOrders();
-      setOrders(allOrders);
+      try {
+        const allOrders = await fetchAdminOrders();
+        setOrders(allOrders);
+        setLoadError('');
+      } catch (err) {
+        setLoadError(err instanceof Error ? err.message : '관리자 주문 조회에 실패했습니다.');
+      }
     };
     refresh();
   }, [toasts]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -244,6 +262,28 @@ export default function AdminOrdersPage() {
           {loading ? (
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          ) : loadError ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-5 text-center">
+              <div className="text-sm font-bold text-red-700">{loadError}</div>
+              <button
+                type="button"
+                onClick={async () => {
+                  setLoading(true);
+                  try {
+                    const result = await fetchAdminOrders();
+                    setOrders(result);
+                    setLoadError('');
+                  } catch (err) {
+                    setLoadError(err instanceof Error ? err.message : '관리자 주문 조회에 실패했습니다.');
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                className="mt-3 rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white"
+              >
+                다시 불러오기
+              </button>
             </div>
           ) : filteredOrders.length > 0 ? (
             <>
