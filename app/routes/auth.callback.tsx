@@ -17,7 +17,10 @@ export default function AuthCallback() {
     };
 
     const fail = (msg = '로그인 처리 실패') => {
-      navigate('/?error=' + encodeURIComponent(msg), { replace: true });
+      const kakaoHint = msg.includes('Unable to exchange external code') || msg.includes('B4PP')
+        ? '카카오 로그인 처리에 실패했습니다. 카카오 앱의 Redirect URI와 동의항목, Supabase Kakao Provider 설정을 확인해주세요.'
+        : msg;
+      navigate('/?error=' + encodeURIComponent(kakaoHint), { replace: true });
     };
 
     const run = async () => {
@@ -30,7 +33,7 @@ export default function AuthCallback() {
       const code = searchParams.get('code');
       if (code) {
         const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error || !data.user) { fail(); return; }
+        if (error || !data.user) { fail(error?.message || '로그인 처리 실패'); return; }
         go(data.user);
         return;
       }

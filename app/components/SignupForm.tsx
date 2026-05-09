@@ -214,6 +214,7 @@ export function SignupForm({ onSwitchToLogin }: SignupFormProps) {
         provider: 'kakao',
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
+          scopes: 'profile_nickname profile_image',
         },
       });
 
@@ -369,4 +370,4 @@ export function SignupForm({ onSwitchToLogin }: SignupFormProps) {
       </div>
     </form>
   );
-} 
+}
