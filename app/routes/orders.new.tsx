@@ -260,9 +260,7 @@ export default function NewOrder() {
 
   const totalAmount = cart.reduce((sum, item) => sum + item.total_price, 0);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const submitOrder = async () => {
     if (!customerName.trim()) {
       alert('고객명을 입력해주세요.');
       return;
@@ -278,33 +276,34 @@ export default function NewOrder() {
       return;
     }
 
-    // 서버에서 검증할 현재 세션 토큰 가져오기
-    const getCurrentAccessToken = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      return session?.access_token || null;
-    };
+    const { data: { session } } = await supabase.auth.getSession();
+    const accessToken = session?.access_token || null;
 
-    getCurrentAccessToken().then(accessToken => {
-      if (!accessToken) {
-        alert('로그인 정보가 확인되지 않아 주문을 생성할 수 없습니다. 다시 로그인 해주세요.');
-        return;
-      }
-      const formData = new FormData();
-      formData.append('intent', 'createOrder');
-      formData.append('customerName', customerName);
-      formData.append('churchGroup', churchGroup);
-      formData.append('paymentMethod', paymentMethod);
-      formData.append('notes', notes);
-      formData.append('accessToken', accessToken);
-      formData.append('items', JSON.stringify(cart.map(item => ({
-        menu_id: item.menu.id,
-        quantity: item.quantity,
-        unit_price: item.menu.price,
-        total_price: item.total_price,
-      }))));
+    if (!accessToken) {
+      alert('로그인 정보가 확인되지 않아 주문을 생성할 수 없습니다. 다시 로그인 해주세요.');
+      return;
+    }
 
-      fetcher.submit(formData, { method: 'post' });
-    });
+    const formData = new FormData();
+    formData.append('intent', 'createOrder');
+    formData.append('customerName', customerName);
+    formData.append('churchGroup', churchGroup);
+    formData.append('paymentMethod', paymentMethod);
+    formData.append('notes', notes);
+    formData.append('accessToken', accessToken);
+    formData.append('items', JSON.stringify(cart.map(item => ({
+      menu_id: item.menu.id,
+      quantity: item.quantity,
+      unit_price: item.menu.price,
+      total_price: item.total_price,
+    }))));
+
+    fetcher.submit(formData, { method: 'post' });
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    submitOrder();
   };
 
   // Safari 호환성을 위한 안전한 네비게이션 상태 체크
@@ -312,8 +311,72 @@ export default function NewOrder() {
     return <MenuListSkeleton />;
   }
 
+  // 장바구니 아이템 렌더러 (모바일 스크롤 영역 + 데스크톱 사이드바에서 공유)
+  const CartItemList = ({ maxHeight }: { maxHeight?: string }) => (
+    cart.length === 0 ? (
+      <div className="rounded-2xl border border-dashed border-hairline bg-surface-soft px-4 py-8 text-center">
+        <p className="text-sm font-bold text-ash">메뉴 사진을 눌러 담아주세요</p>
+      </div>
+    ) : (
+      <div className={`space-y-2 overflow-y-auto pr-1 ${maxHeight ?? ''}`}>
+        {cart.map((item) => (
+          <div key={item.menu.id} className="rounded-2xl bg-surface-soft p-3">
+            <div className="mb-2 flex items-start justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-black leading-tight text-ink">{item.menu.name}</h4>
+                <p className="mt-1 text-xs font-bold text-mute">₩{item.menu.price.toLocaleString()} · {item.quantity}개</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => removeFromCart(item.menu.id)}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-canvas text-base font-black text-mute transition-colors hover:bg-secondary-bg hover:text-ink"
+                aria-label={`${item.menu.name} 삭제`}
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-1 rounded-full bg-canvas p-1">
+                <button
+                  type="button"
+                  onClick={() => updateQuantity(item.menu.id, item.quantity - 1)}
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-card text-sm font-black text-body transition-colors hover:bg-secondary-bg"
+                  aria-label={`${item.menu.name} 장바구니 수량 줄이기`}
+                >
+                  -
+                </button>
+                <input
+                  type="number"
+                  min="0"
+                  max="99"
+                  value={item.quantity}
+                  onChange={(event) => {
+                    const value = parseInt(event.target.value) || 0;
+                    const clampedValue = Math.min(Math.max(value, 0), 99);
+                    updateQuantity(item.menu.id, clampedValue);
+                  }}
+                  className="h-7 w-9 rounded-full border-0 bg-transparent text-center text-xs font-black text-ink focus:outline-none focus:ring-2 focus:ring-focus-outer"
+                />
+                <button
+                  type="button"
+                  onClick={() => updateQuantity(item.menu.id, item.quantity + 1)}
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-card text-sm font-black text-body transition-colors hover:bg-secondary-bg"
+                  aria-label={`${item.menu.name} 장바구니 수량 늘리기`}
+                >
+                  +
+                </button>
+              </div>
+              <span className="text-sm font-black text-ink">₩{item.total_price.toLocaleString()}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  );
+
   return (
-    <div className="min-h-screen bg-surface-soft pb-20">
+    // 모바일: pb는 고정 하단 패널(~172px) + 하단 내비(~80px) = 252px 확보
+    <div className="min-h-screen bg-surface-soft pb-[252px] lg:pb-20">
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-8 sm:py-12 lg:px-12">
         <div className="mb-6 animate-fade-in sm:mb-8">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -329,6 +392,7 @@ export default function NewOrder() {
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:gap-8 lg:grid-cols-[minmax(0,1fr)_380px]">
+          {/* ── 메뉴 선택 섹션 ── */}
           <section className="animate-slide-up rounded-[32px] border border-hairline-soft bg-canvas p-4 sm:p-6">
             <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-end sm:justify-between">
               <div>
@@ -343,7 +407,6 @@ export default function NewOrder() {
             <div className="mb-5 grid grid-cols-2 gap-2 sm:mb-6 sm:grid-cols-4">
               {categories.map((category) => {
                 const categoryCount = menus.filter(menu => menu.category === category.id).length;
-
                 return (
                   <button
                     key={category.id}
@@ -374,7 +437,6 @@ export default function NewOrder() {
               ) : (
                 filteredMenus.map((menu) => {
                   const cartItem = getCartItem(menu.id);
-
                   return (
                     <article
                       key={menu.id}
@@ -479,8 +541,9 @@ export default function NewOrder() {
             </div>
           </section>
 
-          <aside className="lg:sticky lg:top-8 lg:self-start">
-            <div className="animate-slide-up rounded-[32px] border border-hairline-soft bg-canvas p-4 sm:p-6" style={{ animationDelay: '0.1s' }}>
+          {/* ── 주문 정보 사이드바 (데스크톱 전용) ── */}
+          <aside className="hidden lg:block lg:sticky lg:top-8 lg:self-start">
+            <div className="animate-slide-up rounded-[32px] border border-hairline-soft bg-canvas p-6" style={{ animationDelay: '0.1s' }}>
               <div className="mb-5 flex items-center justify-between gap-3">
                 <div>
                   <h2 className="text-2xl font-black text-ink">주문 정보</h2>
@@ -501,7 +564,7 @@ export default function NewOrder() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                <div className="grid grid-cols-1 gap-3">
                   <div>
                     <label className="mb-1.5 block text-sm font-black text-body">고객명 *</label>
                     <input
@@ -510,10 +573,8 @@ export default function NewOrder() {
                       readOnly
                       className="h-11 w-full rounded-2xl border border-hairline bg-surface-soft px-4 text-sm font-bold text-ink opacity-80"
                       placeholder="고객명"
-                      required
                     />
                   </div>
-
                   <div>
                     <label className="mb-1.5 block text-sm font-black text-body">목장명</label>
                     <input
@@ -567,65 +628,7 @@ export default function NewOrder() {
 
                 <div>
                   <h3 className="mb-3 text-lg font-black text-ink">장바구니</h3>
-                  {cart.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-hairline bg-surface-soft px-4 py-8 text-center">
-                      <p className="text-sm font-bold text-ash">왼쪽 메뉴 사진을 눌러 담아주세요</p>
-                    </div>
-                  ) : (
-                    <div className="max-h-[340px] space-y-2 overflow-y-auto pr-1">
-                      {cart.map((item) => (
-                        <div key={item.menu.id} className="rounded-2xl bg-surface-soft p-3">
-                          <div className="mb-2 flex items-start justify-between gap-3">
-                            <div>
-                              <h4 className="text-sm font-black leading-tight text-ink">{item.menu.name}</h4>
-                              <p className="mt-1 text-xs font-bold text-mute">₩{item.menu.price.toLocaleString()} · {item.quantity}개</p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => removeFromCart(item.menu.id)}
-                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-canvas text-base font-black text-mute transition-colors hover:bg-secondary-bg hover:text-ink"
-                              aria-label={`${item.menu.name} 삭제`}
-                            >
-                              ×
-                            </button>
-                          </div>
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-1 rounded-full bg-canvas p-1">
-                              <button
-                                type="button"
-                                onClick={() => updateQuantity(item.menu.id, item.quantity - 1)}
-                                className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-card text-sm font-black text-body transition-colors hover:bg-secondary-bg"
-                                aria-label={`${item.menu.name} 장바구니 수량 줄이기`}
-                              >
-                                -
-                              </button>
-                              <input
-                                type="number"
-                                min="0"
-                                max="99"
-                                value={item.quantity}
-                                onChange={(event) => {
-                                  const value = parseInt(event.target.value) || 0;
-                                  const clampedValue = Math.min(Math.max(value, 0), 99);
-                                  updateQuantity(item.menu.id, clampedValue);
-                                }}
-                                className="h-7 w-9 rounded-full border-0 bg-transparent text-center text-xs font-black text-ink focus:outline-none focus:ring-2 focus:ring-focus-outer"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => updateQuantity(item.menu.id, item.quantity + 1)}
-                                className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-card text-sm font-black text-body transition-colors hover:bg-secondary-bg"
-                                aria-label={`${item.menu.name} 장바구니 수량 늘리기`}
-                              >
-                                +
-                              </button>
-                            </div>
-                            <span className="text-sm font-black text-ink">₩{item.total_price.toLocaleString()}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <CartItemList maxHeight="max-h-[340px]" />
                 </div>
 
                 <button
@@ -639,7 +642,86 @@ export default function NewOrder() {
             </div>
           </aside>
         </div>
+
+        {/* ── 모바일 전용: 장바구니 + 요청사항 (스크롤 영역) ── */}
+        <section className="mt-4 animate-slide-up rounded-[32px] border border-hairline-soft bg-canvas p-4 lg:hidden">
+          <h2 className="mb-4 text-xl font-black text-ink">장바구니 & 요청사항</h2>
+          <CartItemList />
+          <div className="mt-4">
+            <label className="mb-1.5 block text-sm font-black text-body">요청사항</label>
+            <textarea
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              rows={3}
+              className="w-full resize-none rounded-2xl border border-hairline bg-surface-soft px-4 py-3 text-sm font-medium text-ink focus:outline-none focus:ring-2 focus:ring-focus-outer"
+              placeholder="샷 추가, 얼음 적게 등 요청사항"
+            />
+          </div>
+        </section>
       </main>
+
+      {/* ── 모바일 전용: 고정 하단 주문 패널 ── */}
+      <div className="fixed bottom-20 left-0 right-0 z-30 px-4 lg:hidden">
+        <div className="rounded-[24px] border border-hairline-soft bg-canvas p-4 shadow-[0_-4px_24px_rgba(0,0,0,0.10)]">
+          {/* 고객 정보 칩 */}
+          {(customerName || churchGroup) && (
+            <div className="mb-3 flex items-center gap-2 overflow-hidden">
+              {customerName && (
+                <span className="shrink-0 rounded-full bg-surface-card px-3 py-1 text-xs font-bold text-body">
+                  {customerName}
+                </span>
+              )}
+              {churchGroup && (
+                <span className="truncate rounded-full bg-surface-card px-3 py-1 text-xs font-bold text-body">
+                  {churchGroup}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* 결제 방법 */}
+          <div className="mb-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setPaymentMethod('transfer')}
+              className={`h-10 rounded-2xl border text-sm font-black transition-colors ${
+                paymentMethod === 'transfer'
+                  ? 'border-ink bg-ink text-white'
+                  : 'border-hairline-soft bg-surface-card text-body'
+              }`}
+            >
+              계좌이체
+            </button>
+            <button
+              type="button"
+              onClick={() => setPaymentMethod('cash')}
+              className={`h-10 rounded-2xl border text-sm font-black transition-colors ${
+                paymentMethod === 'cash'
+                  ? 'border-ink bg-ink text-white'
+                  : 'border-hairline-soft bg-surface-card text-body'
+              }`}
+            >
+              현금
+            </button>
+          </div>
+
+          {/* 총금액 + 주문 완료 */}
+          <div className="flex items-center gap-3">
+            <div className="shrink-0">
+              <p className="text-xs font-bold text-mute">{cartCount}개 선택</p>
+              <p className="text-xl font-black text-ink">₩{totalAmount.toLocaleString()}</p>
+            </div>
+            <button
+              type="button"
+              onClick={submitOrder}
+              disabled={cart.length === 0 || !customerName.trim() || isSubmitting}
+              className="h-12 flex-1 rounded-2xl bg-primary text-sm font-black text-white transition-colors active:bg-primary-pressed disabled:cursor-not-allowed disabled:bg-surface-card disabled:text-ash"
+            >
+              {isSubmitting ? '처리 중...' : '주문 완료'}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 } 
