@@ -236,6 +236,12 @@ export default function OtherPage() {
               {userData?.role === 'admin' && (
                 <>
                   <button
+                    onClick={() => navigate("/admin/orders")}
+                    className="w-full bg-red-600 text-white py-3 px-4 rounded-2xl font-bold hover:bg-red-700 transition-colors"
+                  >
+                    주문 관리
+                  </button>
+                  <button
                     onClick={() => navigate("/menus")}
                     className="w-full bg-green-600 text-white py-3 px-4 rounded-2xl font-bold hover:bg-green-700 transition-colors"
                   >
