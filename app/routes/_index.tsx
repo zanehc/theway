@@ -300,8 +300,8 @@ export default function Index() {
                   </div>
                 )}
 
-                {/* 2열 그리드: 왼쪽=행사일정, 오른쪽=헌금+기타 */}
-                <div className="grid grid-cols-2 gap-2.5 items-start">
+                {/* 모바일은 행사/헌금/기타 3행, 넓은 화면은 기존 2열 구성 */}
+                <div className="grid grid-cols-1 gap-2.5 items-start sm:grid-cols-2">
 
                   {/* 왼쪽 열: 행사일정 */}
                   {newsData?.events && newsData.events.length > 0 && (
@@ -327,7 +327,7 @@ export default function Index() {
                   )}
 
                   {/* 오른쪽 열: 헌금계좌 + 기타안내 */}
-                  <div className="space-y-2.5">
+                  <div className="contents sm:block sm:space-y-2.5">
                     {/* 헌금계좌 */}
                     {newsData?.offeringAccounts && newsData.offeringAccounts.length > 0 && (
                       <div className="rounded-xl border border-hairline bg-surface-soft px-3 py-3">
