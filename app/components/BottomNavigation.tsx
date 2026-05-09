@@ -11,6 +11,7 @@ export default function BottomNavigation({ user }: BottomNavigationProps) {
   const navigate = useNavigate();
   const [showLoginModal, setShowLoginModal] = useState(false);
   
+  const recentFetcher = useFetcher();
   const ordersFetcher = useFetcher();
 
   useEffect(() => {
@@ -20,21 +21,31 @@ export default function BottomNavigation({ user }: BottomNavigationProps) {
   const prefetchTabData = useCallback((path: string) => {
     if (!user) return;
     try {
-      if (path === '/orders/new' && ordersFetcher.state === 'idle' && !ordersFetcher.data) {
-        ordersFetcher.load('/orders/new');
+      switch (path) {
+        case '/orders/history':
+          if (recentFetcher.state === 'idle' && !recentFetcher.data) {
+            recentFetcher.load('/orders/history');
+          }
+          break;
+        case '/orders/new':
+          if (ordersFetcher.state === 'idle' && !ordersFetcher.data) {
+            ordersFetcher.load('/orders/new');
+          }
+          break;
       }
     } catch (error) {
       console.warn('Tab prefetch failed:', error);
     }
-  }, [user, ordersFetcher]);
+  }, [user, recentFetcher, ordersFetcher]);
 
   useEffect(() => {
     if (!user) return;
     const currentPath = location.pathname;
-    if (currentPath !== '/orders/new') {
-      const timer = setTimeout(() => prefetchTabData('/orders/new'), 500);
-      return () => clearTimeout(timer);
-    }
+    const tabsToPreload = ['/orders/history', '/orders/new'].filter(path => path !== currentPath);
+    const timer = setTimeout(() => {
+      tabsToPreload.forEach(path => prefetchTabData(path));
+    }, 500);
+    return () => clearTimeout(timer);
   }, [location.pathname, user, prefetchTabData]);
 
   const isActive = (path: string) => {
@@ -79,6 +90,17 @@ export default function BottomNavigation({ user }: BottomNavigationProps) {
         </svg>
       ),
       label: "홈",
+      showWhenLoggedIn: true,
+      showWhenLoggedOut: true,
+    },
+    {
+      path: "/orders/history",
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+      label: "최근주문",
       showWhenLoggedIn: true,
       showWhenLoggedOut: true,
     },
