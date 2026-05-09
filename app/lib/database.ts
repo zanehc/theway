@@ -1,4 +1,5 @@
 import { createServerSupabaseClient, supabase } from './supabase';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Menu, Order, OrderItem, User, OrderWithItems, UserOrderHistory, OrderStatusUpdate } from '~/types';
 
 function getWriteClient() {
@@ -222,9 +223,9 @@ export async function createOrder(orderData: {
     total_price: number;
     notes?: string;
   }>;
-}) {
+}, writeClient?: SupabaseClient) {
   try {
-    const client = getWriteClient();
+    const client = writeClient || getWriteClient();
     const { data: order, error: orderError } = await client
       .from('orders')
       .insert({
@@ -260,9 +261,10 @@ export async function createOrder(orderData: {
 
     // 주문 생성 후 알림 전송
     try {
+      const notificationClient = getWriteClient();
       // 메뉴 이름 가져오기
       const menuIds = orderData.items.map(item => item.menu_id);
-      const { data: menuData } = await client
+      const { data: menuData } = await notificationClient
         .from('menus')
         .select('id, name')
         .in('id', menuIds);
@@ -288,7 +290,7 @@ export async function createOrder(orderData: {
       }
 
       // 2. 모든 관리자/스태프에게 새 주문 알림
-      const { data: adminUsers } = await client
+      const { data: adminUsers } = await notificationClient
         .from('users')
         .select('id')
         .in('role', ['admin', 'staff']);
@@ -305,7 +307,7 @@ export async function createOrder(orderData: {
           adminNotifications.map(notification =>
             Promise.all([
               createNotification(notification),
-              sendWebPush(client, notification.user_id, {
+              sendWebPush(notificationClient, notification.user_id, {
                 title: '이음카페 새 주문',
                 body: orderMessage,
                 orderId: order.id,

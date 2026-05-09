@@ -80,7 +80,22 @@ function initSupabaseClient(): ReturnType<typeof createClient> {
 }
 
 // 서버에서 서비스 롤 키로 인증된 클라이언트 생성
-export const createServerSupabaseClient = () => {
+export const createServerSupabaseClient = (accessToken?: string) => {
+  if (!isBrowser && accessToken) {
+    return createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+      global: {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'X-Client-Info': 'theway-cafe-app',
+        },
+      },
+    });
+  }
+
   const serviceKey = getSupabaseServiceKey();
   if (!isBrowser && serviceKey) {
     return createClient(getSupabaseUrl(), serviceKey);

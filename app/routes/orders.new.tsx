@@ -84,15 +84,19 @@ export async function action({ request }: ActionFunctionArgs) {
         userExists: !!finalUserId
       });
 
-      const result = await createOrder({
-        user_id: finalUserId || undefined,
-        customer_name: customerName,
-        church_group: churchGroup || undefined,
-        payment_method: paymentMethod,
-        notes: notes || undefined,
-        total_amount: totalAmount,
-        items: items,
-      });
+      const writeClient = createServerSupabaseClient(accessToken);
+      const result = await createOrder(
+        {
+          user_id: finalUserId || undefined,
+          customer_name: customerName,
+          church_group: churchGroup || undefined,
+          payment_method: paymentMethod,
+          notes: notes || undefined,
+          total_amount: totalAmount,
+          items: items,
+        },
+        writeClient
+      );
 
       console.log('📝 Order created successfully:', result);
       console.log('📝 Order user_id check:', { orderUserId: result.user_id, finalUserId });
