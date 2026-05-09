@@ -38,14 +38,14 @@ export async function action({ request }: ActionFunctionArgs) {
 
   if (intent === 'createOrder') {
     try {
-      const customerName = formData.get('customerName') as string;
-      const churchGroup = formData.get('churchGroup') as string;
+      const submittedCustomerName = formData.get('customerName') as string;
+      const submittedChurchGroup = formData.get('churchGroup') as string;
       const paymentMethod = formData.get('paymentMethod') as 'cash' | 'transfer';
       const notes = formData.get('notes') as string;
       const items = JSON.parse(formData.get('items') as string);
       const accessToken = formData.get('accessToken') as string;
 
-      if (!customerName || !items || items.length === 0) {
+      if (!items || items.length === 0) {
         return json({ error: '고객명과 주문 항목을 입력해주세요.' }, { status: 400 });
       }
 
@@ -59,6 +59,23 @@ export async function action({ request }: ActionFunctionArgs) {
 
       if (authError || !finalUserId) {
         return json({ error: '로그인 정보가 확인되지 않아 주문을 생성할 수 없습니다. 다시 로그인 해주세요.' }, { status: 400 });
+      }
+
+      const { data: profile } = await serverSupabase
+        .from('users')
+        .select('name, church_group')
+        .eq('id', finalUserId)
+        .maybeSingle();
+
+      const customerName = typeof profile?.name === 'string' && profile.name.trim()
+        ? profile.name.trim()
+        : submittedCustomerName?.trim();
+      const churchGroup = typeof profile?.church_group === 'string' && profile.church_group.trim()
+        ? profile.church_group.trim()
+        : submittedChurchGroup?.trim();
+
+      if (!customerName || !churchGroup) {
+        return json({ error: '이름과 소속 목장을 먼저 입력해주세요.' }, { status: 400 });
       }
       
       console.log('🔍 Creating order with user info:', {
@@ -248,6 +265,11 @@ export default function NewOrder() {
     
     if (!customerName.trim()) {
       alert('고객명을 입력해주세요.');
+      return;
+    }
+
+    if (!churchGroup.trim()) {
+      alert('소속 목장을 입력해주세요.');
       return;
     }
 

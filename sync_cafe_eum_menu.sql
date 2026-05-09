@@ -47,7 +47,7 @@ SELECT '따뜻한 돌체라떼', '연유의 달콤함이 더해진 라떼', 3000
 WHERE NOT EXISTS (SELECT 1 FROM menus WHERE name = '따뜻한 돌체라떼');
 
 INSERT INTO menus (name, description, price, category, is_available, image_url)
-SELECT '애플주스', '사과 주스', 2000, 'beverage', true, NULL
+SELECT '애플주스', '사과 주스', 2000, 'beverage', true, '/menu-images/generated/apple-juice.png'
 WHERE NOT EXISTS (SELECT 1 FROM menus WHERE name = '애플주스');
 
 INSERT INTO menus (name, description, price, category, is_available, image_url)
@@ -75,12 +75,27 @@ SELECT '아이스티', '시원한 복숭아 아이스티', 2000, 'beverage', tru
 WHERE NOT EXISTS (SELECT 1 FROM menus WHERE name = '아이스티');
 
 INSERT INTO menus (name, description, price, category, is_available, image_url)
-SELECT '자몽차', '따뜻한 자몽차', 2500, 'tea', true, '/menu-images/generated/hot-yuzu-tea.jpg'
+SELECT '자몽차', '따뜻한 자몽차', 2500, 'tea', true, '/menu-images/generated/hot-grapefruit-tea.png'
 WHERE NOT EXISTS (SELECT 1 FROM menus WHERE name = '자몽차');
 
 INSERT INTO menus (name, description, price, category, is_available, image_url)
-SELECT '생강차', '따뜻한 생강차', 2500, 'tea', true, '/menu-images/generated/hot-lemon-tea.jpg'
+SELECT '생강차', '따뜻한 생강차', 2500, 'tea', true, '/menu-images/generated/hot-ginger-tea.png'
 WHERE NOT EXISTS (SELECT 1 FROM menus WHERE name = '생강차');
+
+UPDATE menus SET image_url = '/menu-images/generated/apple-juice.png'
+WHERE name = '애플주스';
+
+UPDATE menus SET image_url = '/menu-images/generated/hot-grapefruit-tea.png'
+WHERE name = '자몽차';
+
+UPDATE menus SET image_url = '/menu-images/generated/hot-lemon-tea-v2.png'
+WHERE name = '레몬차';
+
+UPDATE menus SET image_url = '/menu-images/generated/hot-yuzu-tea-v2.png'
+WHERE name = '유자차';
+
+UPDATE menus SET image_url = '/menu-images/generated/hot-ginger-tea.png'
+WHERE name = '생강차';
 
 UPDATE menus SET image_url = '/menu-images/generated/pororo-juice.png'
 WHERE name = '뽀로로 주스';
