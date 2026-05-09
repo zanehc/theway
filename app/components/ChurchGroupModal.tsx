@@ -77,7 +77,7 @@ export default function ChurchGroupModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+    <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/50 px-4">
       <div className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-2xl">
         <div className="mb-6 text-center">
           <div className="mb-3 text-4xl">⛪</div>

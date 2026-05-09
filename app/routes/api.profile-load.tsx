@@ -66,7 +66,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     .eq("id", userId)
     .maybeSingle();
 
-  if (byId) {
+  if (isCompleteProfile(byId) || byId?.role === "admin" || byId?.role === "staff") {
     return json({ user: byId }, { headers: { "Cache-Control": "no-store" } });
   }
 
@@ -78,7 +78,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       .eq("email", email)
       .maybeSingle();
 
-    if (byEmail) {
+    if (isCompleteProfile(byEmail)) {
       return json({ user: byEmail }, { headers: { "Cache-Control": "no-store" } });
     }
   }
@@ -97,5 +97,5 @@ export async function loader({ request }: LoaderFunctionArgs) {
     }
   }
 
-  return json({ user: null }, { headers: { "Cache-Control": "no-store" } });
+  return json({ user: byId || null }, { headers: { "Cache-Control": "no-store" } });
 }
