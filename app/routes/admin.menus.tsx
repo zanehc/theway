@@ -1,12 +1,24 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
-import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useFetcher, useOutletContext } from "@remix-run/react";
+import { json } from "@remix-run/node";
+import { useLoaderData, useFetcher } from "@remix-run/react";
 import { useState, useEffect } from "react";
 import { supabase } from "~/lib/supabase";
 import { uploadMenuImage, deleteMenuImage, createServerSupabaseClient } from "~/lib/supabase";
-import { useNotifications } from "~/contexts/NotificationContext";
 
 import type { Menu } from "~/types";
+
+function getActionErrorMessage(error: unknown) {
+  if (error && typeof error === 'object') {
+    const details = error as { code?: string; message?: string; details?: string; hint?: string };
+    return [details.code, details.message, details.details, details.hint].filter(Boolean).join(' - ');
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error || '알 수 없는 오류');
+}
 
 export async function loader({ request }: LoaderFunctionArgs) {
   try {
@@ -65,7 +77,7 @@ export async function action({ request }: ActionFunctionArgs) {
       const category = formData.get('category') as string;
       const imageFile = formData.get('image') as File | null;
 
-      if (!name || !price || !category) {
+      if (!name || Number.isNaN(price) || !category) {
         return json({ error: '필수 필드를 입력해주세요.' }, { status: 400 });
       }
 
@@ -103,7 +115,7 @@ export async function action({ request }: ActionFunctionArgs) {
       return json({ success: true, message: '메뉴가 성공적으로 추가되었습니다.' });
     } catch (error) {
       console.error('Create menu error:', error);
-      return json({ error: '메뉴 생성에 실패했습니다.' }, { status: 400 });
+      return json({ error: `메뉴 생성에 실패했습니다. (${getActionErrorMessage(error)})` }, { status: 400 });
     }
   }
 
@@ -133,7 +145,7 @@ export async function action({ request }: ActionFunctionArgs) {
       console.log('Form data:', { id, name, description, price, category, removeImage, hasUploadedImage });
       console.log('Image file:', imageFile ? { name: imageFile.name, size: imageFile.size } : 'null');
 
-      if (!id || !name || !price || !category) {
+      if (!id || !name || Number.isNaN(price) || !category) {
         console.log('Validation failed');
         return json({ error: '필수 필드를 입력해주세요.' }, { status: 400 });
       }
@@ -159,7 +171,7 @@ export async function action({ request }: ActionFunctionArgs) {
 
       if (fetchError) {
         console.error('Error fetching existing menu:', fetchError);
-        return json({ error: '기존 메뉴 정보를 가져오는데 실패했습니다.' }, { status: 400 });
+        return json({ error: `기존 메뉴 정보를 가져오는데 실패했습니다. (${getActionErrorMessage(fetchError)})` }, { status: 400 });
       }
 
       console.log('Existing menu:', existingMenu);
@@ -232,7 +244,7 @@ export async function action({ request }: ActionFunctionArgs) {
       return json({ success: true, message: '메뉴가 성공적으로 수정되었습니다.' });
     } catch (error) {
       console.error('Update menu error:', error);
-      return json({ error: '메뉴 수정에 실패했습니다.' }, { status: 400 });
+      return json({ error: `메뉴 수정에 실패했습니다. (${getActionErrorMessage(error)})` }, { status: 400 });
     }
   }
 
@@ -260,7 +272,7 @@ export async function action({ request }: ActionFunctionArgs) {
       return json({ success: true, message: '메뉴가 성공적으로 삭제되었습니다.' });
     } catch (error) {
       console.error('Delete menu error:', error);
-      return json({ error: '메뉴 삭제에 실패했습니다.' }, { status: 400 });
+      return json({ error: `메뉴 삭제에 실패했습니다. (${getActionErrorMessage(error)})` }, { status: 400 });
     }
   }
 
@@ -275,7 +287,6 @@ export default function Menus() {
   
   const { menus } = useLoaderData<typeof loader>();
   console.log('📊 Raw menus data:', menus);
-  const { toasts } = useNotifications();
   const fetcher = useFetcher();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingMenu, setEditingMenu] = useState<Menu | null>(null);
@@ -484,7 +495,7 @@ export default function Menus() {
                    >
                      수정
                    </button>
-                 <fetcher.Form method="post" className="flex-1">
+                 <fetcher.Form method="post" action="/admin/menus" className="flex-1">
                    <input type="hidden" name="intent" value="deleteMenu" />
                    <input type="hidden" name="id" value={menu.id} />
                    <input type="hidden" name="imageUrl" value={menu.image_url || ''} />
@@ -511,7 +522,7 @@ export default function Menus() {
              <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full max-h-[90vh] overflow-y-auto">
                <h2 className="text-2xl font-black text-ink mb-6">새 메뉴 추가</h2>
                
-               <fetcher.Form method="post" encType="multipart/form-data" className="space-y-4">
+               <fetcher.Form method="post" action="/admin/menus" encType="multipart/form-data" className="space-y-4">
                  <input type="hidden" name="intent" value="createMenu" />
                  
                  <div>
@@ -607,7 +618,7 @@ export default function Menus() {
              <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full max-h-[90vh] overflow-y-auto">
                <h2 className="text-2xl font-black text-ink mb-6">메뉴 수정</h2>
                
-               <fetcher.Form method="post" encType="multipart/form-data" className="space-y-4">
+               <fetcher.Form method="post" action="/admin/menus" encType="multipart/form-data" className="space-y-4">
                  <input type="hidden" name="intent" value="updateMenu" />
                  <input type="hidden" name="id" value={editingMenu.id} />
                  <input type="hidden" name="removeImage" value={shouldRemoveImage ? 'true' : 'false'} />
