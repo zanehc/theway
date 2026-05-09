@@ -12,6 +12,27 @@ function getUserIdFromJWT(token: string): string | null {
   }
 }
 
+function getEmailFromJWT(token: string): string {
+  try {
+    const base64Payload = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(Buffer.from(base64Payload, "base64").toString("utf-8"));
+    return typeof payload.email === "string" ? payload.email : "";
+  } catch {
+    return "";
+  }
+}
+
+function getMetadataNameFromJWT(token: string): string {
+  try {
+    const base64Payload = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(Buffer.from(base64Payload, "base64").toString("utf-8"));
+    const metadata = payload.user_metadata || {};
+    return normalizeProfileValue(metadata.full_name || metadata.name || metadata.nickname);
+  } catch {
+    return "";
+  }
+}
+
 const ORDER_SELECT = `
   id,
   order_number,
@@ -37,6 +58,63 @@ const ORDER_SELECT = `
 
 function normalizeProfileValue(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function isCompleteProfile(profile: any) {
+  return Boolean(normalizeProfileValue(profile?.name) && normalizeProfileValue(profile?.church_group));
+}
+
+async function resolveUserProfile(
+  serviceClient: ReturnType<typeof createClient>,
+  userId: string,
+  token: string
+) {
+  const email = getEmailFromJWT(token);
+  const metadataName = getMetadataNameFromJWT(token);
+
+  const { data: byId, error: byIdError } = await serviceClient
+    .from("users")
+    .select("role, name, church_group")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (byIdError) {
+    return { profile: null, error: byIdError };
+  }
+  if (isCompleteProfile(byId) || byId?.role === "admin" || byId?.role === "staff") {
+    return { profile: byId, error: null };
+  }
+
+  if (email) {
+    const { data: byEmail, error: byEmailError } = await serviceClient
+      .from("users")
+      .select("role, name, church_group")
+      .eq("email", email)
+      .maybeSingle();
+
+    if (byEmailError) {
+      return { profile: byId, error: null };
+    }
+    if (isCompleteProfile(byEmail)) {
+      return { profile: { ...byId, ...byEmail, role: byId?.role || byEmail?.role }, error: null };
+    }
+  }
+
+  if (metadataName) {
+    const { data: byName } = await serviceClient
+      .from("users")
+      .select("role, name, church_group")
+      .eq("name", metadataName)
+      .limit(2);
+
+    const completeMatches = (byName || []).filter(isCompleteProfile);
+    if (completeMatches.length === 1) {
+      const match = completeMatches[0];
+      return { profile: { ...byId, ...match, role: byId?.role || match?.role }, error: null };
+    }
+  }
+
+  return { profile: byId, error: null };
 }
 
 function sortOrdersByCreatedAtDesc(orders: any[]) {
@@ -87,11 +165,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     { auth: { persistSession: false, autoRefreshToken: false } }
   );
 
-  const { data: profile, error: profileError } = await serviceClient
-    .from("users")
-    .select("role, name, church_group")
-    .eq("id", userId)
-    .maybeSingle();
+  const { profile, error: profileError } = await resolveUserProfile(serviceClient, userId, token);
 
   console.log("[orders/history] profile:", profile, "profileError:", profileError);
 

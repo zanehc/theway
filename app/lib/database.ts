@@ -10,6 +10,50 @@ function getOrderNumberLabel(order: { id?: string | null; order_number?: string 
   return orderNumber ? `#${orderNumber}` : '';
 }
 
+async function sendWebPush(
+  client: ReturnType<typeof createServerSupabaseClient>,
+  userId: string,
+  payload: { title: string; body: string; orderId: string; url: string }
+) {
+  if (typeof window !== 'undefined') return;
+  if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) return;
+
+  try {
+    const webpush = await import('web-push');
+    webpush.default.setVapidDetails(
+      'mailto:admin@theway-cafe.com',
+      process.env.VAPID_PUBLIC_KEY,
+      process.env.VAPID_PRIVATE_KEY
+    );
+
+    const { data: subs } = await client
+      .from('push_subscriptions')
+      .select('endpoint, p256dh, auth')
+      .eq('user_id', userId);
+
+    if (!subs?.length) return;
+
+    const message = JSON.stringify(payload);
+    await Promise.allSettled(
+      subs.map((sub: any) =>
+        webpush.default.sendNotification(
+          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+          message
+        ).catch((err: any) => {
+          if (err.statusCode === 404 || err.statusCode === 410) {
+            client.from('push_subscriptions').delete()
+              .eq('user_id', userId)
+              .eq('endpoint', sub.endpoint);
+          }
+          console.error('Web push send error:', err.statusCode);
+        })
+      )
+    );
+  } catch (error) {
+    console.error('Web push setup/send failed:', error);
+  }
+}
+
 // Menu queries
 export async function getMenus() {
   const { data, error } = await supabase
@@ -228,7 +272,9 @@ export async function createOrder(orderData: {
         `${menuMap.get(item.menu_id) || '메뉴'} x${item.quantity}`
       ).join(', ');
 
-      const orderMessage = `${orderData.customer_name}님이 ${menuNames}를 주문했습니다. (총 ${orderData.total_amount.toLocaleString()}원)`;
+      const orderNumber = getOrderNumberLabel(order);
+      const group = orderData.church_group ? ` · ${orderData.church_group}` : '';
+      const orderMessage = `${orderData.customer_name}${group}님이 ${menuNames}를 주문했습니다. (주문번호: ${orderNumber}, 총 ${orderData.total_amount.toLocaleString()}원)`;
 
       // 1. 주문한 사용자에게 주문 확인 알림 (있는 경우)
       if (orderData.user_id) {
@@ -241,11 +287,11 @@ export async function createOrder(orderData: {
         console.log('📱 Order confirmation sent to user:', orderData.user_id);
       }
 
-      // 2. 모든 관리자에게 새 주문 알림
+      // 2. 모든 관리자/스태프에게 새 주문 알림
       const { data: adminUsers } = await client
         .from('users')
         .select('id')
-        .eq('role', 'admin');
+        .in('role', ['admin', 'staff']);
 
       if (adminUsers && adminUsers.length > 0) {
         const adminNotifications = adminUsers.map(admin => ({
@@ -256,9 +302,19 @@ export async function createOrder(orderData: {
         }));
 
         await Promise.all(
-          adminNotifications.map(notification => createNotification(notification))
+          adminNotifications.map(notification =>
+            Promise.all([
+              createNotification(notification),
+              sendWebPush(client, notification.user_id, {
+                title: '이음카페 새 주문',
+                body: orderMessage,
+                orderId: order.id,
+                url: '/orders/history',
+              }),
+            ])
+          )
         );
-        console.log('📱 New order notifications sent to', adminUsers.length, 'admins');
+        console.log('📱 New order notifications sent to', adminUsers.length, 'admins/staff');
       }
 
     } catch (notificationError) {

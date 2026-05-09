@@ -11,25 +11,33 @@ export default function ProfileSetup() {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   useEffect(() => {
     const getUser = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user || null;
         if (user) {
           setUser(user);
 
           // 기존 프로필 확인
-          const { data: profile } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', user.id)
-            .single();
+          const profileRes = session?.access_token
+            ? await fetch(`/api/profile-load?email=${encodeURIComponent(user.email || '')}`, {
+                headers: { Authorization: `Bearer ${session.access_token}` },
+                cache: 'no-store',
+              })
+            : null;
+          const profileResult = profileRes ? await profileRes.json().catch(() => ({})) : {};
+          const profile = profileRes?.ok ? profileResult.user : null;
 
           if (profile) {
             setExistingProfile(profile);
             setName(profile.name || '');
             setChurchGroup(profile.church_group || '');
+            if (profile.name?.trim() && profile.church_group?.trim()) {
+              navigate('/', { replace: true });
+            }
           } else {
             // 소셜 로그인에서 가져온 이름이 있으면 기본값으로 설정
             const defaultName = user.user_metadata?.full_name ||
@@ -65,45 +73,39 @@ export default function ProfileSetup() {
 
     setLoading(true);
     setError('');
+    setSuccess('');
 
     try {
-      if (existingProfile) {
-        // 기존 프로필 업데이트
-        const { error: updateError } = await supabase
-          .from('users')
-          .update({
-            name: name.trim(),
-            church_group: churchGroup.trim() || null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', user.id);
-
-        if (updateError) {
-          console.error('프로필 업데이트 오류:', updateError);
-          setError('프로필 업데이트에 실패했습니다.');
-          return;
-        }
-      } else {
-        // 새 프로필 생성
-        const { error: insertError } = await supabase
-          .from('users')
-          .insert({
-            id: user.id,
-            email: user.email,
-            name: name.trim(),
-            role: 'customer',
-            church_group: churchGroup.trim() || null,
-          });
-
-        if (insertError) {
-          console.error('프로필 생성 오류:', insertError);
-          setError('사용자 정보 저장에 실패했습니다.');
-          return;
-        }
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) {
+        setError('로그인 세션이 만료됐습니다. 다시 로그인해주세요.');
+        return;
       }
 
-      // 성공 시 홈으로 리다이렉트
-      navigate('/');
+      const res = await fetch('/api/profile-save', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: name.trim(),
+          church_group: churchGroup.trim(),
+          email: user.email || '',
+        }),
+      });
+      const result = await res.json().catch(() => ({}));
+
+      if (!res.ok || !result.success) {
+        setError(result.error || '사용자 정보 저장에 실패했습니다.');
+        return;
+      }
+
+      setSuccess('프로필이 저장되었습니다.');
+      window.setTimeout(() => {
+        navigate('/?success=' + encodeURIComponent('프로필이 저장되었습니다.'), { replace: true });
+      }, 700);
     } catch (err) {
       console.error('프로필 저장 오류:', err);
       setError('오류가 발생했습니다.');
@@ -139,6 +141,12 @@ export default function ProfileSetup() {
           {error && (
             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-2xl text-sm">
               {error}
+            </div>
+          )}
+
+          {success && (
+            <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-2xl text-sm font-bold">
+              {success}
             </div>
           )}
 

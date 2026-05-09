@@ -103,7 +103,7 @@ export async function action({ request }: ActionFunctionArgs) {
     .maybeSingle();
 
   if (existingByName) {
-    console.log("[profile-save] found existing row by name, updating:", existingByName.id);
+    console.log("[profile-save] found existing row by name, updating and linking current auth id:", existingByName.id);
     const { error } = await db
       .from("users")
       .update({ church_group: churchGroup, updated_at: new Date().toISOString() })
@@ -112,6 +112,22 @@ export async function action({ request }: ActionFunctionArgs) {
       console.error("[profile-save] update-by-name error:", error);
       return json({ error: `저장에 실패했습니다. (${error.code})` }, { status: 500 });
     }
+
+    const { error: linkError } = await db
+      .from("users")
+      .insert({
+        id: userId,
+        email: body.email || "",
+        name,
+        church_group: churchGroup,
+        role: "customer",
+        updated_at: new Date().toISOString(),
+      });
+
+    if (linkError) {
+      console.error("[profile-save] insert-linked-profile error:", linkError.code, linkError.message);
+    }
+
     return json({ success: true, name, church_group: churchGroup });
   }
 

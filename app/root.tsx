@@ -85,11 +85,27 @@ export default function App() {
       Boolean(profile?.name.trim() && profile?.church_group.trim());
 
     const loadUserProfile = async (authUser: any) => {
-      const { data, error } = await supabase
-        .from('users')
-        .select('role, name, church_group')
-        .eq('id', authUser.id)
-        .maybeSingle();
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      let data: any = null;
+      let error: any = null;
+
+      if (token) {
+        try {
+          const res = await fetch(`/api/profile-load?email=${encodeURIComponent(authUser.email || '')}`, {
+            headers: { Authorization: `Bearer ${token}` },
+            cache: 'no-store',
+          });
+          const result = await res.json().catch(() => ({}));
+          if (res.ok) {
+            data = result.user;
+          } else {
+            error = result.error || 'profile-load failed';
+          }
+        } catch (err) {
+          error = err;
+        }
+      }
 
       if (error) {
         console.error('🔐 Root - 프로필 조회 실패:', error);

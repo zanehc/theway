@@ -189,28 +189,8 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
       )
       .subscribe();
 
-    const ordersChannel = userRole === 'admin' || userRole === 'staff'
-      ? supabase
-        .channel(`orders-admin-toast-${userId}`)
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'orders' },
-          (payload) => {
-            const newOrder = payload.new as any;
-            console.log('🔔 NotificationContext - 새 주문:', { newOrder, userRole });
-            const group = newOrder.church_group ? ` · ${newOrder.church_group}` : '';
-            const amount = newOrder.total_amount ? ` · ${Number(newOrder.total_amount).toLocaleString()}원` : '';
-            addToast(`새 주문! ${newOrder.customer_name}${group}${amount}`, 'info');
-          }
-        )
-        .subscribe()
-      : null;
-
     return () => {
       supabase.removeChannel(notificationsChannel);
-      if (ordersChannel) {
-        supabase.removeChannel(ordersChannel);
-      }
     };
   }, [userId, userRole, addToast]);
 
