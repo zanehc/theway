@@ -57,8 +57,9 @@ function initSupabaseClient(): ReturnType<typeof createClient> {
       flowType: 'pkce',
       // 자동 토큰 갱신 활성화
       autoRefreshToken: true,
-      // 세션 감지 활성화
-      detectSessionInUrl: true,
+      // /auth/callback에서 exchangeCodeForSession을 직접 호출하므로 자동 교환은 끕니다.
+      // 자동 교환과 수동 교환이 동시에 돌면 PKCE code_verifier가 먼저 소모될 수 있습니다.
+      detectSessionInUrl: false,
       // 토큰 저장소 설정 (localStorage 사용)
       storage: isBrowser ? window.localStorage : undefined,
       // 세션 지속성 향상
