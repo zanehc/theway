@@ -148,6 +148,27 @@ export default function OrdersHistoryPage() {
     fetchOrders().then(result => setOrders(result)).catch(() => {});
   }, [toasts]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 주문 테이블 실시간 구독 - 관리자 액션 시 고객 화면 즉각 반영
+  useEffect(() => {
+    if (!mounted || !user) return;
+
+    const channel = supabase
+      .channel(`orders-history-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        (payload) => {
+          const row = (payload.new || payload.old) as any;
+          // 관리자/스태프는 모든 변경 반영. 일반 고객은 본인 주문만 반영
+          if (!isAdmin && row?.user_id !== user.id) return;
+          fetchOrders().then(setOrders).catch(() => {});
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [mounted, user, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (navigation.state === "loading" && navigation.location?.pathname && navigation.location.pathname !== "/orders/history") {
     return <OrderListSkeleton />;
   }
