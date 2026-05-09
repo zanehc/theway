@@ -409,7 +409,7 @@ export default function Menus() {
     { id: 'hot coffee', name: 'Hot 커피' },
     { id: 'ice coffee', name: 'Ice 커피' },
     { id: 'tea', name: '차' },
-    { id: 'beverage', name: '음료' }
+    { id: 'beverage', name: 'ADE / 음료' }
   ];
 
   return (
