@@ -33,6 +33,32 @@ const ORDER_SELECT = `
   )
 `;
 
+function normalizeProfileValue(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function sortOrdersByCreatedAtDesc(orders: any[]) {
+  return [...orders].sort((a, b) => {
+    const aTime = new Date(a.created_at || 0).getTime();
+    const bTime = new Date(b.created_at || 0).getTime();
+    return bTime - aTime;
+  });
+}
+
+function mergeOrdersById(orderGroups: any[][], limit: number) {
+  const merged = new Map<string, any>();
+
+  for (const orders of orderGroups) {
+    for (const order of orders) {
+      if (order?.id && !merged.has(order.id)) {
+        merged.set(order.id, order);
+      }
+    }
+  }
+
+  return sortOrdersByCreatedAtDesc(Array.from(merged.values())).slice(0, limit);
+}
+
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const requestedLimit = Number(url.searchParams.get("limit") || 30);
@@ -61,7 +87,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   const { data: profile, error: profileError } = await serviceClient
     .from("users")
-    .select("role")
+    .select("role, name, church_group")
     .eq("id", userId)
     .maybeSingle();
 
@@ -94,30 +120,45 @@ export async function loader({ request }: LoaderFunctionArgs) {
     return json({ orders: data || [], isAdmin: true }, { headers: { "Cache-Control": "no-store" } });
   }
 
-  // 일반 고객: JWT를 Authorization 헤더로 전달 → PostgREST RLS 적용, 본인 주문만
-  const userClient = createClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_ANON_KEY!,
-    {
-      global: { headers: { Authorization: `Bearer ${token}` } },
-      auth: { persistSession: false, autoRefreshToken: false },
-    }
-  );
-
-  const { data, error } = await userClient
+  const { data: ownOrders, error: ownOrdersError } = await serviceClient
     .from("orders")
     .select(ORDER_SELECT)
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(limit);
 
-  if (error) {
-    console.error("API get order history error:", error);
+  if (ownOrdersError) {
+    console.error("API get own order history error:", ownOrdersError);
     return json({ error: "주문 내역을 불러오지 못했습니다.", orders: [] }, { status: 500 });
   }
 
+  const customerName = normalizeProfileValue(profile?.name);
+  const churchGroup = normalizeProfileValue(profile?.church_group);
+  let matchedOrders: any[] = [];
+
+  if (customerName && churchGroup) {
+    const { data, error } = await serviceClient
+      .from("orders")
+      .select(ORDER_SELECT)
+      .eq("customer_name", customerName)
+      .eq("church_group", churchGroup)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.error("API get matched order history error:", error);
+      return json({ error: "주문 내역을 불러오지 못했습니다.", orders: [] }, { status: 500 });
+    }
+
+    matchedOrders = data || [];
+  }
+
   return json(
-    { orders: data || [], isAdmin: false },
+    {
+      orders: mergeOrdersById([ownOrders || [], matchedOrders], limit),
+      isAdmin: false,
+      matchByProfile: Boolean(customerName && churchGroup),
+    },
     { headers: { "Cache-Control": "no-store" } }
   );
 }

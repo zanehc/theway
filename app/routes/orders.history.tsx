@@ -32,6 +32,8 @@ export default function OrdersHistoryPage() {
     || contextUser?.user_metadata?.name
     || contextUser?.email?.split('@')[0]
     || '';
+  const profileName = outletContext?.userProfile?.name?.trim() || '';
+  const profileChurchGroup = outletContext?.userProfile?.church_group?.trim() || '';
 
   const [user, setUser] = useState<any>(contextUser);
   const [orders, setOrders] = useState<any[]>([]);
@@ -159,15 +161,21 @@ export default function OrdersHistoryPage() {
         { event: '*', schema: 'public', table: 'orders' },
         (payload) => {
           const row = (payload.new || payload.old) as any;
-          // 관리자/스태프는 모든 변경 반영. 일반 고객은 본인 주문만 반영
-          if (!isAdmin && row?.user_id !== user.id) return;
+          // 관리자/스태프는 모든 변경 반영. 일반 고객은 본인 주문 또는 이름+목장이 같은 주문 반영
+          const matchesProfile = Boolean(
+            profileName &&
+            profileChurchGroup &&
+            row?.customer_name?.trim?.() === profileName &&
+            row?.church_group?.trim?.() === profileChurchGroup
+          );
+          if (!isAdmin && row?.user_id !== user.id && !matchesProfile) return;
           fetchOrders().then(setOrders).catch(() => {});
         }
       )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [mounted, user, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mounted, user, isAdmin, profileName, profileChurchGroup]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (navigation.state === "loading" && navigation.location?.pathname && navigation.location.pathname !== "/orders/history") {
     return <OrderListSkeleton />;
