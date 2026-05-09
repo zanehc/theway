@@ -39,8 +39,8 @@ export default function ForgotPasswordPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-ivory-50 flex items-center justify-center px-4">
-        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6">
+      <div className="min-h-screen bg-canvas flex items-center justify-center px-4">
+        <div className="max-w-md w-full bg-white rounded-2xl  p-6">
           <div className="text-center">
             <div className="text-green-600 mb-4">
               <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -48,13 +48,13 @@ export default function ForgotPasswordPage() {
               </svg>
               <p className="text-lg font-semibold">비밀번호 재설정 이메일이 전송되었습니다!</p>
             </div>
-            <p className="text-gray-600 mb-4">
+            <p className="text-mute mb-4">
               입력하신 이메일 주소로 비밀번호 재설정 링크를 보냈습니다.
               이메일을 확인하여 비밀번호를 재설정해주세요.
             </p>
             <button
               onClick={() => navigate("/other")}
-              className="w-full bg-wine-600 text-white py-3 px-4 rounded-lg font-bold hover:bg-wine-700 transition-colors"
+              className="w-full bg-primary text-white py-3 px-4 rounded-2xl font-bold hover:bg-primary-pressed transition-colors"
             >
               로그인 페이지로 돌아가기
             </button>
@@ -65,23 +65,23 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen bg-ivory-50 flex items-center justify-center px-4">
-      <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6">
-        <h1 className="text-2xl font-bold text-wine-800 mb-6 text-center">비밀번호 재설정</h1>
+    <div className="min-h-screen bg-canvas flex items-center justify-center px-4">
+      <div className="max-w-md w-full bg-white rounded-2xl  p-6">
+        <h1 className="text-2xl font-bold text-ink mb-6 text-center">비밀번호 재설정</h1>
         
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-2xl mb-4 text-sm">
             {error}
           </div>
         )}
         
-        <p className="text-gray-600 mb-6 text-center">
+        <p className="text-mute mb-6 text-center">
           가입하신 이메일 주소를 입력하시면 비밀번호 재설정 링크를 보내드립니다.
         </p>
         
         <form onSubmit={handleSendResetEmail} className="space-y-4">
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="email" className="block text-sm font-medium text-body mb-2">
               이메일 주소
             </label>
             <input
@@ -90,7 +90,7 @@ export default function ForgotPasswordPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-hairline rounded-2xl focus:outline-none focus:ring-2 focus:ring-focus-outer focus:border-transparent"
               placeholder="이메일 주소를 입력하세요"
             />
           </div>
@@ -98,7 +98,7 @@ export default function ForgotPasswordPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-wine-600 text-white py-3 px-4 rounded-lg font-bold hover:bg-wine-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-primary text-white py-3 px-4 rounded-2xl font-bold hover:bg-primary-pressed transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? "이메일 전송 중..." : "비밀번호 재설정 이메일 보내기"}
           </button>
@@ -107,7 +107,7 @@ export default function ForgotPasswordPage() {
         <div className="mt-6 text-center">
           <button
             onClick={() => navigate("/other")}
-            className="text-wine-600 hover:text-wine-700 text-sm font-medium"
+            className="text-mute hover:text-body text-sm font-medium"
           >
             로그인 페이지로 돌아가기
           </button>

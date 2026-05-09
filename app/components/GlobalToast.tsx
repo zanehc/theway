@@ -49,7 +49,7 @@ export function GlobalToast() {
           <div className="flex justify-end">
             <button
               onClick={clearAllToasts}
-              className="text-xs bg-gray-600 text-white px-2 py-1 rounded-md hover:bg-gray-700 transition-colors"
+              className="text-xs bg-surface-dark text-white px-2 py-1 rounded-2xl hover:bg-charcoal transition-colors"
             >
               모두 닫기
             </button>
@@ -59,7 +59,7 @@ export function GlobalToast() {
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`border rounded-lg shadow-lg p-4 transition-all duration-300 transform animate-slide-in-right ${getToastColors(toast.type)}`}
+            className={`border rounded-2xl  p-4 transition-all duration-300 transform animate-slide-in-right ${getToastColors(toast.type)}`}
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-start gap-3 flex-1">
@@ -79,7 +79,7 @@ export function GlobalToast() {
               {/* 확인 버튼 */}
               <button
                 onClick={() => removeToast(toast.id)}
-                className="flex-shrink-0 ml-2 px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-md text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
+                className="flex-shrink-0 ml-2 px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-2xl text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
               >
                 확인
               </button>

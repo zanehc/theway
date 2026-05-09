@@ -56,12 +56,12 @@ export default function TestLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-warm p-8">
+    <div className="min-h-screen bg-surface-soft p-8">
       <div className="max-w-md mx-auto bg-white rounded-2xl shadow-large p-8">
-        <h1 className="text-3xl font-black text-wine-800 mb-8 text-center">로그인 테스트</h1>
+        <h1 className="text-3xl font-black text-ink mb-8 text-center">로그인 테스트</h1>
         
         {message && (
-          <div className={`mb-6 p-4 rounded-lg ${
+          <div className={`mb-6 p-4 rounded-2xl ${
             message.includes('성공') 
               ? 'bg-green-100 text-green-700 border border-green-400'
               : 'bg-red-100 text-red-700 border border-red-400'
@@ -72,14 +72,14 @@ export default function TestLogin() {
 
         {user ? (
           <div className="space-y-4">
-            <div className="bg-wine-50 p-4 rounded-lg">
-              <h2 className="font-bold text-wine-800 mb-2">로그인된 사용자</h2>
-              <p className="text-wine-600">이메일: {user.email}</p>
-              <p className="text-wine-600">ID: {user.id}</p>
+            <div className="bg-surface-soft p-4 rounded-2xl">
+              <h2 className="font-bold text-ink mb-2">로그인된 사용자</h2>
+              <p className="text-mute">이메일: {user.email}</p>
+              <p className="text-mute">ID: {user.id}</p>
             </div>
             <button
               onClick={handleLogout}
-              className="w-full bg-red-600 text-white py-3 px-4 rounded-lg font-bold hover:bg-red-700 transition-colors"
+              className="w-full bg-red-600 text-white py-3 px-4 rounded-2xl font-bold hover:bg-red-700 transition-colors"
             >
               로그아웃
             </button>
@@ -87,27 +87,27 @@ export default function TestLogin() {
         ) : (
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-sm font-bold text-wine-700 mb-2">
+              <label className="block text-sm font-bold text-body mb-2">
                 이메일
               </label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 border border-ivory-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-wine-500"
+                className="w-full px-4 py-3 border border-hairline rounded-2xl focus:outline-none focus:ring-2 focus:ring-focus-outer"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-wine-700 mb-2">
+              <label className="block text-sm font-bold text-body mb-2">
                 비밀번호
               </label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 border border-ivory-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-wine-500"
+                className="w-full px-4 py-3 border border-hairline rounded-2xl focus:outline-none focus:ring-2 focus:ring-focus-outer"
                 required
               />
             </div>
@@ -115,19 +115,19 @@ export default function TestLogin() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-wine text-ivory-50 py-3 px-4 rounded-lg font-bold hover:shadow-wine transition-all duration-300 disabled:opacity-50"
+              className="w-full bg-primary text-white py-3 px-4 rounded-2xl font-bold  transition-all duration-300 disabled:opacity-50"
             >
               {loading ? '로그인 중...' : '로그인'}
             </button>
           </form>
         )}
 
-        <div className="mt-8 p-4 bg-ivory-50 rounded-lg">
-          <h3 className="font-bold text-wine-800 mb-2">환경변수 확인</h3>
-          <p className="text-sm text-wine-600">
+        <div className="mt-8 p-4 bg-canvas rounded-2xl">
+          <h3 className="font-bold text-ink mb-2">환경변수 확인</h3>
+          <p className="text-sm text-mute">
             SUPABASE_URL: {typeof window !== 'undefined' ? (window.__ENV?.SUPABASE_URL ? '설정됨' : '설정되지 않음') : '서버사이드'}
           </p>
-          <p className="text-sm text-wine-600">
+          <p className="text-sm text-mute">
             SUPABASE_ANON_KEY: {typeof window !== 'undefined' ? (window.__ENV?.SUPABASE_ANON_KEY ? '설정됨' : '설정되지 않음') : '서버사이드'}
           </p>
         </div>

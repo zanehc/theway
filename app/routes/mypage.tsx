@@ -4,6 +4,7 @@ import { getUserOrderHistory, updateUser, getUserByIdOrCreate } from '~/lib/data
 import type { UserOrderHistory } from '~/types';
 import { useNavigate, useOutletContext } from '@remix-run/react';
 import { useNotifications } from '~/contexts/NotificationContext';
+import { signOutAndClearSession } from '~/lib/authClient';
 
 interface User {
   id: string;
@@ -13,13 +14,53 @@ interface User {
   role: string;
 }
 
+const PROFILE_TIMEOUT_MS = 5000;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+  return new Promise((resolve) => {
+    const timer = window.setTimeout(() => resolve(fallback), timeoutMs);
+
+    promise
+      .then((value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        window.clearTimeout(timer);
+        console.warn('MyPage request timed out or failed:', error);
+        resolve(fallback);
+      });
+  });
+}
+
+function buildFallbackUser(authUser: any): User {
+  return {
+    id: authUser.id,
+    email: authUser.email || '',
+    name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || '',
+    church_group: null,
+    role: 'customer',
+  };
+}
+
+const emptyOrderHistory: UserOrderHistory = {
+  orders: [],
+  total_orders: 0,
+  total_spent: 0,
+  recent_orders: [],
+};
+
 export default function MyPage() {
   const navigate = useNavigate();
   const { addToast } = useNotifications();
-  const { user: authUser } = useOutletContext<{ user: any; userRole: string | null }>();
+  const { user: contextUser } = useOutletContext<{ user: any; userRole: string | null; authChecked?: boolean }>();
+  const [authUser, setAuthUser] = useState<any>(contextUser || null);
   const [user, setUser] = useState<User | null>(null);
   const [name, setName] = useState('');
   const [churchGroup, setChurchGroup] = useState('');
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [authResolved, setAuthResolved] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [orderHistory, setOrderHistory] = useState<UserOrderHistory | null>(null);
   const [activeTab, setActiveTab] = useState<'profile' | 'orders' | 'password'>('profile');
@@ -33,41 +74,101 @@ export default function MyPage() {
   const [passwordSuccess, setPasswordSuccess] = useState('');
 
   useEffect(() => {
+    let isCancelled = false;
+
+    const resolveUser = async () => {
+      setInitialLoading(true);
+      setAuthResolved(false);
+      try {
+        if (contextUser) {
+          if (!isCancelled) {
+            setAuthUser(contextUser);
+            setAuthResolved(true);
+          }
+          return;
+        }
+
+        const sessionResult = await withTimeout(
+          supabase.auth.getSession(),
+          PROFILE_TIMEOUT_MS,
+          { data: { session: null }, error: null }
+        );
+        if (!isCancelled) {
+          setAuthUser(sessionResult.data.session?.user || null);
+          setAuthResolved(true);
+        }
+      } catch (error) {
+        console.error('❌ MyPage: session check failed:', error);
+        if (!isCancelled) {
+          setAuthUser(null);
+          setAuthResolved(true);
+        }
+      } finally {
+        if (!isCancelled) {
+          setInitialLoading(false);
+        }
+      }
+    };
+
+    resolveUser();
+    return () => {
+      isCancelled = true;
+    };
+  }, [contextUser]);
+
+  useEffect(() => {
+    if (!authResolved) return;
+
     if (authUser) {
       fetchUserData(authUser);
+    } else {
+      setUser(null);
+      setOrderHistory(null);
     }
-  }, [authUser?.id]);
+  }, [authResolved, authUser]);
 
   const fetchUserData = async (authUser: any) => {
+    setProfileLoading(true);
     try {
       console.log('🔄 MyPage: fetching user data for', authUser.id);
 
-      const userData = await getUserByIdOrCreate(authUser);
+      const userData = await withTimeout(
+        getUserByIdOrCreate(authUser),
+        PROFILE_TIMEOUT_MS,
+        null
+      );
 
       if (userData) {
         console.log('🔄 MyPage: user data found/created:', userData);
         setUser({ ...userData, email: userData.email || authUser.email });
         setName(userData.name || '');
         setChurchGroup(userData.church_group || '');
-
-        const history = await getUserOrderHistory(authUser.id);
-        setOrderHistory(history);
       } else {
         // DB 조회/생성 실패 시 auth 세션 정보로 폴백하여 폼이 동작하도록 함
         console.warn('⚠️ MyPage: DB user not found, using auth session fallback');
-        const fallbackUser: User = {
-          id: authUser.id,
-          email: authUser.email || '',
-          name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || '',
-          church_group: null,
-          role: 'customer',
-        };
+        const fallbackUser = buildFallbackUser(authUser);
         setUser(fallbackUser);
         setName(fallbackUser.name);
         setChurchGroup('');
       }
+
+      setProfileLoading(false);
+
+      const history = await withTimeout(
+        getUserOrderHistory(authUser.id),
+        PROFILE_TIMEOUT_MS,
+        emptyOrderHistory
+      );
+      setOrderHistory(history);
     } catch (error) {
       console.error('❌ MyPage: Error fetching user data:', error);
+      const fallbackUser = buildFallbackUser(authUser);
+      setUser(fallbackUser);
+      setName(fallbackUser.name);
+      setChurchGroup('');
+      setOrderHistory(emptyOrderHistory);
+    } finally {
+      setProfileLoading(false);
     }
   };
 
@@ -108,8 +209,8 @@ export default function MyPage() {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate('/');
+    await signOutAndClearSession();
+    window.location.replace('/');
   };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
@@ -185,43 +286,74 @@ export default function MyPage() {
       'pending': 'bg-yellow-100 text-yellow-800',
       'preparing': 'bg-blue-100 text-blue-800',
       'ready': 'bg-green-100 text-green-800',
-      'completed': 'bg-wine-100 text-wine-800',
-      'cancelled': 'bg-red-100 text-red-800',
+      'completed': 'bg-surface-card text-ink',
+      'cancelled': 'bg-red-100 text-error',
     };
-    return colorMap[status] || 'bg-gray-100 text-gray-800';
+    return colorMap[status] || 'bg-secondary-bg text-body';
   };
 
+  if (initialLoading || !authResolved || profileLoading) {
+    return (
+      <div className="min-h-screen bg-surface-soft pb-20">
+        <div className="max-w-md mx-auto px-4 py-20 text-center">
+          <div className="bg-white rounded-2xl p-6 border border-hairline-soft">
+            <p className="text-mute font-medium">마이페이지를 불러오는 중입니다...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!authUser) {
+    return (
+      <div className="min-h-screen bg-surface-soft pb-20">
+        <div className="max-w-md mx-auto px-4 py-20 text-center">
+          <div className="bg-white rounded-2xl p-6 border border-hairline-soft">
+            <h1 className="text-xl font-bold text-ink mb-3">로그인이 필요합니다</h1>
+            <p className="text-mute mb-6">마이페이지는 로그인 후 이용할 수 있습니다.</p>
+            <button
+              onClick={() => navigate('/other')}
+              className="w-full bg-primary text-white px-4 py-3 rounded-2xl font-bold hover:bg-primary-pressed"
+            >
+              로그인하러 가기
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-surface-soft pb-20">
       {/* 뒤로가기 버튼 */}
-      <div className="bg-white shadow-sm border-b">
+      <div className="bg-white  border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center h-16">
             <button
               onClick={() => navigate(-1)}
-              className="flex items-center text-gray-600 hover:text-gray-900"
+              className="flex items-center text-mute hover:text-ink"
             >
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
               뒤로가기
             </button>
-            <h1 className="ml-4 text-xl font-bold text-gray-900">마이페이지</h1>
+            <h1 className="ml-4 text-xl font-bold text-ink">마이페이지</h1>
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-white rounded-lg shadow">
+        <div className="bg-white rounded-2xl shadow">
           {/* 탭 네비게이션 */}
-          <div className="border-b border-gray-200">
+          <div className="border-b border-hairline-soft">
             <nav className="-mb-px flex space-x-8 px-6">
               <button
                 onClick={() => setActiveTab('profile')}
                 className={`py-4 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'profile'
-                    ? 'border-red-800 text-red-800'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'border-primary text-error'
+                    : 'border-transparent text-mute hover:text-body hover:border-hairline'
                 }`}
               >
                 프로필
@@ -230,8 +362,8 @@ export default function MyPage() {
                 onClick={() => setActiveTab('orders')}
                 className={`py-4 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'orders'
-                    ? 'border-red-800 text-red-800'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'border-primary text-error'
+                    : 'border-transparent text-mute hover:text-body hover:border-hairline'
                 }`}
               >
                 주문 내역
@@ -240,8 +372,8 @@ export default function MyPage() {
                 onClick={() => setActiveTab('password')}
                 className={`py-4 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'password'
-                    ? 'border-red-800 text-red-800'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'border-primary text-error'
+                    : 'border-transparent text-mute hover:text-body hover:border-hairline'
                 }`}
               >
                 비밀번호 변경
@@ -253,40 +385,40 @@ export default function MyPage() {
           <div className="p-6">
             {activeTab === 'profile' && (
               <div>
-                <h2 className="text-lg font-medium text-gray-900 mb-6">프로필 정보</h2>
+                <h2 className="text-lg font-medium text-ink mb-6">프로필 정보</h2>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">이메일</label>
+                    <label className="block text-sm font-medium text-body">이메일</label>
                     <input
                       type="email"
                       value={user?.email || ''}
                       disabled
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 text-gray-500"
+                      className="mt-1 block w-full px-3 py-2 border border-hairline rounded-2xl  bg-surface-soft text-mute"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">이름</label>
+                    <label className="block text-sm font-medium text-body">이름</label>
                     <input
                       type="text"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-red-500 focus:border-red-500"
+                      className="mt-1 block w-full px-3 py-2 border border-hairline rounded-2xl  focus:outline-none focus:ring-focus-outer focus:border-primary"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">소속 목장</label>
+                    <label className="block text-sm font-medium text-body">소속 목장</label>
                     <input
                       type="text"
                       value={churchGroup}
                       onChange={(e) => setChurchGroup(e.target.value)}
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-red-500 focus:border-red-500"
+                      className="mt-1 block w-full px-3 py-2 border border-hairline rounded-2xl  focus:outline-none focus:ring-focus-outer focus:border-primary"
                     />
                   </div>
                   <div className="flex justify-end space-x-3">
                     <button
                       type="submit"
                       disabled={loading}
-                      className="bg-red-800 text-white px-4 py-2 rounded-md hover:bg-red-700 disabled:opacity-50"
+                      className="bg-primary text-white px-4 py-2 rounded-2xl hover:bg-primary-pressed disabled:opacity-50"
                     >
                       {loading ? '저장 중...' : '저장'}
                     </button>
@@ -297,17 +429,17 @@ export default function MyPage() {
 
             {activeTab === 'orders' && (
               <div>
-                <h2 className="text-lg font-medium text-gray-900 mb-6">주문 내역</h2>
+                <h2 className="text-lg font-medium text-ink mb-6">주문 내역</h2>
                 {orderHistory ? (
                   <div className="space-y-4">
                     {orderHistory.orders.map((order) => (
-                      <div key={order.id} className="border rounded-lg p-4">
+                      <div key={order.id} className="border rounded-2xl p-4">
                         <div className="flex justify-between items-start mb-2">
                           <div>
-                            <p className="font-medium text-gray-900">
+                            <p className="font-medium text-ink">
                               주문 #{order.id.slice(-8)}
                             </p>
-                            <p className="text-sm text-gray-500">
+                            <p className="text-sm text-mute">
                               {new Date(order.created_at).toLocaleDateString('ko-KR')}
                             </p>
                           </div>
@@ -315,12 +447,12 @@ export default function MyPage() {
                             {getStatusLabel(order.status, order.payment_status)}
                           </span>
                         </div>
-                        <div className="text-sm text-gray-600">
+                        <div className="text-sm text-mute">
                           <p>총 금액: {order.total_amount.toLocaleString()}원</p>
                                                      {order.order_items && (
                              <div className="mt-2">
                                {order.order_items.map((item, index) => (
-                                 <p key={index} className="text-gray-500">
+                                 <p key={index} className="text-mute">
                                    {item.menu?.name || '메뉴명 없음'} x {item.quantity}
                                  </p>
                                ))}
@@ -331,42 +463,42 @@ export default function MyPage() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500">주문 내역이 없습니다.</p>
+                  <p className="text-mute">주문 내역이 없습니다.</p>
                 )}
               </div>
             )}
 
             {activeTab === 'password' && (
               <div>
-                <h2 className="text-lg font-medium text-gray-900 mb-6">비밀번호 변경</h2>
+                <h2 className="text-lg font-medium text-ink mb-6">비밀번호 변경</h2>
                 <form onSubmit={handlePasswordChange} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">현재 비밀번호</label>
+                    <label className="block text-sm font-medium text-body">현재 비밀번호</label>
                     <input
                       type="password"
                       value={currentPassword}
                       onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-red-500 focus:border-red-500"
+                      className="mt-1 block w-full px-3 py-2 border border-hairline rounded-2xl  focus:outline-none focus:ring-focus-outer focus:border-primary"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">새 비밀번호</label>
+                    <label className="block text-sm font-medium text-body">새 비밀번호</label>
                     <input
                       type="password"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-red-500 focus:border-red-500"
+                      className="mt-1 block w-full px-3 py-2 border border-hairline rounded-2xl  focus:outline-none focus:ring-focus-outer focus:border-primary"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">새 비밀번호 확인</label>
+                    <label className="block text-sm font-medium text-body">새 비밀번호 확인</label>
                     <input
                       type="password"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-red-500 focus:border-red-500"
+                      className="mt-1 block w-full px-3 py-2 border border-hairline rounded-2xl  focus:outline-none focus:ring-focus-outer focus:border-primary"
                       required
                     />
                   </div>
@@ -380,7 +512,7 @@ export default function MyPage() {
                     <button
                       type="submit"
                       disabled={passwordLoading}
-                      className="bg-red-800 text-white px-4 py-2 rounded-md hover:bg-red-700 disabled:opacity-50"
+                      className="bg-primary text-white px-4 py-2 rounded-2xl hover:bg-primary-pressed disabled:opacity-50"
                     >
                       {passwordLoading ? '변경 중...' : '비밀번호 변경'}
                     </button>
@@ -395,7 +527,7 @@ export default function MyPage() {
         <div className="mt-6">
           <button
             onClick={handleLogout}
-            className="w-full bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
+            className="w-full bg-surface-dark text-white px-4 py-2 rounded-2xl hover:bg-charcoal"
           >
             로그아웃
           </button>

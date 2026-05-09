@@ -101,8 +101,8 @@ export default function ResetPasswordPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-ivory-50 flex items-center justify-center px-4">
-        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6">
+      <div className="min-h-screen bg-canvas flex items-center justify-center px-4">
+        <div className="max-w-md w-full bg-white rounded-2xl  p-6">
           <div className="text-center">
             <div className="text-green-600 mb-4">
               <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -110,13 +110,13 @@ export default function ResetPasswordPage() {
               </svg>
               <p className="text-lg font-semibold">비밀번호가 성공적으로 변경되었습니다!</p>
             </div>
-            <p className="text-gray-600 mb-4">
+            <p className="text-mute mb-4">
               새로운 비밀번호로 로그인할 수 있습니다.
               잠시 후 홈 페이지로 이동합니다.
             </p>
             <button
               onClick={() => navigate("/")}
-              className="w-full bg-wine-600 text-white py-3 px-4 rounded-lg font-bold hover:bg-wine-700 transition-colors"
+              className="w-full bg-primary text-white py-3 px-4 rounded-2xl font-bold hover:bg-primary-pressed transition-colors"
             >
               홈으로 이동
             </button>
@@ -127,19 +127,19 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen bg-ivory-50 flex items-center justify-center px-4">
-      <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6">
-        <h1 className="text-2xl font-bold text-wine-800 mb-6 text-center">새 비밀번호 설정</h1>
+    <div className="min-h-screen bg-canvas flex items-center justify-center px-4">
+      <div className="max-w-md w-full bg-white rounded-2xl  p-6">
+        <h1 className="text-2xl font-bold text-ink mb-6 text-center">새 비밀번호 설정</h1>
         
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-2xl mb-4 text-sm">
             {error}
           </div>
         )}
         
         <form onSubmit={handleResetPassword} className="space-y-4">
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="password" className="block text-sm font-medium text-body mb-2">
               새 비밀번호
             </label>
             <input
@@ -149,13 +149,13 @@ export default function ResetPasswordPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={6}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-hairline rounded-2xl focus:outline-none focus:ring-2 focus:ring-focus-outer focus:border-transparent"
               placeholder="새 비밀번호를 입력하세요 (최소 6자)"
             />
           </div>
           
           <div>
-            <label htmlFor="passwordConfirm" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="passwordConfirm" className="block text-sm font-medium text-body mb-2">
               새 비밀번호 확인
             </label>
             <input
@@ -165,7 +165,7 @@ export default function ResetPasswordPage() {
               onChange={(e) => setPasswordConfirm(e.target.value)}
               required
               minLength={6}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-hairline rounded-2xl focus:outline-none focus:ring-2 focus:ring-focus-outer focus:border-transparent"
               placeholder="새 비밀번호를 다시 입력하세요"
             />
           </div>
@@ -173,7 +173,7 @@ export default function ResetPasswordPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-wine-600 text-white py-3 px-4 rounded-lg font-bold hover:bg-wine-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-primary text-white py-3 px-4 rounded-2xl font-bold hover:bg-primary-pressed transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? "비밀번호 변경 중..." : "비밀번호 변경"}
           </button>
@@ -182,7 +182,7 @@ export default function ResetPasswordPage() {
         <div className="mt-6 text-center">
           <button
             onClick={() => navigate("/other")}
-            className="text-wine-600 hover:text-wine-700 text-sm font-medium"
+            className="text-mute hover:text-body text-sm font-medium"
           >
             로그인 페이지로 돌아가기
           </button>

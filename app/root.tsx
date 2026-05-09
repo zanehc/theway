@@ -21,7 +21,7 @@ export const links: LinksFunction = () => [
   // Preconnect for Google Fonts
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
   { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-  // Google Fonts - Noto Sans KR (한국어) + Inter (영문) with display=swap
+  // Google Fonts - Inter as Pin Sans substitute + Noto Sans KR fallback.
   { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" },
 ];
 
@@ -67,70 +67,34 @@ export default function App() {
 
     const getInitialUser = async () => {
       try {
-        console.log('🔐 Root - 초기 사용자 인증 상태 확인 (getSession 사용)');
-
-        // getSession()으로 로컬 캐시된 세션을 먼저 확인 (더 빠름)
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-        if (sessionError) {
-          console.error('🔐 Root - 세션 가져오기 실패:', sessionError);
-          setUser(null);
-          setUserRole(null);
-          return;
-        }
-
+        const { data: { session } } = await supabase.auth.getSession();
         const user = session?.user || null;
-        console.log('🔐 Root - 세션에서 사용자 정보:', user?.email || 'null');
         setUser(user);
 
         if (user) {
-          // Safari 호환성을 위한 안전한 세션스토리지 접근
+          // 캐시된 역할 즉시 적용 (없으면 낙관적으로 'customer')
           let cachedRole: string | null = null;
-          try {
-            cachedRole = sessionStorage.getItem(`user_role_${user.id}`);
-            if (cachedRole) {
-              console.log('🔐 Root - 캐시된 역할 사용:', cachedRole);
-              setUserRole(cachedRole);
+          try { cachedRole = sessionStorage.getItem(`user_role_${user.id}`); } catch {}
+          setUserRole(cachedRole || 'customer');
+
+          // 세션 확인 즉시 authChecked=true → 최근주문 바로 로딩 가능
+          setAuthChecked(true);
+
+          // DB 역할 조회는 백그라운드 (admin 여부 확인용)
+          supabase.from('users').select('role').eq('id', user.id).single().then(({ data, error }) => {
+            const role = typeof data?.role === 'string' ? data.role : null;
+            if (!error && role) {
+              setUserRole(role);
+              try { sessionStorage.setItem(`user_role_${user.id}`, role); } catch {}
             }
-          } catch (storageError) {
-            console.warn('🔐 Root - 세션스토리지 접근 실패:', storageError);
-          }
-
-          // 역할 정보 업데이트
-          try {
-            const { data: userData, error: roleError } = await supabase
-              .from('users')
-              .select('role')
-              .eq('id', user.id)
-              .single();
-
-            if (!roleError && userData?.role) {
-              const roleValue = userData.role as string;
-              console.log('🔐 Root - DB에서 역할 확인:', roleValue);
-              setUserRole(roleValue);
-
-              // Safari 호환성을 위한 안전한 세션스토리지 저장
-              try {
-                sessionStorage.setItem(`user_role_${user.id}`, roleValue);
-              } catch (storageError) {
-                console.warn('🔐 Root - 세션스토리지 저장 실패:', storageError);
-              }
-            } else {
-              console.log('🔐 Root - 역할 정보 없음, 기본값 설정');
-              setUserRole('customer');
-            }
-          } catch (roleError) {
-            console.error('🔐 Root - 역할 정보 가져오기 실패:', roleError);
-            setUserRole('customer');
-          }
+          });
         } else {
           setUserRole(null);
+          setAuthChecked(true);
         }
-      } catch (error) {
-        console.error('🔐 Root - 초기 인증 처리 실패:', error);
+      } catch {
         setUser(null);
         setUserRole(null);
-      } finally {
         setAuthChecked(true);
       }
     };
@@ -142,19 +106,20 @@ export default function App() {
       async (event, session) => {
         console.log('🔐 Root - 인증 상태 변경:', event, session?.user?.email || 'null');
 
-        // 로그아웃 이벤트 처리 (SIGNED_OUT 이벤트만 처리 - !session?.user 조건 제거로 탭 이동시 로그아웃 방지)
         if (event === 'SIGNED_OUT') {
-          console.log('🔐 Root - 로그아웃 처리');
+          // getSession()으로 재확인 - 세션이 살아있으면 가짜 이벤트(탭이동 등) → 무시
+          try {
+            const { data: { session: currentSession } } = await supabase.auth.getSession();
+            if (currentSession?.user) return;
+          } catch {}
           setUser(null);
           setUserRole(null);
-          // 캐시 정리
+          setAuthChecked(true);
           try {
             Object.keys(sessionStorage).forEach(key => {
-              if (key.startsWith('user_role_')) {
-                sessionStorage.removeItem(key);
-              }
+              if (key.startsWith('user_role_')) sessionStorage.removeItem(key);
             });
-          } catch (e) {}
+          } catch {}
           return;
         }
 
@@ -164,10 +129,11 @@ export default function App() {
           return;
         }
 
-        // 로그인/세션 갱신 처리
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        // 로그인/세션 갱신/초기 세션 처리
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
           console.log('🔐 Root - 로그인/토큰 갱신 처리');
           setUser(session.user);
+          setAuthChecked(true);
 
           // 캐시 확인 → 있으면 즉시 적용하고 DB 쿼리 스킵
           let cachedRole: string | null = null;
@@ -215,7 +181,7 @@ export default function App() {
 
 
   return (
-    <html lang="ko" className="h-full bg-ivory-50" suppressHydrationWarning>
+    <html lang="ko" className="h-full bg-surface-soft" suppressHydrationWarning>
       <head suppressHydrationWarning>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -228,7 +194,7 @@ export default function App() {
           }}
         />
       </head>
-      <body className="h-full min-h-screen bg-ivory-50" suppressHydrationWarning>
+      <body className="h-full min-h-screen bg-surface-soft text-body" suppressHydrationWarning>
         <NotificationProvider userId={user?.id} userRole={userRole}>
           <div className="app-container">
             <div className="main-content pb-24">
@@ -250,4 +216,3 @@ export default function App() {
 export function HydrateFallback() {
   return <p>Loading...</p>;
 }
-

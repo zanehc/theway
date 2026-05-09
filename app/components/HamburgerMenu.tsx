@@ -36,7 +36,7 @@ export function HamburgerMenu({ user, userRole, onLogout, onMyPageClick }: Hambu
       {/* 햄버거 버튼 */}
       <button
         onClick={toggleMenu}
-        className="p-2 rounded-lg bg-wine-100 hover:bg-wine-200 text-wine-700 transition-colors"
+        className="p-2 rounded-2xl bg-surface-card hover:bg-secondary-bg text-body transition-colors"
         aria-label="메뉴 열기"
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -53,13 +53,13 @@ export function HamburgerMenu({ user, userRole, onLogout, onMyPageClick }: Hambu
             onClick={closeMenu}
           />
           {/* 메뉴 패널 */}
-          <div className="fixed right-4 top-16 w-56 bg-white rounded-xl shadow-2xl border border-ivory-200 z-[40000] py-2">
+          <div className="fixed right-4 top-16 w-56 bg-white rounded-2xl shadow-2xl border border-hairline-soft z-[40000] py-2">
             {user ? (
               <>
                 {/* 사용자 정보 */}
-                <div className="px-4 py-3 border-b border-ivory-200">
-                  <div className="text-sm font-bold text-wine-800">{user.name || user.email}</div>
-                  <div className="text-xs text-wine-600">{userRole === 'admin' ? '관리자' : '일반 사용자'}</div>
+                <div className="px-4 py-3 border-b border-hairline-soft">
+                  <div className="text-sm font-bold text-ink">{user.name || user.email}</div>
+                  <div className="text-xs text-mute">{userRole === 'admin' ? '관리자' : '일반 사용자'}</div>
                 </div>
 
                 {/* 메뉴 항목들 */}
@@ -67,7 +67,7 @@ export function HamburgerMenu({ user, userRole, onLogout, onMyPageClick }: Hambu
 
                   <button
                     onClick={handleMyPageClick}
-                    className="flex items-center w-full px-4 py-2 text-sm text-wine-700 hover:bg-wine-50 transition-colors"
+                    className="flex items-center w-full px-4 py-2 text-sm text-body hover:bg-surface-soft transition-colors"
                   >
                     <svg className="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -80,7 +80,7 @@ export function HamburgerMenu({ user, userRole, onLogout, onMyPageClick }: Hambu
                       <Link
                         to="/admin/orders"
                         onClick={closeMenu}
-                        className="flex items-center px-4 py-2 text-sm text-wine-700 hover:bg-wine-50 transition-colors"
+                        className="flex items-center px-4 py-2 text-sm text-body hover:bg-surface-soft transition-colors"
                       >
                         <svg className="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -91,7 +91,7 @@ export function HamburgerMenu({ user, userRole, onLogout, onMyPageClick }: Hambu
                       <Link
                         to="/admin/menus"
                         onClick={closeMenu}
-                        className="flex items-center px-4 py-2 text-sm text-wine-700 hover:bg-wine-50 transition-colors"
+                        className="flex items-center px-4 py-2 text-sm text-body hover:bg-surface-soft transition-colors"
                       >
                         <svg className="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
@@ -102,7 +102,7 @@ export function HamburgerMenu({ user, userRole, onLogout, onMyPageClick }: Hambu
                       <Link
                         to="/admin/reports"
                         onClick={closeMenu}
-                        className="flex items-center px-4 py-2 text-sm text-wine-700 hover:bg-wine-50 transition-colors"
+                        className="flex items-center px-4 py-2 text-sm text-body hover:bg-surface-soft transition-colors"
                       >
                         <svg className="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -112,7 +112,7 @@ export function HamburgerMenu({ user, userRole, onLogout, onMyPageClick }: Hambu
                     </>
                   )}
 
-                  <div className="border-t border-ivory-200 my-2" />
+                  <div className="border-t border-hairline-soft my-2" />
 
                   <button
                     onClick={handleLogout}
@@ -129,7 +129,7 @@ export function HamburgerMenu({ user, userRole, onLogout, onMyPageClick }: Hambu
               <div className="py-2">
                 <button
                   onClick={closeMenu}
-                  className="flex items-center w-full px-4 py-2 text-sm text-wine-700 hover:bg-wine-50 transition-colors"
+                  className="flex items-center w-full px-4 py-2 text-sm text-body hover:bg-surface-soft transition-colors"
                 >
                   <svg className="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />

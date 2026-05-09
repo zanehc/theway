@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate, useFetcher } from "@remix-run/react";
 import { useEffect, useState, useCallback } from "react";
+import { supabase } from "~/lib/supabase";
 
 interface BottomNavigationProps {
   user: any;
@@ -63,10 +64,18 @@ export default function BottomNavigation({ user }: BottomNavigationProps) {
     return false;
   };
 
-  const handleNavClick = (item: any, e: React.MouseEvent) => {
+  const handleNavClick = async (item: any, e: React.MouseEvent) => {
     // 로그인되지 않은 상태에서 최근주문이나 새 주문 탭 클릭 시
     if (!user && (item.path === "/orders/history" || item.path === "/orders/new")) {
       e.preventDefault();
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          prefetchTabData(item.path);
+          navigate(item.path);
+          return;
+        }
+      } catch {}
       setShowLoginModal(true);
       return;
     }
@@ -142,10 +151,10 @@ export default function BottomNavigation({ user }: BottomNavigationProps) {
       {/* 로그인 모달 */}
       {showLoginModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 mx-4 max-w-sm w-full">
+          <div className="bg-white rounded-2xl p-6 mx-4 max-w-sm w-full">
             <div className="text-center">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">로그인이 필요합니다</h3>
-              <p className="text-gray-600 mb-6">
+              <h3 className="text-lg font-bold text-ink mb-4">로그인이 필요합니다</h3>
+              <p className="text-mute mb-6">
                 이 기능을 사용하려면 로그인해주세요.
               </p>
               <div className="flex gap-3">
@@ -154,13 +163,13 @@ export default function BottomNavigation({ user }: BottomNavigationProps) {
                     setShowLoginModal(false);
                     navigate("/other");
                   }}
-                  className="flex-1 bg-red-800 text-white py-2 px-4 rounded-lg font-bold hover:bg-red-700"
+                  className="flex-1 bg-primary text-white py-2 px-4 rounded-2xl font-bold hover:bg-primary-pressed"
                 >
                   로그인하기
                 </button>
                 <button
                   onClick={() => setShowLoginModal(false)}
-                  className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg font-bold hover:bg-gray-400"
+                  className="flex-1 bg-secondary-bg text-body py-2 px-4 rounded-2xl font-bold hover:bg-secondary-pressed"
                 >
                   취소
                 </button>
@@ -170,7 +179,7 @@ export default function BottomNavigation({ user }: BottomNavigationProps) {
         </div>
       )}
 
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 pb-safe">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-hairline-soft pb-safe">
         <div className="flex justify-around">
           {filteredItems.map((item) => {
             const active = isActive(item.path);
@@ -182,14 +191,14 @@ export default function BottomNavigation({ user }: BottomNavigationProps) {
                 onMouseEnter={() => handleNavHover(item.path)}
                 className={`flex flex-col items-center py-2 px-3 min-w-0 flex-1 transition-colors duration-200 ${
                   active
-                    ? "text-red-800"
-                    : "text-gray-500 hover:text-gray-700"
+                    ? "text-primary"
+                    : "text-mute hover:text-body"
                 }`}
               >
-                <div className={`${active ? "text-red-800" : "text-gray-500"}`}>
+                <div className={`${active ? "text-primary" : "text-mute"}`}>
                   {item.icon}
                 </div>
-                <span className={`text-xs mt-1 ${active ? "text-red-800" : "text-gray-500"}`}>
+                <span className={`text-xs mt-1 ${active ? "text-primary" : "text-mute"}`}>
                   {item.label}
                 </span>
               </Link>

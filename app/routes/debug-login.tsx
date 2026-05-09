@@ -145,12 +145,12 @@ export default function DebugLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-warm p-8">
+    <div className="min-h-screen bg-surface-soft p-8">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-4xl font-black text-wine-800 mb-8 text-center">로그인 디버그</h1>
+        <h1 className="text-4xl font-black text-ink mb-8 text-center">로그인 디버그</h1>
         
         {message && (
-          <div className={`mb-6 p-4 rounded-lg ${
+          <div className={`mb-6 p-4 rounded-2xl ${
             message.includes('성공') || message.includes('완료')
               ? 'bg-green-100 text-green-700 border border-green-400'
               : 'bg-red-100 text-red-700 border border-red-400'
@@ -162,19 +162,19 @@ export default function DebugLogin() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* 로그인 폼 */}
           <div className="bg-white rounded-2xl shadow-large p-8">
-            <h2 className="text-2xl font-black text-wine-800 mb-6">로그인 테스트</h2>
+            <h2 className="text-2xl font-black text-ink mb-6">로그인 테스트</h2>
             
             {user ? (
               <div className="space-y-4">
-                <div className="bg-wine-50 p-4 rounded-lg">
-                  <h3 className="font-bold text-wine-800 mb-2">로그인된 사용자</h3>
-                  <p className="text-wine-600">이메일: {user.email}</p>
-                  <p className="text-wine-600">ID: {user.id}</p>
-                  <p className="text-wine-600">메타데이터: {JSON.stringify(user.user_metadata)}</p>
+                <div className="bg-surface-soft p-4 rounded-2xl">
+                  <h3 className="font-bold text-ink mb-2">로그인된 사용자</h3>
+                  <p className="text-mute">이메일: {user.email}</p>
+                  <p className="text-mute">ID: {user.id}</p>
+                  <p className="text-mute">메타데이터: {JSON.stringify(user.user_metadata)}</p>
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="w-full bg-red-600 text-white py-3 px-4 rounded-lg font-bold hover:bg-red-700 transition-colors"
+                  className="w-full bg-red-600 text-white py-3 px-4 rounded-2xl font-bold hover:bg-red-700 transition-colors"
                 >
                   로그아웃
                 </button>
@@ -182,28 +182,28 @@ export default function DebugLogin() {
             ) : (
               <form onSubmit={handleLogin} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-bold text-wine-700 mb-2">
+                  <label className="block text-sm font-bold text-body mb-2">
                     이메일
                   </label>
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-4 py-3 border border-ivory-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-wine-500"
+                    className="w-full px-4 py-3 border border-hairline rounded-2xl focus:outline-none focus:ring-2 focus:ring-focus-outer"
                     placeholder="test@example.com"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-wine-700 mb-2">
+                  <label className="block text-sm font-bold text-body mb-2">
                     비밀번호
                   </label>
                   <input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-4 py-3 border border-ivory-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-wine-500"
+                    className="w-full px-4 py-3 border border-hairline rounded-2xl focus:outline-none focus:ring-2 focus:ring-focus-outer"
                     placeholder="test123456"
                     required
                   />
@@ -212,7 +212,7 @@ export default function DebugLogin() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-gradient-wine text-ivory-50 py-3 px-4 rounded-lg font-bold hover:shadow-wine transition-all duration-300 disabled:opacity-50"
+                  className="w-full bg-primary text-white py-3 px-4 rounded-2xl font-bold  transition-all duration-300 disabled:opacity-50"
                 >
                   {loading ? '로그인 중...' : '로그인'}
                 </button>
@@ -222,7 +222,7 @@ export default function DebugLogin() {
             <div className="mt-6 space-y-3">
               <button
                 onClick={createTestUser}
-                className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg font-bold hover:bg-blue-700 transition-colors text-sm"
+                className="w-full bg-blue-600 text-white py-2 px-4 rounded-2xl font-bold hover:bg-blue-700 transition-colors text-sm"
               >
                 테스트 사용자 생성
               </button>
@@ -234,10 +234,10 @@ export default function DebugLogin() {
             {/* Auth Users */}
             <div className="bg-white rounded-2xl shadow-large p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-black text-wine-800">Supabase Auth Users</h3>
+                <h3 className="text-xl font-black text-ink">Supabase Auth Users</h3>
                 <button
                   onClick={checkAuthUsers}
-                  className="bg-wine-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-wine-700 transition-colors text-sm"
+                  className="bg-primary text-white px-4 py-2 rounded-2xl font-bold hover:bg-primary-pressed transition-colors text-sm"
                 >
                   조회
                 </button>
@@ -246,16 +246,16 @@ export default function DebugLogin() {
                 {authUsers.length > 0 ? (
                   <div className="space-y-2">
                     {authUsers.map((authUser, index) => (
-                      <div key={authUser.id} className="p-3 bg-ivory-50 rounded-lg text-sm">
-                        <div className="font-bold text-wine-800">{index + 1}. {authUser.email}</div>
-                        <div className="text-wine-600">ID: {authUser.id}</div>
-                        <div className="text-wine-600">확인됨: {authUser.email_confirmed_at ? '예' : '아니오'}</div>
-                        <div className="text-wine-600">생성: {new Date(authUser.created_at).toLocaleString()}</div>
+                      <div key={authUser.id} className="p-3 bg-canvas rounded-2xl text-sm">
+                        <div className="font-bold text-ink">{index + 1}. {authUser.email}</div>
+                        <div className="text-mute">ID: {authUser.id}</div>
+                        <div className="text-mute">확인됨: {authUser.email_confirmed_at ? '예' : '아니오'}</div>
+                        <div className="text-mute">생성: {new Date(authUser.created_at).toLocaleString()}</div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-wine-400 text-center py-4">Auth Users 데이터가 없습니다.</p>
+                  <p className="text-ash text-center py-4">Auth Users 데이터가 없습니다.</p>
                 )}
               </div>
             </div>
@@ -263,10 +263,10 @@ export default function DebugLogin() {
             {/* DB Users */}
             <div className="bg-white rounded-2xl shadow-large p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-black text-wine-800">Database Users</h3>
+                <h3 className="text-xl font-black text-ink">Database Users</h3>
                 <button
                   onClick={checkDbUsers}
-                  className="bg-wine-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-wine-700 transition-colors text-sm"
+                  className="bg-primary text-white px-4 py-2 rounded-2xl font-bold hover:bg-primary-pressed transition-colors text-sm"
                 >
                   조회
                 </button>
@@ -275,17 +275,17 @@ export default function DebugLogin() {
                 {dbUsers.length > 0 ? (
                   <div className="space-y-2">
                     {dbUsers.map((dbUser, index) => (
-                      <div key={dbUser.id} className="p-3 bg-ivory-50 rounded-lg text-sm">
-                        <div className="font-bold text-wine-800">{index + 1}. {dbUser.email}</div>
-                        <div className="text-wine-600">ID: {dbUser.id}</div>
-                        <div className="text-wine-600">이름: {dbUser.name}</div>
-                        <div className="text-wine-600">역할: {dbUser.role}</div>
-                        <div className="text-wine-600">생성: {new Date(dbUser.created_at).toLocaleString()}</div>
+                      <div key={dbUser.id} className="p-3 bg-canvas rounded-2xl text-sm">
+                        <div className="font-bold text-ink">{index + 1}. {dbUser.email}</div>
+                        <div className="text-mute">ID: {dbUser.id}</div>
+                        <div className="text-mute">이름: {dbUser.name}</div>
+                        <div className="text-mute">역할: {dbUser.role}</div>
+                        <div className="text-mute">생성: {new Date(dbUser.created_at).toLocaleString()}</div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-wine-400 text-center py-4">DB Users 데이터가 없습니다.</p>
+                  <p className="text-ash text-center py-4">DB Users 데이터가 없습니다.</p>
                 )}
               </div>
             </div>
@@ -294,17 +294,17 @@ export default function DebugLogin() {
 
         {/* 환경변수 확인 */}
         <div className="mt-8 bg-white rounded-2xl shadow-large p-6">
-          <h3 className="text-xl font-black text-wine-800 mb-4">환경변수 확인</h3>
+          <h3 className="text-xl font-black text-ink mb-4">환경변수 확인</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-3 bg-ivory-50 rounded-lg">
-              <div className="font-bold text-wine-800 mb-1">SUPABASE_URL</div>
-              <div className="text-sm text-wine-600">
+            <div className="p-3 bg-canvas rounded-2xl">
+              <div className="font-bold text-ink mb-1">SUPABASE_URL</div>
+              <div className="text-sm text-mute">
                 {typeof window !== 'undefined' ? (window.__ENV?.SUPABASE_URL ? '설정됨' : '설정되지 않음') : '서버사이드'}
               </div>
             </div>
-            <div className="p-3 bg-ivory-50 rounded-lg">
-              <div className="font-bold text-wine-800 mb-1">SUPABASE_ANON_KEY</div>
-              <div className="text-sm text-wine-600">
+            <div className="p-3 bg-canvas rounded-2xl">
+              <div className="font-bold text-ink mb-1">SUPABASE_ANON_KEY</div>
+              <div className="text-sm text-mute">
                 {typeof window !== 'undefined' ? (window.__ENV?.SUPABASE_ANON_KEY ? '설정됨' : '설정되지 않음') : '서버사이드'}
               </div>
             </div>

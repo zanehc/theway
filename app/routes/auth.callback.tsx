@@ -158,10 +158,10 @@ export default function AuthCallback() {
   }, [searchParams, navigate]);
 
   return (
-    <div className="min-h-screen bg-gradient-warm flex items-center justify-center p-4">
+    <div className="min-h-screen bg-surface-soft flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-large p-8 w-full max-w-md text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-wine-600 mx-auto mb-4"></div>
-        <p className="text-wine-700 font-medium">{status}</p>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+        <p className="text-body font-medium">{status}</p>
       </div>
     </div>
   );

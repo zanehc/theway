@@ -162,9 +162,9 @@ export default function AdminNewsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-ivory-50 flex items-center justify-center">
-        <div className="bg-white rounded-lg p-6 flex items-center gap-3">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-wine-600"></div>
+      <div className="min-h-screen bg-canvas flex items-center justify-center">
+        <div className="bg-white rounded-2xl p-6 flex items-center gap-3">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
           <span>권한 확인 중...</span>
         </div>
       </div>
@@ -176,10 +176,10 @@ export default function AdminNewsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-ivory-50 py-10 px-4 flex flex-col items-center">
+    <div className="min-h-screen bg-canvas py-10 px-4 flex flex-col items-center">
       {/* 성공 메시지 팝업 */}
       {showSuccessMessage && (
-        <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in">
+        <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-2xl  z-50 animate-fade-in">
           <div className="flex items-center gap-2">
             <span className="text-xl">✓</span>
             <span>저장이 완료되었습니다!</span>
@@ -190,21 +190,21 @@ export default function AdminNewsPage() {
       {/* 로딩 오버레이 */}
       {fetcher.state === 'submitting' && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 flex items-center gap-3">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-wine-600"></div>
+          <div className="bg-white rounded-2xl p-6 flex items-center gap-3">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
             <span>저장 중...</span>
           </div>
         </div>
       )}
 
-      <div className="w-full max-w-2xl bg-white rounded-xl shadow-lg p-6 mb-8">
-        <h1 className="text-2xl font-bold text-wine-800 mb-6 text-center">교회소식 관리</h1>
+      <div className="w-full max-w-2xl bg-white rounded-2xl  p-6 mb-8">
+        <h1 className="text-2xl font-bold text-ink mb-6 text-center">교회소식 관리</h1>
         <fetcher.Form method="post" className="space-y-6">
           {/* 등록안내 */}
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">등록안내</label>
+            <label className="block text-sm font-bold text-body mb-2">등록안내</label>
             <textarea
-              className="w-full border rounded-lg p-2"
+              className="w-full border rounded-2xl p-2"
               rows={2}
               value={form.registerNotice}
               onChange={e => setForm({ ...form, registerNotice: e.target.value })}
@@ -213,12 +213,12 @@ export default function AdminNewsPage() {
           </div>
           {/* 행사/캠프 일정 */}
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">행사/캠프 일정</label>
+            <label className="block text-sm font-bold text-body mb-2">행사/캠프 일정</label>
             {form.events.map((ev: any, idx: number) => (
-              <div key={idx} className="mb-4 border rounded-lg p-3 bg-ivory-100">
+              <div key={idx} className="mb-4 border rounded-2xl p-3 bg-surface-soft">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
                   <div className="flex flex-col">
-                    <label className="text-xs text-gray-600 mb-1">행사명</label>
+                    <label className="text-xs text-mute mb-1">행사명</label>
                     <input
                       className="border rounded p-1 flex-1"
                       value={ev.title}
@@ -233,7 +233,7 @@ export default function AdminNewsPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="flex flex-col">
-                    <label className="text-xs text-gray-600 mb-1">일정</label>
+                    <label className="text-xs text-mute mb-1">일정</label>
                     <input
                       className="border rounded p-1 w-full"
                       value={ev.date}
@@ -246,7 +246,7 @@ export default function AdminNewsPage() {
                     />
                   </div>
                   <div className="flex flex-col">
-                    <label className="text-xs text-gray-600 mb-1">행사내용</label>
+                    <label className="text-xs text-mute mb-1">행사내용</label>
                     <input
                       className="border rounded p-1 w-full"
                       value={ev.desc}
@@ -270,7 +270,7 @@ export default function AdminNewsPage() {
             <div className="flex justify-center mt-4">
               <button 
                 type="button" 
-                className="bg-blue-500 hover:bg-blue-600 text-white rounded-lg px-6 py-3 font-semibold transition-colors flex items-center gap-2" 
+                className="bg-blue-500 hover:bg-blue-600 text-white rounded-2xl px-6 py-3 font-semibold transition-colors flex items-center gap-2" 
                 onClick={() => setForm({ ...form, events: [...form.events, { title: '', date: '', desc: '' }] })}
               >
                 <span className="text-xl">+</span>
@@ -280,12 +280,12 @@ export default function AdminNewsPage() {
           </div>
           {/* 생일자 */}
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">생일자</label>
+            <label className="block text-sm font-bold text-body mb-2">생일자</label>
             {form.birthdays.map((b: any, idx: number) => (
-              <div key={idx} className="mb-4 border rounded-lg p-3 bg-ivory-100">
+              <div key={idx} className="mb-4 border rounded-2xl p-3 bg-surface-soft">
                 <div className="grid grid-cols-2 gap-2">
                   <div className="flex flex-col">
-                    <label className="text-xs text-gray-600 mb-1">성명</label>
+                    <label className="text-xs text-mute mb-1">성명</label>
                     <input
                       className="border rounded p-1 w-full"
                       value={b.name}
@@ -298,7 +298,7 @@ export default function AdminNewsPage() {
                     />
                   </div>
                   <div className="flex flex-col">
-                    <label className="text-xs text-gray-600 mb-1">일자</label>
+                    <label className="text-xs text-mute mb-1">일자</label>
                     <input
                       className="border rounded p-1 w-full"
                       value={b.date}
@@ -322,7 +322,7 @@ export default function AdminNewsPage() {
             <div className="flex justify-center mt-4">
               <button 
                 type="button" 
-                className="bg-blue-500 hover:bg-blue-600 text-white rounded-lg px-6 py-3 font-semibold transition-colors flex items-center gap-2" 
+                className="bg-blue-500 hover:bg-blue-600 text-white rounded-2xl px-6 py-3 font-semibold transition-colors flex items-center gap-2" 
                 onClick={() => setForm({ ...form, birthdays: [...form.birthdays, { name: '', date: '' }] })}
               >
                 <span className="text-xl">+</span>
@@ -332,12 +332,12 @@ export default function AdminNewsPage() {
           </div>
           {/* 헌금계좌 */}
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">헌금계좌</label>
+            <label className="block text-sm font-bold text-body mb-2">헌금계좌</label>
             {form.offeringAccounts.map((acc: any, idx: number) => (
-              <div key={idx} className="mb-4 border rounded-lg p-3 bg-ivory-100">
+              <div key={idx} className="mb-4 border rounded-2xl p-3 bg-surface-soft">
                 <div className="flex flex-col gap-2 mb-2">
                   <div className="flex flex-col">
-                    <label className="text-xs text-gray-600 mb-1">계좌번호</label>
+                    <label className="text-xs text-mute mb-1">계좌번호</label>
                     <input
                       className="border rounded p-1 w-full"
                       value={acc.number}
@@ -352,7 +352,7 @@ export default function AdminNewsPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="flex flex-col">
-                    <label className="text-xs text-gray-600 mb-1">은행명</label>
+                    <label className="text-xs text-mute mb-1">은행명</label>
                     <input
                       className="border rounded p-1 w-full"
                       value={acc.bank}
@@ -365,7 +365,7 @@ export default function AdminNewsPage() {
                     />
                   </div>
                   <div className="flex flex-col">
-                    <label className="text-xs text-gray-600 mb-1">계좌명</label>
+                    <label className="text-xs text-mute mb-1">계좌명</label>
                     <input
                       className="border rounded p-1 w-full"
                       value={acc.owner}
@@ -389,7 +389,7 @@ export default function AdminNewsPage() {
             <div className="flex justify-center mt-4">
               <button 
                 type="button" 
-                className="bg-blue-500 hover:bg-blue-600 text-white rounded-lg px-6 py-3 font-semibold transition-colors flex items-center gap-2" 
+                className="bg-blue-500 hover:bg-blue-600 text-white rounded-2xl px-6 py-3 font-semibold transition-colors flex items-center gap-2" 
                 onClick={() => setForm({ ...form, offeringAccounts: [...form.offeringAccounts, { bank: '', number: '', owner: '' }] })}
               >
                 <span className="text-xl">+</span>
@@ -399,9 +399,9 @@ export default function AdminNewsPage() {
           </div>
           {/* 기타 공지 */}
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">기타 공지</label>
+            <label className="block text-sm font-bold text-body mb-2">기타 공지</label>
             <textarea
-              className="w-full border rounded-lg p-2"
+              className="w-full border rounded-2xl p-2"
               rows={2}
               value={form.etc}
               onChange={e => setForm({ ...form, etc: e.target.value })}
@@ -413,10 +413,10 @@ export default function AdminNewsPage() {
           <button 
             type="submit" 
             disabled={fetcher.state === 'submitting'}
-            className={`w-full py-3 px-4 rounded-lg font-bold transition-colors ${
+            className={`w-full py-3 px-4 rounded-2xl font-bold transition-colors ${
               fetcher.state === 'submitting' 
-                ? 'bg-gray-400 cursor-not-allowed' 
-                : 'bg-wine-600 text-white hover:bg-wine-700'
+                ? 'bg-ash cursor-not-allowed' 
+                : 'bg-primary text-white hover:bg-primary-pressed'
             }`}
           >
             {fetcher.state === 'submitting' ? '저장 중...' : '저장'}
@@ -424,50 +424,50 @@ export default function AdminNewsPage() {
         </fetcher.Form>
       </div>
       {/* 미리보기 */}
-      <div className="w-full max-w-2xl bg-white rounded-xl shadow p-6">
-        <h2 className="text-xl font-bold text-wine-700 mb-4">교회소식 미리보기</h2>
+      <div className="w-full max-w-2xl bg-white rounded-2xl shadow p-6">
+        <h2 className="text-xl font-bold text-body mb-4">교회소식 미리보기</h2>
         <div className="border-b pb-2 mb-2">
-          <span className="font-bold text-wine-700">등록안내</span>
-          <div className="text-gray-700 mt-1 whitespace-pre-line">{preview.registerNotice}</div>
+          <span className="font-bold text-body">등록안내</span>
+          <div className="text-body mt-1 whitespace-pre-line">{preview.registerNotice}</div>
         </div>
         <div className="border-b pb-2 mb-2">
-          <span className="font-bold text-wine-700">행사/캠프 일정</span>
+          <span className="font-bold text-body">행사/캠프 일정</span>
           <ul className="mt-1 space-y-1">
             {preview.events.map((ev: any, idx: number) => (
-              <li key={idx} className="flex items-center gap-2 text-gray-700">
+              <li key={idx} className="flex items-center gap-2 text-body">
                 <span className="font-semibold">{ev.title}</span>
-                <span className="text-xs text-gray-500">{ev.date}</span>
-                <span className="text-xs text-gray-500">{ev.desc}</span>
+                <span className="text-xs text-mute">{ev.date}</span>
+                <span className="text-xs text-mute">{ev.desc}</span>
               </li>
             ))}
           </ul>
         </div>
         <div className="border-b pb-2 mb-2">
-          <span className="font-bold text-wine-700">생일자</span>
+          <span className="font-bold text-body">생일자</span>
           <ul className="mt-1 space-y-1">
             {preview.birthdays.map((b: any, idx: number) => (
-              <li key={idx} className="flex items-center gap-2 text-gray-700">
+              <li key={idx} className="flex items-center gap-2 text-body">
                 <span className="font-semibold">{b.name}</span>
-                <span className="text-xs text-gray-500">{b.date}</span>
+                <span className="text-xs text-mute">{b.date}</span>
               </li>
             ))}
           </ul>
         </div>
         <div className="border-b pb-2 mb-2">
-          <span className="font-bold text-wine-700">헌금계좌 안내</span>
+          <span className="font-bold text-body">헌금계좌 안내</span>
           <ul className="mt-1 space-y-1">
             {preview.offeringAccounts.map((acc: any, idx: number) => (
-              <li key={idx} className="flex items-center gap-2 text-gray-700">
+              <li key={idx} className="flex items-center gap-2 text-body">
                 <span className="font-semibold">{acc.bank}</span>
-                <span className="text-xs text-gray-500">{acc.number}</span>
-                <span className="text-xs text-gray-500">{acc.owner}</span>
+                <span className="text-xs text-mute">{acc.number}</span>
+                <span className="text-xs text-mute">{acc.owner}</span>
               </li>
             ))}
           </ul>
         </div>
         <div className="pt-2">
-          <span className="font-bold text-wine-700">기타 공지</span>
-          <div className="text-gray-700 mt-1 whitespace-pre-line">{preview.etc}</div>
+          <span className="font-bold text-body">기타 공지</span>
+          <div className="text-body mt-1 whitespace-pre-line">{preview.etc}</div>
         </div>
       </div>
     </div>

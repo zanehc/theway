@@ -413,18 +413,18 @@ export default function Menus() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-warm pb-20">
+    <div className="min-h-screen bg-surface-soft pb-20">
       
       <main className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-6 sm:py-12">
         <div className="mb-8 sm:mb-12 animate-fade-in">
-          <h1 className="text-3xl sm:text-5xl font-black text-wine-800 mb-2 sm:mb-4 tracking-tight">메뉴 관리</h1>
-          <p className="text-lg sm:text-2xl text-wine-600 font-medium">카페 메뉴를 관리하세요</p>
+          <h1 className="text-3xl sm:text-5xl font-black text-ink mb-2 sm:mb-4 tracking-tight">메뉴 관리</h1>
+          <p className="text-lg sm:text-2xl text-mute font-medium">카페 메뉴를 관리하세요</p>
         </div>
 
         <div className="mb-6 sm:mb-8">
           <button
             onClick={() => setShowCreateModal(true)}
-            className="bg-gradient-wine text-ivory-50 px-6 py-3 rounded-xl font-bold hover:shadow-wine transition-all duration-300 transform hover:-translate-y-1 shadow-medium"
+            className="bg-primary text-white px-6 py-3 rounded-2xl font-bold  transition-all duration-300 transform hover:-translate-y-1 "
           >
             새 메뉴 추가
           </button>
@@ -433,8 +433,8 @@ export default function Menus() {
                           {/* 메뉴 목록 */}
          <div className="grid grid-cols-3 gap-2 sm:gap-3">
            {menus.map((menu) => (
-             <div key={menu.id} className="bg-gradient-ivory rounded-lg shadow-soft p-2 sm:p-3 border border-ivory-200/50">
-               <div className="h-20 sm:h-24 overflow-hidden bg-gradient-to-br from-ivory-100 to-ivory-200 rounded-lg mb-2 flex items-center justify-center">
+             <div key={menu.id} className="bg-surface-card rounded-2xl  p-2 sm:p-3 border border-hairline-soft">
+               <div className="h-20 sm:h-24 overflow-hidden bg-surface-card rounded-2xl mb-2 flex items-center justify-center">
                  {menu.image_url ? (
                    <img 
                      src={menu.image_url} 
@@ -453,15 +453,15 @@ export default function Menus() {
                    />
                  ) : null}
                  <div className={`w-full h-full flex items-center justify-center ${menu.image_url ? 'hidden' : ''}`}>
-                   <svg className="w-6 h-6 sm:w-8 sm:h-8 text-wine-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                   <svg className="w-6 h-6 sm:w-8 sm:h-8 text-stone" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                    </svg>
                  </div>
                </div>
                
-               <h3 className="text-xs sm:text-sm font-bold text-wine-800 mb-1 truncate">{menu.name}</h3>
+               <h3 className="text-xs sm:text-sm font-bold text-ink mb-1 truncate">{menu.name}</h3>
                {menu.description && (
-                 <p className="text-gray-600 text-xs mb-1 line-clamp-1">{menu.description}</p>
+                 <p className="text-mute text-xs mb-1 line-clamp-1">{menu.description}</p>
                )}
                <div className="flex justify-between items-center mb-2">
                  <span className={`text-xs px-1 py-0.5 rounded-full font-medium ${
@@ -469,14 +469,14 @@ export default function Menus() {
                    menu.category === 'ice coffee' ? 'bg-blue-100 text-blue-800' :
                    menu.category === 'tea' ? 'bg-orange-100 text-orange-800' :
                    menu.category === 'beverage' ? 'bg-green-100 text-green-800' :
-                   'bg-gray-100 text-gray-600'
+                   'bg-secondary-bg text-mute'
                  }`}>
                    {menu.category === 'hot coffee' ? 'Hot' :
                     menu.category === 'ice coffee' ? 'Ice' :
                     menu.category === 'tea' ? '차' :
                     menu.category === 'beverage' ? '음료' : menu.category}
                  </span>
-                 <span className="text-xs sm:text-sm font-bold text-wine-700">₩{menu.price.toLocaleString()}</span>
+                 <span className="text-xs sm:text-sm font-bold text-body">₩{menu.price.toLocaleString()}</span>
                </div>
                
                <div className="flex gap-1">
@@ -486,7 +486,7 @@ export default function Menus() {
                        setImagePreview(null);
                        setShouldRemoveImage(false);
                      }}
-                     className="flex-1 bg-wine-100 text-wine-700 py-1 px-2 rounded font-bold hover:bg-wine-200 transition-colors text-xs"
+                     className="flex-1 bg-surface-card text-body py-1 px-2 rounded font-bold hover:bg-secondary-bg transition-colors text-xs"
                    >
                      수정
                    </button>
@@ -515,47 +515,47 @@ export default function Menus() {
          {showCreateModal && (
            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
              <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full max-h-[90vh] overflow-y-auto">
-               <h2 className="text-2xl font-black text-wine-800 mb-6">새 메뉴 추가</h2>
+               <h2 className="text-2xl font-black text-ink mb-6">새 메뉴 추가</h2>
                
                <fetcher.Form method="post" encType="multipart/form-data" className="space-y-4">
                  <input type="hidden" name="intent" value="createMenu" />
                  
                  <div>
-                   <label className="block text-sm font-bold text-wine-700 mb-2">메뉴명 *</label>
+                   <label className="block text-sm font-bold text-body mb-2">메뉴명 *</label>
                    <input
                      type="text"
                      name="name"
                      required
-                     className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500"
+                     className="w-full px-4 py-3 border border-hairline rounded-2xl text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-focus-outer"
                    />
                  </div>
 
                  <div>
-                   <label className="block text-sm font-bold text-wine-700 mb-2">설명</label>
+                   <label className="block text-sm font-bold text-body mb-2">설명</label>
                    <textarea
                      name="description"
                      rows={3}
-                     className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500 resize-none"
+                     className="w-full px-4 py-3 border border-hairline rounded-2xl text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-focus-outer resize-none"
                    />
                  </div>
 
                  <div>
-                   <label className="block text-sm font-bold text-wine-700 mb-2">가격 *</label>
+                   <label className="block text-sm font-bold text-body mb-2">가격 *</label>
                    <input
                      type="number"
                      name="price"
                      required
                      min="0"
-                     className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500"
+                     className="w-full px-4 py-3 border border-hairline rounded-2xl text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-focus-outer"
                    />
                  </div>
 
                  <div>
-                   <label className="block text-sm font-bold text-wine-700 mb-2">카테고리 *</label>
+                   <label className="block text-sm font-bold text-body mb-2">카테고리 *</label>
                    <select
                      name="category"
                      required
-                     className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500"
+                     className="w-full px-4 py-3 border border-hairline rounded-2xl text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-focus-outer"
                    >
                      <option value="" className="text-black">카테고리 선택</option>
                      {categories.map((category) => (
@@ -567,18 +567,18 @@ export default function Menus() {
                  </div>
 
                  <div>
-                   <label className="block text-sm font-bold text-wine-700 mb-2">이미지</label>
+                   <label className="block text-sm font-bold text-body mb-2">이미지</label>
                    <input
                      type="file"
                      name="image"
                      accept="image/*"
                      onChange={handleImageChange}
-                     className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500"
+                     className="w-full px-4 py-3 border border-hairline rounded-2xl text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-focus-outer"
                    />
                    {imagePreview && (
                      <div className="mt-2">
-                       <img src={imagePreview} alt="Preview" className="w-32 h-32 object-cover object-center rounded-lg border border-ivory-300" />
-                       <p className="text-xs text-gray-500 mt-1">새 이미지 미리보기</p>
+                       <img src={imagePreview} alt="Preview" className="w-32 h-32 object-cover object-center rounded-2xl border border-hairline" />
+                       <p className="text-xs text-mute mt-1">새 이미지 미리보기</p>
                      </div>
                    )}
                  </div>
@@ -590,14 +590,14 @@ export default function Menus() {
                        setShowCreateModal(false);
                        setImagePreview(null);
                      }}
-                     className="flex-1 bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-bold hover:bg-gray-200 transition-colors"
+                     className="flex-1 bg-secondary-bg text-body py-3 px-4 rounded-2xl font-bold hover:bg-secondary-bg transition-colors"
                    >
                      취소
                    </button>
                    <button
                      type="submit"
                      disabled={fetcher.state === 'submitting'}
-                     className="flex-1 bg-gradient-wine text-ivory-50 py-3 px-4 rounded-lg font-bold hover:shadow-wine transition-all duration-300 disabled:opacity-50"
+                     className="flex-1 bg-primary text-white py-3 px-4 rounded-2xl font-bold  transition-all duration-300 disabled:opacity-50"
                    >
                      {fetcher.state === 'submitting' ? '추가 중...' : '추가'}
                    </button>
@@ -611,50 +611,50 @@ export default function Menus() {
          {editingMenu && (
            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
              <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full max-h-[90vh] overflow-y-auto">
-               <h2 className="text-2xl font-black text-wine-800 mb-6">메뉴 수정</h2>
+               <h2 className="text-2xl font-black text-ink mb-6">메뉴 수정</h2>
                
                <div className="space-y-4">
                  
                  <div>
-                   <label className="block text-sm font-bold text-wine-700 mb-2">메뉴명 *</label>
+                   <label className="block text-sm font-bold text-body mb-2">메뉴명 *</label>
                    <input
                      type="text"
                      name="name"
                      defaultValue={editingMenu.name}
                      required
-                     className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500"
+                     className="w-full px-4 py-3 border border-hairline rounded-2xl text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-focus-outer"
                    />
                  </div>
 
                  <div>
-                   <label className="block text-sm font-bold text-wine-700 mb-2">설명</label>
+                   <label className="block text-sm font-bold text-body mb-2">설명</label>
                    <textarea
                      name="description"
                      defaultValue={editingMenu.description || ''}
                      rows={3}
-                     className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500 resize-none"
+                     className="w-full px-4 py-3 border border-hairline rounded-2xl text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-focus-outer resize-none"
                    />
                  </div>
 
                  <div>
-                   <label className="block text-sm font-bold text-wine-700 mb-2">가격 *</label>
+                   <label className="block text-sm font-bold text-body mb-2">가격 *</label>
                    <input
                      type="number"
                      name="price"
                      defaultValue={editingMenu.price}
                      required
                      min="0"
-                     className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500"
+                     className="w-full px-4 py-3 border border-hairline rounded-2xl text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-focus-outer"
                    />
                  </div>
 
                  <div>
-                   <label className="block text-sm font-bold text-wine-700 mb-2">카테고리 *</label>
+                   <label className="block text-sm font-bold text-body mb-2">카테고리 *</label>
                    <select
                      name="category"
                      defaultValue={editingMenu.category}
                      required
-                     className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500"
+                     className="w-full px-4 py-3 border border-hairline rounded-2xl text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-focus-outer"
                    >
                      {categories.map((category) => (
                        <option key={category.id} value={category.id} className="text-black">
@@ -665,13 +665,13 @@ export default function Menus() {
                  </div>
 
                  <div>
-                   <label className="block text-sm font-bold text-wine-700 mb-2">이미지</label>
+                   <label className="block text-sm font-bold text-body mb-2">이미지</label>
                    {editingMenu.image_url && (
                      <div className="mb-2">
                        <img 
                          src={editingMenu.image_url} 
                          alt="Current" 
-                         className="w-32 h-32 object-cover object-center rounded-lg border border-ivory-300"
+                         className="w-32 h-32 object-cover object-center rounded-2xl border border-hairline"
                          key={`edit-image-${editingMenu.id}-${editingMenu.image_url}`}
                          onLoad={() => {
                            console.log('✅ Edit modal image loaded:', editingMenu.image_url);
@@ -680,7 +680,7 @@ export default function Menus() {
                            console.error('❌ Edit modal image load failed:', editingMenu.image_url);
                          }}
                        />
-                       <p className="text-xs text-gray-500 mt-1">현재 이미지</p>
+                       <p className="text-xs text-mute mt-1">현재 이미지</p>
                        <button
                          type="button"
                          onClick={() => {
@@ -704,12 +704,12 @@ export default function Menus() {
                        console.log('🔥 FILE INPUT CHANGE EVENT:', e.target.files?.[0]?.name || 'NO FILE');
                        handleImageChange(e);
                      }}
-                     className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500"
+                     className="w-full px-4 py-3 border border-hairline rounded-2xl text-base font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-focus-outer"
                    />
                    {imagePreview && (
                      <div className="mt-2">
-                       <img src={imagePreview} alt="Preview" className="w-20 h-20 object-cover rounded-lg" />
-                       <p className="text-xs text-gray-500 mt-1">새 이미지 미리보기</p>
+                       <img src={imagePreview} alt="Preview" className="w-20 h-20 object-cover rounded-2xl" />
+                       <p className="text-xs text-mute mt-1">새 이미지 미리보기</p>
                      </div>
                    )}
                  </div>
@@ -718,7 +718,7 @@ export default function Menus() {
                    <button
                      type="button"
                      onClick={resetEditModal}
-                     className="flex-1 bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-bold hover:bg-gray-200 transition-colors"
+                     className="flex-1 bg-secondary-bg text-body py-3 px-4 rounded-2xl font-bold hover:bg-secondary-bg transition-colors"
                    >
                      취소
                    </button>
@@ -816,7 +816,7 @@ export default function Menus() {
                          alert('업로드 중 오류가 발생했습니다: ' + error.message);
                        });
                      }}
-                     className="flex-1 bg-gradient-wine text-ivory-50 py-3 px-4 rounded-lg font-bold hover:shadow-wine transition-all duration-300 disabled:opacity-50"
+                     className="flex-1 bg-primary text-white py-3 px-4 rounded-2xl font-bold  transition-all duration-300 disabled:opacity-50"
                    >
                      {fetcher.state === 'submitting' ? '수정 중...' : '수정'}
                    </button>
@@ -835,14 +835,14 @@ export default function Menus() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">성공!</h3>
-              <p className="text-gray-600 mb-6">{successMessage}</p>
+              <h3 className="text-xl font-bold text-ink mb-2">성공!</h3>
+              <p className="text-mute mb-6">{successMessage}</p>
               <button
                 onClick={() => {
                   setSuccessMessage(null);
                   window.location.reload();
                 }}
-                className="bg-gradient-wine text-ivory-50 px-6 py-3 rounded-xl font-bold hover:shadow-wine transition-all duration-300"
+                className="bg-primary text-white px-6 py-3 rounded-2xl font-bold  transition-all duration-300"
               >
                 확인
               </button>

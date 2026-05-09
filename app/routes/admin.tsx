@@ -22,8 +22,8 @@ export default function AdminLayout() {
   // role 로딩 중 스피너
   if (userRole === null) {
     return (
-      <div className="min-h-screen bg-ivory-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-wine-600" />
+      <div className="min-h-screen bg-canvas flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
       </div>
     );
   }

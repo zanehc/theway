@@ -2,18 +2,33 @@
 @tailwind components;
 @tailwind utilities;
 
-/* 폰트: Noto Sans KR (한국어) + Inter (영문) + 시스템 폰트 fallback */
+/* 폰트: Pin Sans 대체로 Inter + Pretendard + 시스템 폰트 fallback */
 html {
-  font-family: 'Noto Sans KR', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Inter', 'Pretendard', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 html,
 body {
-  @apply bg-white dark:bg-gray-950;
+  @apply bg-surface-soft text-body antialiased;
+}
 
-  @media (prefers-color-scheme: dark) {
-    color-scheme: dark;
-  }
+body {
+  min-height: 100vh;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  @apply focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-outer;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
 }
 
 /* 커스텀 애니메이션 */

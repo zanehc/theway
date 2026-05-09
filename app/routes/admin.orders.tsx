@@ -175,9 +175,9 @@ export default function AdminOrdersPage() {
   if (!mounted) return null;
 
   return (
-    <div className="min-h-screen bg-ivory-50 pb-20">
+    <div className="min-h-screen bg-canvas pb-20">
       {error && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg shadow-large animate-slide-in">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-2xl shadow-large animate-slide-in">
           <div className="flex items-center">
             <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
@@ -188,7 +188,7 @@ export default function AdminOrdersPage() {
       )}
 
       {success && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg shadow-large animate-slide-in">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-2xl shadow-large animate-slide-in">
           <div className="flex items-center">
             <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -199,10 +199,10 @@ export default function AdminOrdersPage() {
       )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="relative bg-ivory-100 border-4 border-wine-600 rounded-3xl p-4 sm:p-6 mb-8">
+        <div className="relative bg-surface-soft border-4 border-primary rounded-[32px] p-4 sm:p-6 mb-8">
           <div className="flex flex-col items-center mb-4">
-            <h2 className="text-2xl sm:text-3xl font-black text-wine-800">주문 관리</h2>
-            <span className="mt-1 text-xs sm:text-sm text-wine-500 font-semibold">
+            <h2 className="text-2xl sm:text-3xl font-black text-ink">주문 관리</h2>
+            <span className="mt-1 text-xs sm:text-sm text-mute font-semibold">
               {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
             </span>
           </div>
@@ -213,11 +213,11 @@ export default function AdminOrdersPage() {
               <button
                 key={btn.key}
                 onClick={() => handleFilterClick(btn)}
-                className={`px-4 py-2 rounded-lg font-bold text-sm transition-all duration-300 ${(btn.key === 'all' && !selectedStatus) ||
+                className={`px-4 py-2 rounded-2xl font-bold text-sm transition-all duration-300 ${(btn.key === 'all' && !selectedStatus) ||
                   (btn.key === 'inprogress' && selectedStatus === 'inprogress') ||
                   (btn.key === 'done' && selectedStatus === 'done')
-                  ? 'bg-gradient-wine text-white shadow-wine'
-                  : 'bg-ivory-50 text-wine-700 hover:bg-wine-100'
+                  ? 'bg-primary text-white '
+                  : 'bg-canvas text-body hover:bg-surface-card'
                   }`}
               >
                 {btn.label}
@@ -228,31 +228,31 @@ export default function AdminOrdersPage() {
           {/* 주문 목록 */}
           {loading ? (
             <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-wine-600"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
           ) : filteredOrders.length > 0 ? (
             <>
               {/* 모바일: 카드형 */}
               <div className="block sm:hidden space-y-4">
                 {filteredOrders.map((order) => (
-                  <div key={order.id} className="bg-ivory-50 rounded-xl border border-wine-200 p-4">
+                  <div key={order.id} className="bg-canvas rounded-2xl border border-hairline p-4">
                     <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs text-wine-400">#{order.id.slice(-8)}</span>
+                      <span className="text-xs text-ash">#{order.id.slice(-8)}</span>
                     </div>
-                    <div className="font-bold text-wine-800 mb-1">{order.customer_name}</div>
-                    <div className="text-sm text-wine-600 mb-2">{order.church_group}</div>
-                    <div className="text-sm text-wine-700 mb-2">
+                    <div className="font-bold text-ink mb-1">{order.customer_name}</div>
+                    <div className="text-sm text-mute mb-2">{order.church_group}</div>
+                    <div className="text-sm text-body mb-2">
                       {new Date(order.created_at).toLocaleString('ko-KR')}
                     </div>
                     <div className="space-y-1 mb-3">
                       {order.order_items?.map((item: any) => (
-                        <div key={item.id} className="text-sm text-wine-700">
+                        <div key={item.id} className="text-sm text-body">
                           {item.menu?.name} x {item.quantity}
                         </div>
                       ))}
                     </div>
-                    <div className="font-bold text-wine-800 mb-3">₩{order.total_amount?.toLocaleString()}</div>
+                    <div className="font-bold text-ink mb-3">₩{order.total_amount?.toLocaleString()}</div>
 
                     <div className="flex flex-wrap gap-2">
                       {order.status === 'pending' && (
@@ -274,7 +274,7 @@ export default function AdminOrdersPage() {
                       {order.status === 'ready' && (
                         <button
                           onClick={() => handleStatusChange(order.id, 'completed')}
-                          className="px-3 py-1 bg-wine-100 text-wine-800 rounded text-xs font-bold hover:bg-wine-200"
+                          className="px-3 py-1 bg-surface-card text-ink rounded text-xs font-bold hover:bg-secondary-bg"
                         >
                           픽업완료
                         </button>
@@ -304,7 +304,7 @@ export default function AdminOrdersPage() {
               <div className="hidden sm:block overflow-x-auto">
                 <table className="min-w-full text-center border-separate border-spacing-y-2">
                   <thead>
-                    <tr className="bg-ivory-100 text-wine-700 text-sm">
+                    <tr className="bg-surface-soft text-body text-sm">
                       <th className="px-2 py-2">주문번호</th>
                       <th className="px-2 py-2">주문인</th>
                       <th className="px-2 py-2">주문시간</th>
@@ -315,30 +315,30 @@ export default function AdminOrdersPage() {
                   </thead>
                   <tbody>
                     {filteredOrders.map((order, idx) => (
-                      <tr key={order.id} className="bg-ivory-50">
-                        <td className="font-bold text-wine-700 align-middle text-xs">#{idx + 1}</td>
+                      <tr key={order.id} className="bg-canvas">
+                        <td className="font-bold text-body align-middle text-xs">#{idx + 1}</td>
                         <td className="align-middle">
                           <div className="flex flex-col items-center">
-                            <span className="font-bold text-wine-800">{order.customer_name}</span>
-                            <span className="text-wine-700 text-xs mt-1">{order.church_group}</span>
+                            <span className="font-bold text-ink">{order.customer_name}</span>
+                            <span className="text-body text-xs mt-1">{order.church_group}</span>
                           </div>
                         </td>
                         <td className="align-middle">
                           <div className="flex flex-col items-center">
-                            <span className="text-wine-700 text-xs">{new Date(order.created_at).toLocaleDateString('ko-KR')}</span>
-                            <span className="text-wine-700 text-xs mt-1">{new Date(order.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</span>
+                            <span className="text-body text-xs">{new Date(order.created_at).toLocaleDateString('ko-KR')}</span>
+                            <span className="text-body text-xs mt-1">{new Date(order.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</span>
                           </div>
                         </td>
                         <td className="align-middle">
                           <div className="flex flex-col items-center">
                             <div className="flex flex-col gap-1 items-center">
                               {order.order_items?.map((item: any) => (
-                                <div key={item.id} className="text-xs text-wine-700">
+                                <div key={item.id} className="text-xs text-body">
                                   {item.menu?.name} x {item.quantity}
                                 </div>
                               ))}
                             </div>
-                            <span className="font-bold text-wine-800 mt-1">₩{order.total_amount?.toLocaleString()}</span>
+                            <span className="font-bold text-ink mt-1">₩{order.total_amount?.toLocaleString()}</span>
                           </div>
                         </td>
                         <td className="align-middle">
@@ -365,7 +365,7 @@ export default function AdminOrdersPage() {
                             {order.status === 'ready' && (
                               <button
                                 onClick={() => handleStatusChange(order.id, 'completed')}
-                                className="px-2 py-1 bg-wine-100 text-wine-800 rounded text-xs font-bold hover:bg-wine-200"
+                                className="px-2 py-1 bg-surface-card text-ink rounded text-xs font-bold hover:bg-secondary-bg"
                               >
                                 픽업완료
                               </button>
@@ -396,7 +396,7 @@ export default function AdminOrdersPage() {
             </>
           ) : (
             <div className="text-center py-8">
-              <p className="text-wine-400">주문 내역이 없습니다.</p>
+              <p className="text-ash">주문 내역이 없습니다.</p>
             </div>
           )}
         </div>
