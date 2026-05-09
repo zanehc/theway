@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '~/lib/supabase';
-import { updateUser, getUserByIdOrCreate } from '~/lib/database';
+import { getUserByIdOrCreate } from '~/lib/database';
 import { fetchOrderHistoryForCurrentUser } from '~/lib/orderHistoryClient';
 import type { UserOrderHistory } from '~/types';
 import ModalPortal from './ModalPortal';
@@ -72,28 +72,40 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
 
   const fetchUserData = async () => {
     try {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (authUser) {
-        console.log('🔄 MyPageModal: fetching user data for', authUser.id);
-        
-        // 사용자 정보 조회 (없으면 생성)
-        const userData = await getUserByIdOrCreate(authUser);
+      const { data: { session } } = await supabase.auth.getSession();
+      const authUser = session?.user;
+      const token = session?.access_token;
 
-        if (userData) {
-          console.log('🔄 MyPageModal: user data found/created:', userData);
-          setUser(userData);
-          setName(userData.name || '');
-          setChurchGroup(userData.church_group || '');
-          
-          // 주문 내역 조회
-          const orderResult = await fetchOrderHistoryForCurrentUser(authUser.id, {
-            limit: 20,
-            timeoutMs: 3500,
-          });
-          setOrderHistory(toOrderHistory(orderResult.orders || []));
-        } else {
-          console.error('❌ MyPageModal: failed to get/create user data');
-        }
+      if (!authUser || !token) return;
+
+      console.log('🔄 MyPageModal: fetching user data for', authUser.id);
+
+      // 서버 endpoint: id → email 순으로 service role로 조회 (UUID 불일치 케이스 대응)
+      const res = await fetch(`/api/profile-load?email=${encodeURIComponent(authUser.email || '')}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const result = await res.json();
+
+      let userData = result?.user;
+
+      // 서버에서 못 찾았으면 클라이언트 fallback (RLS 통과되는 본인 row 탐색 + 자동 생성)
+      if (!userData) {
+        userData = await getUserByIdOrCreate(authUser);
+      }
+
+      if (userData) {
+        console.log('🔄 MyPageModal: user data resolved:', userData);
+        setUser(userData);
+        setName(userData.name || '');
+        setChurchGroup(userData.church_group || '');
+
+        const orderResult = await fetchOrderHistoryForCurrentUser(authUser.id, {
+          limit: 20,
+          timeoutMs: 3500,
+        });
+        setOrderHistory(toOrderHistory(orderResult.orders || []));
+      } else {
+        console.error('❌ MyPageModal: failed to resolve user data');
       }
     } catch (error) {
       console.error('❌ MyPageModal: Error fetching user data:', error);
@@ -116,22 +128,38 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
     setProfileSuccess('');
     setProfileError('');
     try {
-      const result = await updateUser(user.id, {
-        name: name.trim(),
-        church_group: churchGroup.trim() || undefined,
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) {
+        const errMsg = '로그인 세션이 만료됐습니다. 다시 로그인해주세요.';
+        setProfileError(errMsg);
+        addToast(errMsg, 'error');
+        return;
+      }
+
+      const res = await fetch('/api/profile-save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: name.trim(),
+          church_group: churchGroup.trim(),
+          email: user.email,
+        }),
       });
 
-      console.log('🔄 updateUser result:', result);
+      const result = await res.json().catch(() => ({}));
+      console.log('🔄 profile-save result:', result);
 
-      if (result.success) {
-        console.log('✅ Update successful, refreshing user data');
+      if (res.ok && result.success) {
         await fetchUserData();
         setProfileSuccess('정보가 성공적으로 수정되었습니다!');
         addToast('정보가 성공적으로 수정되었습니다!', 'success');
         setTimeout(() => setProfileSuccess(''), 3000);
       } else {
-        console.error('❌ Update failed:', result.error);
-        const errMsg = '정보 수정에 실패했습니다. 다시 시도해주세요.';
+        const errMsg = result.error || '정보 수정에 실패했습니다. 다시 시도해주세요.';
         setProfileError(errMsg);
         addToast(errMsg, 'error');
       }
