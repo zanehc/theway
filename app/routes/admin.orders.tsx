@@ -2,7 +2,7 @@ import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useOutletContext, useNavigation } from "@remix-run/react";
 import { useState, useEffect } from "react";
-import { getOrders, updateOrderStatus } from "~/lib/database";
+import { updateOrderStatus } from "~/lib/database";
 import { supabase } from "~/lib/supabase";
 import type { OrderStatus } from "~/types";
 import { useNotifications } from "~/contexts/NotificationContext";
@@ -66,6 +66,17 @@ export default function AdminOrdersPage() {
     order: any | null;
   }>({ isOpen: false, order: null });
 
+  const fetchAdminOrders = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return [];
+    const res = await fetch('/api/admin-orders', {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.orders || [];
+  };
+
   useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
@@ -74,8 +85,8 @@ export default function AdminOrdersPage() {
     let isCancelled = false;
     const loadOrders = async () => {
       try {
-        const result = await getOrders();
-        if (!isCancelled) setOrders(result || []);
+        const result = await fetchAdminOrders();
+        if (!isCancelled) setOrders(result);
       } catch (err) {
         if (!isCancelled) setOrders([]);
       } finally {
@@ -90,8 +101,8 @@ export default function AdminOrdersPage() {
   useEffect(() => {
     if (!mounted || toasts.length === 0) return;
     const refresh = async () => {
-      const allOrders = await getOrders(selectedStatus || undefined);
-      setOrders(allOrders || []);
+      const allOrders = await fetchAdminOrders();
+      setOrders(allOrders);
     };
     refresh();
   }, [toasts]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -113,8 +124,7 @@ export default function AdminOrdersPage() {
     try {
       await updateOrderStatus(cancellationModal.order.id, 'cancelled', reason);
       addToast(`주문이 취소되었습니다. (사유: ${reason})`, 'warning');
-      const allOrders = await getOrders(selectedStatus || undefined);
-      setOrders(allOrders || []);
+      setOrders(await fetchAdminOrders());
     } catch (err) {
       addToast('주문 취소에 실패했습니다.', 'error');
       throw err;
@@ -125,8 +135,7 @@ export default function AdminOrdersPage() {
     try {
       await updateOrderStatus(orderId, newStatus);
       addToast('주문 상태가 업데이트되었습니다.', 'success');
-      const allOrders = await getOrders(selectedStatus || undefined);
-      setOrders(allOrders || []);
+      setOrders(await fetchAdminOrders());
     } catch (err) {
       addToast('상태 변경에 실패했습니다.', 'error');
     }
@@ -140,8 +149,7 @@ export default function AdminOrdersPage() {
         .eq('id', order.id);
       if (error) throw error;
       addToast('결제가 확인되었습니다.', 'success');
-      const allOrders = await getOrders(selectedStatus || undefined);
-      setOrders(allOrders || []);
+      setOrders(await fetchAdminOrders());
     } catch (err) {
       addToast('결제 확인에 실패했습니다.', 'error');
     }
@@ -151,8 +159,7 @@ export default function AdminOrdersPage() {
     try {
       await updateOrderStatus(order.id, newStatus);
       addToast('주문 상태가 업데이트되었습니다.', 'success');
-      const allOrders = await getOrders(selectedStatus || undefined);
-      setOrders(allOrders || []);
+      setOrders(await fetchAdminOrders());
     } catch (err) {
       addToast('상태 변경에 실패했습니다.', 'error');
     }
