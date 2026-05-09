@@ -46,7 +46,7 @@ async function requireAdmin(request: Request) {
     return { error: json({ error: "관리자 권한 확인에 실패했습니다.", orders: [] }, { status: 500 }) };
   }
 
-  if (userData?.role !== "admin") {
+  if (userData?.role !== "admin" && userData?.role !== "staff") {
     return { error: json({ error: "관리자 권한이 필요합니다.", orders: [] }, { status: 403 }) };
   }
 
@@ -57,20 +57,25 @@ async function requireAdmin(request: Request) {
   return { supabase, user: authData.user };
 }
 
-function getStatusMessage(orderId: string, status: string, cancellationReason?: string) {
+function getOrderNumberLabel(order: { id?: string | null; order_number?: string | null }) {
+  const orderNumber = order.order_number || order.id?.slice(-8) || '';
+  return orderNumber ? `#${orderNumber}` : '';
+}
+
+function getStatusMessage(orderNumber: string, status: string, cancellationReason?: string) {
   switch (status) {
     case "preparing":
-      return `주문이 제조 중입니다. (주문번호: ${orderId.slice(-8)})`;
+      return `주문이 제조 중입니다. (주문번호: ${orderNumber})`;
     case "ready":
-      return `주문이 완료되었습니다! 픽업해주세요. (주문번호: ${orderId.slice(-8)})`;
+      return `주문이 완료되었습니다! 픽업해주세요. (주문번호: ${orderNumber})`;
     case "completed":
-      return `주문이 픽업 완료되었습니다. 감사합니다! (주문번호: ${orderId.slice(-8)})`;
+      return `주문이 픽업 완료되었습니다. 감사합니다! (주문번호: ${orderNumber})`;
     case "cancelled":
       return cancellationReason
-        ? `주문이 취소되었습니다. 사유: ${cancellationReason} (주문번호: ${orderId.slice(-8)})`
-        : `주문이 취소되었습니다. (주문번호: ${orderId.slice(-8)})`;
+        ? `주문이 취소되었습니다. 사유: ${cancellationReason} (주문번호: ${orderNumber})`
+        : `주문이 취소되었습니다. (주문번호: ${orderNumber})`;
     default:
-      return `주문 상태가 변경되었습니다: ${status} (주문번호: ${orderId.slice(-8)})`;
+      return `주문 상태가 변경되었습니다: ${status} (주문번호: ${orderNumber})`;
   }
 }
 
@@ -112,6 +117,62 @@ async function sendWebPush(
         }
         console.error("Web push send error:", (err as any).statusCode);
       })
+    )
+  );
+}
+
+function normalizeProfileValue(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+async function getNotificationRecipientIds(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  order: { user_id?: string | null; customer_name?: string | null; church_group?: string | null }
+) {
+  const recipientIds = new Set<string>();
+  if (order.user_id) recipientIds.add(order.user_id);
+
+  const customerName = normalizeProfileValue(order.customer_name);
+  const churchGroup = normalizeProfileValue(order.church_group);
+
+  if (customerName && churchGroup) {
+    const { data, error } = await supabase
+      .from("users")
+      .select("id")
+      .eq("name", customerName)
+      .eq("church_group", churchGroup);
+
+    if (error) {
+      console.error("API notification recipients lookup failed:", error);
+    } else {
+      data?.forEach((user) => {
+        if (typeof user.id === "string") recipientIds.add(user.id);
+      });
+    }
+  }
+
+  return Array.from(recipientIds);
+}
+
+async function notifyOrderRecipients(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  order: { user_id?: string | null; customer_name?: string | null; church_group?: string | null },
+  notification: { order_id: string; type: string; message: string },
+  pushPayload: { title: string; body: string; orderId: string; url: string }
+) {
+  const recipientIds = await getNotificationRecipientIds(supabase, order);
+
+  await Promise.all(
+    recipientIds.map((userId) =>
+      Promise.all([
+        createNotification(supabase, {
+          user_id: userId,
+          order_id: notification.order_id,
+          type: notification.type,
+          message: notification.message,
+        }),
+        sendWebPush(supabase, userId, pushPayload),
+      ])
     )
   );
 }
@@ -216,23 +277,23 @@ export async function action({ request }: ActionFunctionArgs) {
       return json({ error: "상태 업데이트에 실패했습니다." }, { status: 500 });
     }
 
-    if (order.user_id) {
-      const message = getStatusMessage(orderId, status, cancellationReason);
-      await Promise.all([
-        createNotification(admin.supabase, {
-          user_id: order.user_id,
-          order_id: orderId,
-          type: status === "cancelled" ? "order_cancelled" : "order_status",
-          message,
-        }),
-        sendWebPush(admin.supabase, order.user_id, {
-          title: "이음카페",
-          body: message,
-          orderId,
-          url: "/orders/history",
-        }),
-      ]);
-    }
+    const orderNumber = getOrderNumberLabel(order);
+    const message = getStatusMessage(orderNumber, status, cancellationReason);
+    await notifyOrderRecipients(
+      admin.supabase,
+      order,
+      {
+        order_id: orderId,
+        type: status === "cancelled" ? "order_cancelled" : "order_status",
+        message,
+      },
+      {
+        title: "이음카페",
+        body: message,
+        orderId,
+        url: "/orders/history",
+      }
+    );
 
     return json({ success: true, order }, { headers: { "Cache-Control": "no-store" } });
   }
@@ -258,22 +319,24 @@ export async function action({ request }: ActionFunctionArgs) {
       return json({ error: "결제 상태 업데이트에 실패했습니다." }, { status: 500 });
     }
 
-    if (order.user_id && paymentStatus === "confirmed") {
-      const message = `결제가 확인되었습니다. 감사합니다! (주문번호: ${orderId.slice(-8)})`;
-      await Promise.all([
-        createNotification(admin.supabase, {
-          user_id: order.user_id,
+    if (paymentStatus === "confirmed") {
+      const orderNumber = getOrderNumberLabel(order);
+      const message = `결제가 확인되었습니다. 감사합니다! (주문번호: ${orderNumber})`;
+      await notifyOrderRecipients(
+        admin.supabase,
+        order,
+        {
           order_id: orderId,
           type: "payment_confirmed",
           message,
-        }),
-        sendWebPush(admin.supabase, order.user_id, {
+        },
+        {
           title: "이음카페",
           body: message,
           orderId,
           url: "/orders/history",
-        }),
-      ]);
+        }
+      );
     }
 
     return json({ success: true, order }, { headers: { "Cache-Control": "no-store" } });

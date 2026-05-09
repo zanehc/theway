@@ -19,6 +19,10 @@ const PROFILE_TIMEOUT_MS = 2200;
 const ORDER_HISTORY_TIMEOUT_MS = 3500;
 const CACHE_TTL_MS = 60_000;
 
+function getOrderNumber(order: any) {
+  return order.order_number || order.id?.slice(-8) || '';
+}
+
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
   return new Promise((resolve) => {
     const timer = window.setTimeout(() => resolve(fallback), timeoutMs);
@@ -530,7 +534,7 @@ export default function MyPage() {
                         <div className="flex justify-between items-start mb-2">
                           <div>
                             <p className="font-medium text-ink">
-                              주문 #{order.id.slice(-8)}
+                              주문 #{getOrderNumber(order)}
                             </p>
                             <p className="text-sm text-mute">
                               {new Date(order.created_at).toLocaleDateString('ko-KR')}

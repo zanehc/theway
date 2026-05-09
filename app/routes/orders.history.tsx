@@ -1,15 +1,25 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useOutletContext, useNavigate, useNavigation } from "@remix-run/react";
+import { useLoaderData, useOutletContext, useNavigate, useNavigation, useSearchParams } from "@remix-run/react";
 import { useState, useEffect } from "react";
 import { supabase } from "~/lib/supabase";
 import { useNotifications } from "~/contexts/NotificationContext";
 import { OrderListSkeleton } from "~/components/LoadingSkeleton";
 import OrderStatusProgress from "~/components/orders/OrderStatusProgress";
 import OrderCancellationModal from "~/components/OrderCancellationModal";
+import OrderDashboard from "~/components/dashboard/OrderDashboard";
 import type { OrderStatus } from "~/types";
 
 const ORDERS_PER_PAGE = 10;
+type DashboardPeriod = "today" | "week" | "month" | "all";
+
+function getOrderNumber(order: any) {
+  return order.order_number || order.id?.slice(-6) || '';
+}
+
+function getOrderNotes(order: any) {
+  return typeof order.notes === 'string' ? order.notes.trim() : '';
+}
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
@@ -23,6 +33,7 @@ export default function OrdersHistoryPage() {
   const outletContext = useOutletContext<{ user: any; userRole: string | null; userProfile?: { name: string; church_group: string } | null; authChecked?: boolean }>();
   const navigation = useNavigation();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const contextUser = outletContext?.user || null;
   const userRole = outletContext?.userRole || null;
@@ -43,6 +54,12 @@ export default function OrdersHistoryPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [cancellationModal, setCancellationModal] = useState<{ isOpen: boolean; order: any | null }>({ isOpen: false, order: null });
   const { toasts, addToast } = useNotifications();
+  const requestedTab = searchParams.get('tab');
+  const activeTab = isAdmin && requestedTab === 'dashboard' ? 'dashboard' : 'list';
+  const requestedPeriod = searchParams.get('period');
+  const dashboardPeriod: DashboardPeriod = requestedPeriod === 'week' || requestedPeriod === 'month' || requestedPeriod === 'all'
+    ? requestedPeriod
+    : 'today';
 
   useEffect(() => { setMounted(true); }, []);
   useEffect(() => { setUser(contextUser); }, [contextUser]);
@@ -88,6 +105,24 @@ export default function OrdersHistoryPage() {
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : '주문 내역을 불러오지 못했습니다.');
     }
+  };
+
+  const setActiveTab = (tab: 'list' | 'dashboard') => {
+    const next = new URLSearchParams(searchParams);
+    if (tab === 'dashboard' && isAdmin) {
+      next.set('tab', 'dashboard');
+      if (!next.get('period')) next.set('period', dashboardPeriod);
+    } else {
+      next.delete('tab');
+    }
+    setSearchParams(next, { replace: true });
+  };
+
+  const setDashboardPeriod = (period: DashboardPeriod) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('tab', 'dashboard');
+    next.set('period', period);
+    setSearchParams(next, { replace: true });
   };
 
   const handleStatusChange = async (order: any, newStatus: OrderStatus) => {
@@ -149,6 +184,19 @@ export default function OrdersHistoryPage() {
     if (!mounted || toasts.length === 0 || !user) return;
     fetchOrders().then(result => setOrders(result)).catch(() => {});
   }, [toasts]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!mounted || !user) return;
+
+    const handleOrderNotification = () => {
+      fetchOrders().then(result => setOrders(result)).catch(() => {});
+    };
+
+    window.addEventListener('theway:order-notification', handleOrderNotification);
+    return () => {
+      window.removeEventListener('theway:order-notification', handleOrderNotification);
+    };
+  }, [mounted, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 주문 테이블 실시간 구독 - 관리자 액션 시 고객 화면 즉각 반영
   useEffect(() => {
@@ -312,18 +360,48 @@ export default function OrdersHistoryPage() {
             <h1 className="text-base sm:text-lg font-bold text-ink truncate">
               {isAdmin ? '전체 주문 내역' : `${displayName}님의 주문 내역`}
             </h1>
+            {isAdmin && (
+              <div className="mt-3 inline-flex rounded-2xl border border-hairline bg-surface-soft p-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('list')}
+                  className={`rounded-xl px-4 py-2 text-xs font-bold transition-colors ${
+                    activeTab === 'list'
+                      ? 'bg-primary text-white'
+                      : 'text-body hover:bg-surface-card'
+                  }`}
+                >
+                  주문 내역
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('dashboard')}
+                  className={`rounded-xl px-4 py-2 text-xs font-bold transition-colors ${
+                    activeTab === 'dashboard'
+                      ? 'bg-primary text-white'
+                      : 'text-body hover:bg-surface-card'
+                  }`}
+                >
+                  대시보드
+                </button>
+              </div>
+            )}
           </div>
         )}
 
         <div className="relative bg-surface-soft border-4 border-primary rounded-[32px] p-4 sm:p-6 mb-8">
           <div className="flex flex-col items-center mb-4">
-            <h2 className="text-xl sm:text-2xl font-black text-ink">주문 내역</h2>
+            <h2 className="text-xl sm:text-2xl font-black text-ink">
+              {activeTab === 'dashboard' ? '주문 대시보드' : '주문 내역'}
+            </h2>
             <span className="mt-1 text-xs text-mute font-semibold">
               {new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}
             </span>
           </div>
 
-          {loadError ? (
+          {activeTab === 'dashboard' ? (
+            <OrderDashboard initialPeriod={dashboardPeriod} onPeriodChange={setDashboardPeriod} />
+          ) : loadError ? (
             <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-5 text-center">
               <div className="text-sm font-bold text-red-700">{loadError}</div>
               <button
@@ -349,7 +427,7 @@ export default function OrdersHistoryPage() {
                       {/* 헤더: 번호 + 주문인 + 시간 */}
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-ash">#{order.id.slice(-6)}</span>
+                          <span className="text-xs text-ash">#{getOrderNumber(order)}</span>
                           <span className="text-sm font-bold text-ink">{order.customer_name}</span>
                           {order.church_group && <span className="text-xs text-mute">{order.church_group}</span>}
                         </div>
@@ -368,6 +446,12 @@ export default function OrdersHistoryPage() {
                             </span>
                           ))}
                         </div>
+                        {getOrderNotes(order) && (
+                          <div className="mt-2 rounded-lg border border-hairline bg-canvas px-2 py-1.5">
+                            <span className="text-[11px] font-bold text-body">요청사항: </span>
+                            <span className="text-[11px] text-body">{getOrderNotes(order)}</span>
+                          </div>
+                        )}
                         <span className="text-xs font-bold text-ink mt-1 block">₩{order.total_amount?.toLocaleString()}</span>
                       </div>
                       {/* 2행: 주문상태 + 액션 */}
@@ -403,12 +487,12 @@ export default function OrdersHistoryPage() {
                   <tbody>
                     {orders
                       .slice((currentPage - 1) * ORDERS_PER_PAGE, currentPage * ORDERS_PER_PAGE)
-                      .map((order, idx) => (
+                      .map((order) => (
                         <tr key={order.id} className="bg-canvas">
                           {/* 번호 */}
                           <td className="px-3 py-3 text-center align-middle rounded-l-xl">
                             <span className="font-bold text-body text-xs">
-                              #{(currentPage - 1) * ORDERS_PER_PAGE + idx + 1}
+                              #{getOrderNumber(order)}
                             </span>
                           </td>
                           {/* 주문인 */}
@@ -432,6 +516,12 @@ export default function OrdersHistoryPage() {
                               ))}
                               <span className="text-xs font-bold text-ink">₩{order.total_amount?.toLocaleString()}</span>
                             </div>
+                            {getOrderNotes(order) && (
+                              <div className="mx-auto mb-1.5 max-w-md rounded-lg border border-hairline bg-surface-soft px-2 py-1 text-left">
+                                <span className="text-[11px] font-bold text-body">요청사항: </span>
+                                <span className="text-[11px] text-body">{getOrderNotes(order)}</span>
+                              </div>
+                            )}
                             {/* 구분선 */}
                             <div className="border-t border-hairline mb-1.5" />
                             {/* 2행: 상태 */}

@@ -31,6 +31,7 @@ export type PaymentStatus = 'pending' | 'confirmed';
 
 export type Order = {
   id: string;
+  order_number?: string | null;
   user_id: string | null;
   customer_name: string;
   church_group: string | null;

@@ -8,6 +8,29 @@ interface ToastNotification {
   timestamp: number;
 }
 
+interface DbNotification {
+  id: string;
+  user_id: string;
+  order_id: string;
+  type: string;
+  message: string;
+  status: string;
+  created_at: string;
+}
+
+function getToastTypeForNotification(notificationType: string): ToastNotification['type'] {
+  switch (notificationType) {
+    case 'order_cancelled':
+      return 'warning';
+    case 'payment_confirmed':
+      return 'info';
+    case 'order_status':
+      return 'success';
+    default:
+      return 'info';
+  }
+}
+
 interface NotificationContextType {
   toasts: ToastNotification[];
   addToast: (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
@@ -28,38 +51,6 @@ interface NotificationProviderProps {
 export function NotificationProvider({ children, userId, userRole }: NotificationProviderProps) {
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
   const [ttsInitialized, setTtsInitialized] = useState(false);
-
-  // 주문 상태를 명확한 한국어 메시지로 변환 (취소사유 포함)
-  const getStatusMessage = (status: string, cancellationReason?: string) => {
-    switch (status) {
-      case 'pending':
-        return '주문이 접수되었습니다';
-      case 'preparing':
-        return '주문 상태가 제조중으로 변경되었습니다';
-      case 'ready':
-        return '주문 상태가 제조완료로 변경되었습니다';
-      case 'completed':
-        return '주문 상태가 픽업완료로 변경되었습니다';
-      case 'cancelled':
-        return cancellationReason 
-          ? `주문이 취소되었습니다.\n취소 사유: ${cancellationReason}`
-          : '주문이 취소되었습니다';
-      default:
-        return `주문 상태가 ${status}로 변경되었습니다`;
-    }
-  };
-
-  // 결제 상태 메시지
-  const getPaymentMessage = (paymentStatus: string) => {
-    switch (paymentStatus) {
-      case 'confirmed':
-        return '주문이 결제완료되었습니다';
-      case 'pending':
-        return null; // 결제 대기 중 알림은 표시하지 않음
-      default:
-        return `결제 상태가 ${paymentStatus}로 변경되었습니다`;
-    }
-  };
 
   const addToast = useCallback((message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     console.log('🔔 NotificationContext - 새 알림 추가:', { message, type, userId, userRole });
@@ -176,118 +167,52 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
       return;
     }
 
-    console.log('🔔 NotificationContext - 주문 실시간 구독 시작');
-    const ordersChannel = supabase
-      .channel('orders-realtime-for-all')
+    console.log('🔔 NotificationContext - 실시간 알림 구독 시작');
+    const notificationsChannel = supabase
+      .channel(`notifications-toast-${userId}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders' },
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${userId}`,
+        },
         (payload) => {
-          console.log('🔔 NotificationContext - 주문 이벤트 수신:', payload);
-          if (payload.eventType === 'INSERT') {
-            const newOrder = payload.new as any;
-            console.log('🔔 NotificationContext - 새 주문:', { newOrder, userRole });
-            if (userRole === 'admin') {
-              const group = newOrder.church_group ? ` · ${newOrder.church_group}` : '';
-              const amount = newOrder.total_amount ? ` · ${Number(newOrder.total_amount).toLocaleString()}원` : '';
-              addToast(`🔔 새 주문! ${newOrder.customer_name}${group}${amount}`, 'info');
-            }
-          } else if (payload.eventType === 'UPDATE') {
-            const updatedOrder = payload.new as any;
-            const oldOrder = payload.old as any;
-            console.log('🔔 NotificationContext - 주문 업데이트:', { 
-              updatedOrder, 
-              oldStatus: oldOrder.status, 
-              newStatus: updatedOrder.status,
-              oldPaymentStatus: oldOrder.payment_status,
-              newPaymentStatus: updatedOrder.payment_status,
-              userRole, 
-              userId 
-            });
-            
-            // 결제 상태와 주문 상태가 동시에 변경되었는지 확인
-            const paymentStatusChanged = oldOrder.payment_status !== updatedOrder.payment_status;
-            const orderStatusChanged = oldOrder.status !== updatedOrder.status;
-            
-            console.log('🔔 NotificationContext - 상태 변경 감지:', {
-              paymentStatusChanged,
-              orderStatusChanged,
-              oldPaymentStatus: oldOrder.payment_status,
-              newPaymentStatus: updatedOrder.payment_status,
-              oldOrderStatus: oldOrder.status,
-              newOrderStatus: updatedOrder.status
-            });
-            
-            // 픽업완료 버튼으로 인한 상태 변경 감지
-            const isPickupCompleted = orderStatusChanged && 
-              oldOrder.status === 'ready' && 
-              updatedOrder.status === 'completed';
-            
-            // 결제확인 버튼으로 인한 상태 변경 감지
-            const isPaymentConfirmed = paymentStatusChanged && 
-              oldOrder.payment_status === 'pending' && 
-              updatedOrder.payment_status === 'confirmed';
-            
-            // 픽업완료 처리 - 결제 상태가 동시에 변경되어도 픽업완료 알림만
-            if (isPickupCompleted) {
-              const statusMessage = getStatusMessage(
-                updatedOrder.status, 
-                updatedOrder.cancellation_reason
-              );
-              console.log('🏃‍♂️ 픽업완료 알림 전송:', statusMessage);
-              
-              if (userRole === 'admin') {
-                addToast(`[관리자] ${statusMessage}`, 'success');
-              } else if (updatedOrder.user_id === userId) {
-                addToast(statusMessage, 'success');
-              }
-            }
-            // 결제확인 처리 - 주문 상태가 동시에 변경되어도 결제완료 알림만
-            else if (isPaymentConfirmed) {
-              const paymentMessage = getPaymentMessage(updatedOrder.payment_status);
-              if (paymentMessage) {
-                console.log('💳 결제완료 알림 전송:', paymentMessage);
-                
-                if (userRole === 'admin') {
-                  addToast(`[관리자] ${paymentMessage}`, 'info');
-                } else if (updatedOrder.user_id === userId) {
-                  addToast(paymentMessage, 'info');
-                }
-              }
-            }
-            // 기타 주문 상태 변경 (취소, 제조중, 제조완료 등)
-            else if (orderStatusChanged && !isPickupCompleted) {
-              const statusMessage = getStatusMessage(
-                updatedOrder.status, 
-                updatedOrder.cancellation_reason
-              );
-              const toastType = updatedOrder.status === 'cancelled' ? 'warning' : 'success';
-              
-              console.log('📢 기타 주문 상태 변경 알림 전송:', statusMessage);
-              
-              if (userRole === 'admin') {
-                addToast(`[관리자] ${statusMessage}`, toastType);
-              } else if (updatedOrder.user_id === userId) {
-                addToast(statusMessage, toastType);
-              }
-            }
-            
-            // 동시 변경된 경우 로그
-            if (paymentStatusChanged && orderStatusChanged) {
-              console.log('⚡ 주문 상태와 결제 상태가 동시 변경됨:', {
-                isPickupCompleted,
-                isPaymentConfirmed
-              });
-            }
+          const notification = payload.new as DbNotification;
+          console.log('🔔 NotificationContext - 알림 이벤트 수신:', notification);
+          window.dispatchEvent(new CustomEvent('theway:order-notification', { detail: notification }));
+          if (userRole === 'admin' || userRole === 'staff') {
+            addToast(notification.message, getToastTypeForNotification(notification.type));
           }
         }
       )
       .subscribe();
 
+    const ordersChannel = userRole === 'admin' || userRole === 'staff'
+      ? supabase
+        .channel(`orders-admin-toast-${userId}`)
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'orders' },
+          (payload) => {
+            const newOrder = payload.new as any;
+            console.log('🔔 NotificationContext - 새 주문:', { newOrder, userRole });
+            const group = newOrder.church_group ? ` · ${newOrder.church_group}` : '';
+            const amount = newOrder.total_amount ? ` · ${Number(newOrder.total_amount).toLocaleString()}원` : '';
+            addToast(`새 주문! ${newOrder.customer_name}${group}${amount}`, 'info');
+          }
+        )
+        .subscribe()
+      : null;
+
     return () => {
-      supabase.removeChannel(ordersChannel);
+      supabase.removeChannel(notificationsChannel);
+      if (ordersChannel) {
+        supabase.removeChannel(ordersChannel);
+      }
     };
-  }, [userId, userRole]);
+  }, [userId, userRole, addToast]);
 
   return (
     <NotificationContext.Provider value={{ toasts, addToast, showNotification, removeToast, clearAllToasts, initializeTTS }}>

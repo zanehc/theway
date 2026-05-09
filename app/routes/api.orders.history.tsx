@@ -14,6 +14,7 @@ function getUserIdFromJWT(token: string): string | null {
 
 const ORDER_SELECT = `
   id,
+  order_number,
   user_id,
   customer_name,
   church_group,
@@ -21,6 +22,7 @@ const ORDER_SELECT = `
   status,
   payment_status,
   payment_method,
+  notes,
   created_at,
   order_items (
     id,

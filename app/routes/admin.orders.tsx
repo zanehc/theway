@@ -10,6 +10,10 @@ import { OrderListSkeleton } from "~/components/LoadingSkeleton";
 import OrderStatusProgress from "~/components/orders/OrderStatusProgress";
 import { statusButtons } from "~/components/orders/orderUtils";
 
+function getOrderNumber(order: any) {
+  return order.order_number || order.id?.slice(-8) || '';
+}
+
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const error = url.searchParams.get('error');
@@ -293,7 +297,7 @@ export default function AdminOrdersPage() {
                   <div key={order.id} className="bg-canvas rounded-2xl border border-hairline p-4">
                     <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs text-ash">#{order.id.slice(-8)}</span>
+                      <span className="text-xs text-ash">#{getOrderNumber(order)}</span>
                     </div>
                     <div className="font-bold text-ink mb-1">{order.customer_name}</div>
                     <div className="text-sm text-mute mb-2">{order.church_group}</div>
@@ -369,9 +373,9 @@ export default function AdminOrdersPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredOrders.map((order, idx) => (
+                    {filteredOrders.map((order) => (
                       <tr key={order.id} className="bg-canvas">
-                        <td className="font-bold text-body align-middle text-xs">#{idx + 1}</td>
+                        <td className="font-bold text-body align-middle text-xs">#{getOrderNumber(order)}</td>
                         <td className="align-middle">
                           <div className="flex flex-col items-center">
                             <span className="font-bold text-ink">{order.customer_name}</span>

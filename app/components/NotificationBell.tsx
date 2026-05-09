@@ -31,8 +31,9 @@ export function NotificationBell({ userId, userRole }: NotificationBellProps) {
         return;
       }
 
-      setNotifications(data || []);
-      setUnreadCount(data?.filter(n => n.status === 'unread').length || 0);
+      const typedNotifications = (data || []) as unknown as Notification[];
+      setNotifications(typedNotifications);
+      setUnreadCount(typedNotifications.filter(n => n.status === 'unread').length);
     } catch (error) {
       console.error('알림 조회 중 오류:', error);
     } finally {

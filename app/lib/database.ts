@@ -5,6 +5,11 @@ function getWriteClient() {
   return typeof window === 'undefined' ? createServerSupabaseClient() : supabase;
 }
 
+function getOrderNumberLabel(order: { id?: string | null; order_number?: string | null }) {
+  const orderNumber = order.order_number || order.id?.slice(-8) || '';
+  return orderNumber ? `#${orderNumber}` : '';
+}
+
 // Menu queries
 export async function getMenus() {
   const { data, error } = await supabase
@@ -311,25 +316,26 @@ export async function updateOrderStatus(id: string, status: string, cancellation
 
   console.log('✅ Order status updated successfully:', data);
 
-  // 주문 상태 변경 알림 전송
+    // 주문 상태 변경 알림 전송
   try {
     if (data?.user_id) {
+      const orderNumber = getOrderNumberLabel(data);
       let message = '';
       switch (status) {
         case 'preparing':
-          message = `주문이 제조 중입니다. (주문번호: ${id.slice(-8)})`;
+          message = `주문이 제조 중입니다. (주문번호: ${orderNumber})`;
           break;
         case 'ready':
-          message = `주문이 완료되었습니다! 픽업해주세요. (주문번호: ${id.slice(-8)})`;
+          message = `주문이 완료되었습니다! 픽업해주세요. (주문번호: ${orderNumber})`;
           break;
         case 'completed':
-          message = `주문이 픽업 완료되었습니다. 감사합니다! (주문번호: ${id.slice(-8)})`;
+          message = `주문이 픽업 완료되었습니다. 감사합니다! (주문번호: ${orderNumber})`;
           break;
         case 'cancelled':
-          message = `주문이 취소되었습니다. (주문번호: ${id.slice(-8)})`;
+          message = `주문이 취소되었습니다. (주문번호: ${orderNumber})`;
           break;
         default:
-          message = `주문 상태가 변경되었습니다: ${status} (주문번호: ${id.slice(-8)})`;
+          message = `주문 상태가 변경되었습니다: ${status} (주문번호: ${orderNumber})`;
       }
 
       await createNotification({
@@ -368,11 +374,12 @@ export async function updatePaymentStatus(id: string, payment_status: string) {
   // 결제 상태 변경 알림 전송
   try {
     if (data.user_id && payment_status === 'confirmed') {
+      const orderNumber = getOrderNumberLabel(data);
       await createNotification({
         user_id: data.user_id,
         order_id: id,
         type: 'payment_confirmed',
-        message: `결제가 확인되었습니다. 감사합니다! (주문번호: ${id.slice(-8)})`
+        message: `결제가 확인되었습니다. 감사합니다! (주문번호: ${orderNumber})`
       });
 
       console.log('📱 Payment confirmation notification sent');
