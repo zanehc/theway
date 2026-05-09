@@ -86,8 +86,20 @@ export async function action({ request }: ActionFunctionArgs) {
       });
 
     if (insertError) {
-      console.error("[profile-save] insert error:", insertError);
-      return json({ error: `저장에 실패했습니다. (${insertError.code ?? insertError.message})` }, { status: 500 });
+      // 23505 = unique_violation on email — user previously signed in with a different OAuth provider
+      if (insertError.code === "23505" && body.email) {
+        const { error: updateByEmailError } = await client
+          .from("users")
+          .update({ name, church_group: churchGroup, updated_at: new Date().toISOString() })
+          .eq("email", body.email);
+        if (updateByEmailError) {
+          console.error("[profile-save] update-by-email error:", updateByEmailError);
+          return json({ error: `저장에 실패했습니다. (${updateByEmailError.code ?? updateByEmailError.message})` }, { status: 500 });
+        }
+      } else {
+        console.error("[profile-save] insert error:", insertError);
+        return json({ error: `저장에 실패했습니다. (${insertError.code ?? insertError.message})` }, { status: 500 });
+      }
     }
   }
 
