@@ -67,6 +67,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   console.log("[orders/history] profile:", profile, "profileError:", profileError);
 
+  if (profileError) {
+    console.error("[orders/history] service role key 오류 or users 테이블 접근 불가:", profileError);
+    return json({ error: "역할 확인에 실패했습니다. SUPABASE_SERVICE_ROLE_KEY를 확인하세요.", orders: [] }, { status: 500 });
+  }
+
   const isAdmin = profile?.role === "admin" || profile?.role === "staff";
   console.log("[orders/history] isAdmin:", isAdmin);
 

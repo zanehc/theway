@@ -32,6 +32,7 @@ export default function OrdersHistoryPage() {
     || '';
   const [user, setUser] = useState<any>(contextUser);
   const [orders, setOrders] = useState<any[]>([]);
+  const [loadError, setLoadError] = useState('');
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -50,7 +51,10 @@ export default function OrdersHistoryPage() {
     const res = await fetch(`/api/orders/history?limit=${limit}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) return [];
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || `주문 내역 조회 실패 (${res.status})`);
+    }
     const body = await res.json();
     return body.orders || [];
   };
@@ -64,9 +68,12 @@ export default function OrdersHistoryPage() {
       setLoading(true);
       try {
         const result = await fetchOrders();
-        if (!cancelled) setOrders(result);
-      } catch {
-        if (!cancelled) setOrders([]);
+        if (!cancelled) { setOrders(result); setLoadError(''); }
+      } catch (err) {
+        if (!cancelled) {
+          setOrders([]);
+          setLoadError(err instanceof Error ? err.message : '주문 내역을 불러오지 못했습니다.');
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -207,7 +214,29 @@ export default function OrdersHistoryPage() {
             </span>
           </div>
 
-          {orders.length > 0 ? (
+          {loadError ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-5 text-center">
+              <div className="text-sm font-bold text-red-700">{loadError}</div>
+              <button
+                type="button"
+                onClick={async () => {
+                  setLoading(true);
+                  try {
+                    const result = await fetchOrders();
+                    setOrders(result);
+                    setLoadError('');
+                  } catch (err) {
+                    setLoadError(err instanceof Error ? err.message : '주문 내역을 불러오지 못했습니다.');
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                className="mt-3 rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white"
+              >
+                다시 불러오기
+              </button>
+            </div>
+          ) : orders.length > 0 ? (
             <>
               {/* 모바일: 카드형 */}
               <div className="block sm:hidden space-y-4">
