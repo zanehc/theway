@@ -86,20 +86,41 @@ export async function action({ request }: ActionFunctionArgs) {
       });
 
     if (insertError) {
-      // 23505 = unique_violation on email — user previously signed in with a different OAuth provider
-      if (insertError.code === "23505" && body.email) {
-        const { error: updateByEmailError } = await client
-          .from("users")
-          .update({ name, church_group: churchGroup, updated_at: new Date().toISOString() })
-          .eq("email", body.email);
-        if (updateByEmailError) {
-          console.error("[profile-save] update-by-email error:", updateByEmailError);
-          return json({ error: `저장에 실패했습니다. (${updateByEmailError.code ?? updateByEmailError.message})` }, { status: 500 });
+      console.error("[profile-save] insert error:", insertError.code, insertError.message, insertError.details);
+
+      // 23505 = unique_violation — same person signing in via a second OAuth provider
+      if (insertError.code === "23505") {
+        // service role client always bypasses RLS (needed to update a row owned by a different UUID)
+        const fallbackClient = serviceKey
+          ? createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } })
+          : client;
+
+        const errorStr = `${insertError.message ?? ""} ${insertError.details ?? ""}`.toLowerCase();
+        const isEmailConflict = errorStr.includes("email");
+        const isNameConflict = errorStr.includes("name");
+
+        // Try email-based update first
+        if ((isEmailConflict || !isNameConflict) && body.email) {
+          const { error: emailErr } = await fallbackClient
+            .from("users")
+            .update({ name, church_group: churchGroup, updated_at: new Date().toISOString() })
+            .eq("email", body.email);
+          if (!emailErr) return json({ success: true, name, church_group: churchGroup });
+          console.error("[profile-save] update-by-email failed:", emailErr);
         }
-      } else {
-        console.error("[profile-save] insert error:", insertError);
-        return json({ error: `저장에 실패했습니다. (${insertError.code ?? insertError.message})` }, { status: 500 });
+
+        // Try name-based update (same person, different OAuth provider — no email available)
+        if (isNameConflict || !body.email) {
+          const { error: nameErr } = await fallbackClient
+            .from("users")
+            .update({ church_group: churchGroup, updated_at: new Date().toISOString() })
+            .eq("name", name);
+          if (!nameErr) return json({ success: true, name, church_group: churchGroup });
+          console.error("[profile-save] update-by-name failed:", nameErr);
+        }
       }
+
+      return json({ error: `저장에 실패했습니다. (${insertError.code ?? insertError.message})` }, { status: 500 });
     }
   }
 
