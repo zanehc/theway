@@ -1,5 +1,9 @@
-import { supabase } from './supabase';
+import { createServerSupabaseClient, supabase } from './supabase';
 import type { Menu, Order, OrderItem, User, OrderWithItems, UserOrderHistory, OrderStatusUpdate } from '~/types';
+
+function getWriteClient() {
+  return typeof window === 'undefined' ? createServerSupabaseClient() : supabase;
+}
 
 // Menu queries
 export async function getMenus() {
@@ -171,7 +175,8 @@ export async function createOrder(orderData: {
   }>;
 }) {
   try {
-    const { data: order, error: orderError } = await supabase
+    const client = getWriteClient();
+    const { data: order, error: orderError } = await client
       .from('orders')
       .insert({
         user_id: orderData.user_id,
@@ -198,7 +203,7 @@ export async function createOrder(orderData: {
       notes: item.notes,
     }));
 
-    const { error: itemsError } = await supabase
+    const { error: itemsError } = await client
       .from('order_items')
       .insert(orderItems);
 
@@ -208,7 +213,7 @@ export async function createOrder(orderData: {
     try {
       // 메뉴 이름 가져오기
       const menuIds = orderData.items.map(item => item.menu_id);
-      const { data: menuData } = await supabase
+      const { data: menuData } = await client
         .from('menus')
         .select('id, name')
         .in('id', menuIds);
@@ -232,7 +237,7 @@ export async function createOrder(orderData: {
       }
 
       // 2. 모든 관리자에게 새 주문 알림
-      const { data: adminUsers } = await supabase
+      const { data: adminUsers } = await client
         .from('users')
         .select('id')
         .eq('role', 'admin');
@@ -265,17 +270,39 @@ export async function createOrder(orderData: {
 
 export async function updateOrderStatus(id: string, status: string, cancellationReason?: string) {
   console.log('🔄 updateOrderStatus called:', { id, status, cancellationReason });
+  const client = getWriteClient();
 
-  // 일단 기본 상태만 업데이트 (취소사유는 나중에 컬럼 추가 후 활성화)
-  const { data, error } = await supabase
+  const updatePayload: Record<string, string> = {
+    status,
+    updated_at: new Date().toISOString()
+  };
+
+  if (status === 'cancelled' && cancellationReason) {
+    updatePayload.cancellation_reason = cancellationReason;
+  }
+
+  let { data, error } = await client
     .from('orders')
-    .update({
-      status,
-      updated_at: new Date().toISOString()
-    })
+    .update(updatePayload)
     .eq('id', id)
     .select()
     .single();
+
+  if (error && updatePayload.cancellation_reason) {
+    console.warn('Cancellation reason update failed, retrying status only:', error);
+    const retryResult = await client
+      .from('orders')
+      .update({
+        status,
+        updated_at: updatePayload.updated_at
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    data = retryResult.data;
+    error = retryResult.error;
+  }
 
   if (error) {
     console.error('Update order status error:', error);
@@ -283,11 +310,10 @@ export async function updateOrderStatus(id: string, status: string, cancellation
   }
 
   console.log('✅ Order status updated successfully:', data);
-  return data;
 
   // 주문 상태 변경 알림 전송
   try {
-    if (data.user_id) {
+    if (data?.user_id) {
       let message = '';
       switch (status) {
         case 'preparing':
@@ -323,7 +349,8 @@ export async function updateOrderStatus(id: string, status: string, cancellation
 }
 
 export async function updatePaymentStatus(id: string, payment_status: string) {
-  const { data, error } = await supabase
+  const client = getWriteClient();
+  const { data, error } = await client
     .from('orders')
     .update({
       payment_status,
@@ -779,7 +806,8 @@ export async function getDailySales(startDate?: string, endDate?: string) {
 // 알림 생성 - DB 저장
 export async function createNotification({ user_id, order_id, type, message }: { user_id: string, order_id: string, type: string, message: string }) {
   try {
-    const { data, error } = await supabase
+    const client = getWriteClient();
+    const { data, error } = await client
       .from('notifications')
       .insert([{ user_id, order_id, type, message }]);
     if (error) throw error;

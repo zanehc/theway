@@ -78,6 +78,7 @@ export function LoginForm({ onSwitchToSignup, onLoginSuccess }: LoginFormProps) 
         provider: 'kakao',
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
+          scopes: 'profile_nickname profile_image account_email',
         },
       });
 
@@ -95,7 +96,7 @@ export function LoginForm({ onSwitchToSignup, onLoginSuccess }: LoginFormProps) 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-3 sm:px-4 py-2 sm:py-3 rounded-lg text-xs sm:text-sm">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-3 sm:px-4 py-2 sm:py-3 rounded-2xl text-xs sm:text-sm">
           {error}
         </div>
       )}
@@ -107,7 +108,7 @@ export function LoginForm({ onSwitchToSignup, onLoginSuccess }: LoginFormProps) 
           type="button"
           onClick={handleGoogleLogin}
           disabled={loading}
-          className="w-full flex items-center justify-center gap-2 sm:gap-3 bg-white border-2 border-wine-200 text-gray-700 py-2.5 sm:py-3 px-4 sm:px-6 rounded-lg font-medium hover:bg-ivory-50 hover:border-wine-400 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+          className="w-full flex items-center justify-center gap-2 sm:gap-3 bg-white border-2 border-hairline text-body py-2.5 sm:py-3 px-4 sm:px-6 rounded-2xl font-medium hover:bg-canvas hover:border-ash transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
         >
           <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24">
             <path
@@ -135,7 +136,7 @@ export function LoginForm({ onSwitchToSignup, onLoginSuccess }: LoginFormProps) 
           type="button"
           onClick={handleKakaoLogin}
           disabled={loading}
-          className="w-full flex items-center justify-center gap-2 sm:gap-3 bg-[#FEE500] border-2 border-[#FEE500] text-[#000000] py-2.5 sm:py-3 px-4 sm:px-6 rounded-lg font-medium hover:bg-[#FDD835] hover:border-[#FDD835] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+          className="w-full flex items-center justify-center gap-2 sm:gap-3 bg-[#FEE500] border-2 border-[#FEE500] text-[#000000] py-2.5 sm:py-3 px-4 sm:px-6 rounded-2xl font-medium hover:bg-[#FDD835] hover:border-[#FDD835] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
         >
           <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none">
             <path
@@ -150,37 +151,37 @@ export function LoginForm({ onSwitchToSignup, onLoginSuccess }: LoginFormProps) 
       {/* 구분선 */}
       <div className="relative my-4 sm:my-6">
         <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-wine-200"></div>
+          <div className="w-full border-t border-hairline"></div>
         </div>
         <div className="relative flex justify-center text-xs sm:text-sm">
-          <span className="px-2 bg-white text-wine-600">또는</span>
+          <span className="px-2 bg-white text-mute">또는</span>
         </div>
       </div>
 
       {/* 이메일/비밀번호 로그인 (아래쪽) */}
       <div>
-        <label className="block text-xs sm:text-sm font-bold text-wine-700 mb-1 sm:mb-2">
+        <label className="block text-xs sm:text-sm font-bold text-body mb-1 sm:mb-2">
           이메일
         </label>
         <input
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-wine-200 rounded-lg text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300"
+          className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-hairline rounded-2xl text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-focus-outer focus:border-transparent transition-all duration-300"
           placeholder="이메일을 입력하세요"
           required
         />
       </div>
 
       <div>
-        <label className="block text-xs sm:text-sm font-bold text-wine-700 mb-1 sm:mb-2">
+        <label className="block text-xs sm:text-sm font-bold text-body mb-1 sm:mb-2">
           비밀번호
         </label>
         <input
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-wine-200 rounded-lg text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300"
+          className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-hairline rounded-2xl text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-focus-outer focus:border-transparent transition-all duration-300"
           placeholder="비밀번호를 입력하세요"
           required
         />
@@ -190,7 +191,7 @@ export function LoginForm({ onSwitchToSignup, onLoginSuccess }: LoginFormProps) 
         <button
           type="submit"
           disabled={loading}
-          className="flex-1 bg-wine-600 hover:bg-wine-700 text-white border-2 border-wine-700 py-2 sm:py-3 px-3 sm:px-4 rounded-lg font-bold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+          className="flex-1 bg-primary hover:bg-primary-pressed text-white border-2 border-primary-pressed py-2 sm:py-3 px-3 sm:px-4 rounded-2xl font-bold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
         >
           {loading ? '로그인 중...' : '로그인'}
         </button>
@@ -198,11 +199,11 @@ export function LoginForm({ onSwitchToSignup, onLoginSuccess }: LoginFormProps) 
         <button
           type="button"
           onClick={onSwitchToSignup}
-          className="px-4 sm:px-6 py-2 sm:py-3 border-2 border-wine-300 text-wine-600 bg-white rounded-lg font-medium hover:bg-ivory-50 transition-colors text-sm sm:text-base"
+          className="px-4 sm:px-6 py-2 sm:py-3 border-2 border-stone text-mute bg-white rounded-2xl font-medium hover:bg-canvas transition-colors text-sm sm:text-base"
         >
           회원가입
         </button>
       </div>
     </form>
   );
-} 
+}

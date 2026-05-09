@@ -2,11 +2,13 @@ import { useState, useEffect } from "react";
 import { supabase } from "~/lib/supabase";
 import { useNavigate, useOutletContext } from "@remix-run/react";
 import { SignupForm } from "~/components/SignupForm";
+import { signOutAndClearSession } from "~/lib/authClient";
 
 export default function OtherPage() {
   // root.tsx에서 관리하는 인증 상태를 사용
-  const outletContext = useOutletContext<{ user: any; userRole: string | null }>();
+  const outletContext = useOutletContext<{ user: any; userRole: string | null; userProfile?: { name: string; church_group: string } | null }>();
   const contextUser = outletContext?.user || null;
+  const contextProfile = outletContext?.userProfile || null;
 
   const [user, setUser] = useState<any>(contextUser);
   const [userData, setUserData] = useState<any>(null);
@@ -22,6 +24,11 @@ export default function OtherPage() {
   const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState(false);
   const [mounted, setMounted] = useState(false);
   const navigate = useNavigate();
+  const displayName = userData?.name?.trim()
+    || contextProfile?.name?.trim()
+    || user?.user_metadata?.name
+    || user?.email?.split('@')[0]
+    || '';
 
   // 클라이언트 마운트 확인
   useEffect(() => {
@@ -159,6 +166,7 @@ export default function OtherPage() {
         provider: 'kakao',
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
+          scopes: 'profile_nickname profile_image account_email',
         },
       });
 
@@ -173,16 +181,12 @@ export default function OtherPage() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     try {
-      const keysToRemove = Object.keys(localStorage).filter(key =>
-        key.includes('supabase') || key.includes('theway-cafe-auth') || key.includes('sb-')
-      );
-      keysToRemove.forEach(key => localStorage.removeItem(key));
-      localStorage.removeItem('theway-cafe-auth-token');
-    } catch (e) {}
-    try { sessionStorage.clear(); } catch (e) {}
-    window.location.replace('/');
+      await signOutAndClearSession();
+    } finally {
+      window.location.replace("/");
+    }
   };
 
   const handleForgotPassword = async (e: React.FormEvent) => {
@@ -211,40 +215,35 @@ export default function OtherPage() {
 
   if (user) {
     return (
-      <div className="min-h-screen bg-ivory-50 pb-20">
+      <div className="min-h-screen bg-canvas pb-20">
         <div className="max-w-md mx-auto px-4 py-8">
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h1 className="text-2xl font-bold text-wine-800 mb-6 text-center">기타</h1>
+          <div className="bg-white rounded-2xl  p-6">
+            <h1 className="text-2xl font-bold text-ink mb-6 text-center">기타</h1>
 
             <div className="space-y-4">
               <div className="text-center">
-                <p className="text-gray-600 mb-2">현재 로그인된 사용자</p>
-                <p className="font-semibold text-wine-800">{user.email}</p>
+                <p className="text-mute mb-2">현재 로그인된 사용자</p>
+                <p className="font-semibold text-ink">{displayName}</p>
+                {user.email && <p className="mt-1 text-xs text-mute">{user.email}</p>}
               </div>
 
               <button
                 onClick={() => navigate("/mypage")}
-                className="w-full bg-wine-600 text-white py-3 px-4 rounded-lg font-bold hover:bg-wine-700 transition-colors"
+                className="w-full bg-primary text-white py-3 px-4 rounded-2xl font-bold hover:bg-primary-pressed transition-colors"
               >
                 마이페이지
               </button>
               {userData?.role === 'admin' && (
                 <>
                   <button
-                    onClick={() => navigate("/admin/orders")}
-                    className="w-full bg-wine-600 text-white py-3 px-4 rounded-lg font-bold hover:bg-wine-700 transition-colors"
-                  >
-                    주문 관리
-                  </button>
-                  <button
-                    onClick={() => navigate("/admin/menus")}
-                    className="w-full bg-green-600 text-white py-3 px-4 rounded-lg font-bold hover:bg-green-700 transition-colors"
+                    onClick={() => navigate("/menus")}
+                    className="w-full bg-green-600 text-white py-3 px-4 rounded-2xl font-bold hover:bg-green-700 transition-colors"
                   >
                     메뉴 수정
                   </button>
                   <button
                     onClick={() => navigate("/admin/news")}
-                    className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-bold hover:bg-blue-700 transition-colors"
+                    className="w-full bg-blue-600 text-white py-3 px-4 rounded-2xl font-bold hover:bg-blue-700 transition-colors"
                   >
                     교회소식 관리
                   </button>
@@ -252,7 +251,7 @@ export default function OtherPage() {
               )}
               <button
                 onClick={handleLogout}
-                className="w-full bg-gray-500 text-white py-3 px-4 rounded-lg font-bold hover:bg-gray-600 transition-colors"
+                className="w-full bg-secondary-bg text-white py-3 px-4 rounded-2xl font-bold hover:bg-secondary-pressed transition-colors"
               >
                 로그아웃
               </button>
@@ -265,10 +264,10 @@ export default function OtherPage() {
 
   if (showSignup) {
     return (
-      <div className="min-h-screen bg-ivory-50 pb-20">
+      <div className="min-h-screen bg-canvas pb-20">
         <div className="max-w-md mx-auto px-4 py-8">
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h1 className="text-2xl font-bold text-wine-800 mb-6 text-center">회원가입</h1>
+          <div className="bg-white rounded-2xl  p-6">
+            <h1 className="text-2xl font-bold text-ink mb-6 text-center">회원가입</h1>
             <SignupForm onSwitchToLogin={() => setShowSignup(false)} />
           </div>
         </div>
@@ -278,10 +277,10 @@ export default function OtherPage() {
 
   if (showForgotPassword) {
     return (
-      <div className="min-h-screen bg-ivory-50 pb-20">
+      <div className="min-h-screen bg-canvas pb-20">
         <div className="max-w-md mx-auto px-4 py-8">
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h1 className="text-2xl font-bold text-wine-800 mb-6 text-center">비밀번호 찾기</h1>
+          <div className="bg-white rounded-2xl  p-6">
+            <h1 className="text-2xl font-bold text-ink mb-6 text-center">비밀번호 찾기</h1>
 
             {forgotPasswordSuccess ? (
               <div className="text-center">
@@ -291,7 +290,7 @@ export default function OtherPage() {
                   </svg>
                   <p className="text-lg font-semibold">이메일이 전송되었습니다!</p>
                 </div>
-                <p className="text-gray-600 mb-4">
+                <p className="text-mute mb-4">
                   입력하신 이메일 주소로 비밀번호 재설정 링크를 보냈습니다.
                   이메일을 확인하여 비밀번호를 재설정해주세요.
                 </p>
@@ -300,7 +299,7 @@ export default function OtherPage() {
                     setShowForgotPassword(false);
                     setForgotPasswordSuccess(false);
                   }}
-                  className="w-full bg-wine-600 text-white py-3 px-4 rounded-lg font-bold hover:bg-wine-700 transition-colors"
+                  className="w-full bg-primary text-white py-3 px-4 rounded-2xl font-bold hover:bg-primary-pressed transition-colors"
                 >
                   로그인으로 돌아가기
                 </button>
@@ -308,7 +307,7 @@ export default function OtherPage() {
             ) : (
               <form onSubmit={handleForgotPassword} className="space-y-4">
                 <div>
-                  <label htmlFor="forgotPasswordEmail" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="forgotPasswordEmail" className="block text-sm font-medium text-body mb-2">
                     이메일 주소
                   </label>
                   <input
@@ -317,7 +316,7 @@ export default function OtherPage() {
                     value={forgotPasswordEmail}
                     onChange={(e) => setForgotPasswordEmail(e.target.value)}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-hairline rounded-2xl focus:outline-none focus:ring-2 focus:ring-focus-outer focus:border-transparent"
                     placeholder="가입한 이메일 주소를 입력하세요"
                   />
                 </div>
@@ -329,7 +328,7 @@ export default function OtherPage() {
                 <button
                   type="submit"
                   disabled={forgotPasswordLoading}
-                  className="w-full bg-wine-600 text-white py-3 px-4 rounded-lg font-bold hover:bg-wine-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-primary text-white py-3 px-4 rounded-2xl font-bold hover:bg-primary-pressed transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {forgotPasswordLoading ? "전송 중..." : "비밀번호 재설정 이메일 보내기"}
                 </button>
@@ -337,7 +336,7 @@ export default function OtherPage() {
                 <button
                   type="button"
                   onClick={() => setShowForgotPassword(false)}
-                  className="w-full text-wine-600 hover:text-wine-700 text-sm font-medium"
+                  className="w-full text-mute hover:text-body text-sm font-medium"
                 >
                   ← 로그인으로 돌아가기
                 </button>
@@ -350,13 +349,13 @@ export default function OtherPage() {
   }
 
   return (
-    <div className="min-h-screen bg-ivory-50 pb-20">
+    <div className="min-h-screen bg-canvas pb-20">
       <div className="max-w-md mx-auto px-4 py-8">
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h1 className="text-2xl font-bold text-wine-800 mb-6 text-center">로그인</h1>
+        <div className="bg-white rounded-2xl  p-6">
+          <h1 className="text-2xl font-bold text-ink mb-6 text-center">로그인</h1>
 
           {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-2xl mb-4 text-sm">
               {error}
             </div>
           )}
@@ -368,7 +367,7 @@ export default function OtherPage() {
               type="button"
               onClick={handleGoogleLogin}
               disabled={loading}
-              className="w-full flex items-center justify-center gap-3 bg-white border-2 border-wine-200 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-ivory-50 hover:border-wine-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex items-center justify-center gap-3 bg-white border-2 border-hairline text-body py-3 px-4 rounded-2xl font-medium hover:bg-canvas hover:border-ash transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg className="w-6 h-6" viewBox="0 0 24 24">
                 <path
@@ -396,7 +395,7 @@ export default function OtherPage() {
               type="button"
               onClick={handleKakaoLogin}
               disabled={loading}
-              className="w-full flex items-center justify-center gap-3 bg-[#FEE500] border-2 border-[#FEE500] text-[#000000] py-3 px-4 rounded-lg font-medium hover:bg-[#FDD835] hover:border-[#FDD835] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex items-center justify-center gap-3 bg-[#FEE500] border-2 border-[#FEE500] text-[#000000] py-3 px-4 rounded-2xl font-medium hover:bg-[#FDD835] hover:border-[#FDD835] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
                 <path
@@ -411,17 +410,17 @@ export default function OtherPage() {
           {/* 구분선 */}
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-wine-200"></div>
+              <div className="w-full border-t border-hairline"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-wine-600">또는</span>
+              <span className="px-2 bg-white text-mute">또는</span>
             </div>
           </div>
 
           {/* 이메일/비밀번호 로그인 */}
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="email" className="block text-sm font-medium text-body mb-2">
                 이메일
               </label>
               <input
@@ -430,13 +429,13 @@ export default function OtherPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-hairline rounded-2xl focus:outline-none focus:ring-2 focus:ring-focus-outer focus:border-transparent"
                 placeholder="이메일을 입력하세요"
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="password" className="block text-sm font-medium text-body mb-2">
                 비밀번호
               </label>
               <input
@@ -445,7 +444,7 @@ export default function OtherPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-hairline rounded-2xl focus:outline-none focus:ring-2 focus:ring-focus-outer focus:border-transparent"
                 placeholder="비밀번호를 입력하세요"
               />
             </div>
@@ -453,7 +452,7 @@ export default function OtherPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-wine-600 text-white py-3 px-4 rounded-lg font-bold hover:bg-wine-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-primary text-white py-3 px-4 rounded-2xl font-bold hover:bg-primary-pressed transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? "로그인 중..." : "로그인"}
             </button>
@@ -462,16 +461,16 @@ export default function OtherPage() {
           <div className="mt-6 space-y-3">
             <button
               onClick={() => setShowForgotPassword(true)}
-              className="w-full text-wine-600 hover:text-wine-700 text-sm font-medium"
+              className="w-full text-mute hover:text-body text-sm font-medium"
             >
               비밀번호를 잊으셨나요?
             </button>
 
             <div className="text-center">
-              <span className="text-gray-500 text-sm">계정이 없으신가요? </span>
+              <span className="text-mute text-sm">계정이 없으신가요? </span>
               <button
                 onClick={() => setShowSignup(true)}
-                className="text-wine-600 hover:text-wine-700 text-sm font-medium"
+                className="text-mute hover:text-body text-sm font-medium"
               >
                 회원가입
               </button>

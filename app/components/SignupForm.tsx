@@ -214,6 +214,7 @@ export function SignupForm({ onSwitchToLogin }: SignupFormProps) {
         provider: 'kakao',
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
+          scopes: 'profile_nickname profile_image account_email',
         },
       });
 
@@ -231,10 +232,10 @@ export function SignupForm({ onSwitchToLogin }: SignupFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-3 sm:px-4 py-2 sm:py-3 rounded-lg text-xs sm:text-sm">{error}</div>
+        <div className="bg-red-100 border border-red-400 text-red-700 px-3 sm:px-4 py-2 sm:py-3 rounded-2xl text-xs sm:text-sm">{error}</div>
       )}
       {success && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-3 sm:px-4 py-2 sm:py-3 rounded-lg text-xs sm:text-sm">{success}</div>
+        <div className="bg-green-100 border border-green-400 text-green-700 px-3 sm:px-4 py-2 sm:py-3 rounded-2xl text-xs sm:text-sm">{success}</div>
       )}
 
       {/* 소셜 회원가입 버튼 (위쪽) */}
@@ -244,7 +245,7 @@ export function SignupForm({ onSwitchToLogin }: SignupFormProps) {
           type="button"
           onClick={handleGoogleSignup}
           disabled={loading}
-          className="w-full flex items-center justify-center gap-2 sm:gap-3 bg-white border-2 border-wine-200 text-gray-700 py-2.5 sm:py-3 px-4 sm:px-6 rounded-lg font-medium hover:bg-ivory-50 hover:border-wine-400 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+          className="w-full flex items-center justify-center gap-2 sm:gap-3 bg-white border-2 border-hairline text-body py-2.5 sm:py-3 px-4 sm:px-6 rounded-2xl font-medium hover:bg-canvas hover:border-ash transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
         >
           <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24">
             <path
@@ -272,7 +273,7 @@ export function SignupForm({ onSwitchToLogin }: SignupFormProps) {
           type="button"
           onClick={handleKakaoSignup}
           disabled={loading}
-          className="w-full flex items-center justify-center gap-2 sm:gap-3 bg-[#FEE500] border-2 border-[#FEE500] text-[#000000] py-2.5 sm:py-3 px-4 sm:px-6 rounded-lg font-medium hover:bg-[#FDD835] hover:border-[#FDD835] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+          className="w-full flex items-center justify-center gap-2 sm:gap-3 bg-[#FEE500] border-2 border-[#FEE500] text-[#000000] py-2.5 sm:py-3 px-4 sm:px-6 rounded-2xl font-medium hover:bg-[#FDD835] hover:border-[#FDD835] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
         >
           <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none">
             <path
@@ -287,33 +288,33 @@ export function SignupForm({ onSwitchToLogin }: SignupFormProps) {
       {/* 구분선 */}
       <div className="relative my-4 sm:my-6">
         <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-wine-200"></div>
+          <div className="w-full border-t border-hairline"></div>
         </div>
         <div className="relative flex justify-center text-xs sm:text-sm">
-          <span className="px-2 bg-white text-wine-600">또는</span>
+          <span className="px-2 bg-white text-mute">또는</span>
         </div>
       </div>
 
       {/* 이메일/비밀번호 회원가입 (아래쪽) */}
       <div>
-        <label className="block text-xs sm:text-sm font-bold text-wine-700 mb-1 sm:mb-2">이메일</label>
-        <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-wine-200 rounded-lg text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300" placeholder="이메일을 입력하세요" required />
+        <label className="block text-xs sm:text-sm font-bold text-body mb-1 sm:mb-2">이메일</label>
+        <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-hairline rounded-2xl text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-focus-outer focus:border-transparent transition-all duration-300" placeholder="이메일을 입력하세요" required />
       </div>
       <div>
-        <label className="block text-xs sm:text-sm font-bold text-wine-700 mb-1 sm:mb-2">이름</label>
-        <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-wine-200 rounded-lg text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300" placeholder="이름을 입력하세요" required />
+        <label className="block text-xs sm:text-sm font-bold text-body mb-1 sm:mb-2">이름</label>
+        <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-hairline rounded-2xl text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-focus-outer focus:border-transparent transition-all duration-300" placeholder="이름을 입력하세요" required />
       </div>
       <div>
-        <label className="block text-xs sm:text-sm font-bold text-wine-700 mb-1 sm:mb-2">비밀번호</label>
-        <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-wine-200 rounded-lg text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300" placeholder="비밀번호를 입력하세요" required />
+        <label className="block text-xs sm:text-sm font-bold text-body mb-1 sm:mb-2">비밀번호</label>
+        <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-hairline rounded-2xl text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-focus-outer focus:border-transparent transition-all duration-300" placeholder="비밀번호를 입력하세요" required />
       </div>
       <div>
-        <label className="block text-xs sm:text-sm font-bold text-wine-700 mb-1 sm:mb-2">비밀번호 확인</label>
-        <input type="password" value={passwordConfirm} onChange={e => setPasswordConfirm(e.target.value)} className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-wine-200 rounded-lg text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300" placeholder="비밀번호를 다시 입력하세요" required />
+        <label className="block text-xs sm:text-sm font-bold text-body mb-1 sm:mb-2">비밀번호 확인</label>
+        <input type="password" value={passwordConfirm} onChange={e => setPasswordConfirm(e.target.value)} className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-hairline rounded-2xl text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-focus-outer focus:border-transparent transition-all duration-300" placeholder="비밀번호를 다시 입력하세요" required />
       </div>
       <div>
-        <label className="block text-xs sm:text-sm font-bold text-wine-700 mb-1 sm:mb-2">소속 목장</label>
-        <input type="text" value={churchGroup} onChange={e => setChurchGroup(e.target.value)} className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-wine-200 rounded-lg text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300" placeholder="소속 목장명을 입력하세요" required />
+        <label className="block text-xs sm:text-sm font-bold text-body mb-1 sm:mb-2">소속 목장</label>
+        <input type="text" value={churchGroup} onChange={e => setChurchGroup(e.target.value)} className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-hairline rounded-2xl text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-focus-outer focus:border-transparent transition-all duration-300" placeholder="소속 목장명을 입력하세요" required />
       </div>
       <div className="mb-4 sm:mb-6">
         <label className="block font-bold mb-2 text-sm sm:text-base">약관 동의</label>
@@ -324,49 +325,49 @@ export function SignupForm({ onSwitchToLogin }: SignupFormProps) {
               checked={allRequiredAgreed}
               onChange={e => handleAllRequired(e.target.checked)}
             />
-            <span className="ml-2 text-wine-800 font-bold text-sm sm:text-base cursor-pointer">전체 동의 (필수)</span>
+            <span className="ml-2 text-ink font-bold text-sm sm:text-base cursor-pointer">전체 동의 (필수)</span>
           </label>
           <label className="flex items-center">
             <input type="checkbox" checked={terms.service} onChange={e => setTerms(t => ({...t, service: e.target.checked}))} required />
-            <span className="ml-2 text-wine-700 font-medium text-xs sm:text-base cursor-pointer underline" onClick={() => setModal({type: 'service'})}>[필수] 서비스 이용약관 동의</span>
+            <span className="ml-2 text-body font-medium text-xs sm:text-base cursor-pointer underline" onClick={() => setModal({type: 'service'})}>[필수] 서비스 이용약관 동의</span>
           </label>
           <label className="flex items-center">
             <input type="checkbox" checked={terms.privacy} onChange={e => setTerms(t => ({...t, privacy: e.target.checked}))} required />
-            <span className="ml-2 text-wine-700 font-medium text-xs sm:text-base cursor-pointer underline" onClick={() => setModal({type: 'privacy'})}>[필수] 개인정보 수집 및 이용 동의</span>
+            <span className="ml-2 text-body font-medium text-xs sm:text-base cursor-pointer underline" onClick={() => setModal({type: 'privacy'})}>[필수] 개인정보 수집 및 이용 동의</span>
           </label>
           <label className="flex items-center">
             <input type="checkbox" checked={terms.location} onChange={e => setTerms(t => ({...t, location: e.target.checked}))} required />
-            <span className="ml-2 text-wine-700 font-medium text-xs sm:text-base cursor-pointer underline" onClick={() => setModal({type: 'location'})}>[필수] 위치정보 이용약관 동의</span>
+            <span className="ml-2 text-body font-medium text-xs sm:text-base cursor-pointer underline" onClick={() => setModal({type: 'location'})}>[필수] 위치정보 이용약관 동의</span>
           </label>
           <label className="flex items-center">
             <input type="checkbox" checked={terms.promo} onChange={e => setTerms(t => ({...t, promo: e.target.checked}))} />
-            <span className="ml-2 text-wine-700 font-medium text-xs sm:text-base cursor-pointer underline" onClick={() => setModal({type: 'promo'})}>[선택] 프로모션 정보 수신 동의</span>
+            <span className="ml-2 text-body font-medium text-xs sm:text-base cursor-pointer underline" onClick={() => setModal({type: 'promo'})}>[선택] 프로모션 정보 수신 동의</span>
           </label>
         </div>
       </div>
       {modal.type && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4" onClick={() => setModal({type: null})}>
-          <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-8 shadow-large w-full max-w-sm sm:max-w-lg max-h-[80vh] overflow-y-auto animate-scale-in relative" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl sm:rounded-2xl p-4 sm:p-8 shadow-large w-full max-w-sm sm:max-w-lg max-h-[80vh] overflow-y-auto animate-scale-in relative" onClick={e => e.stopPropagation()}>
             <button
-              className="absolute top-3 right-3 sm:top-4 sm:right-4 text-gray-400 hover:text-gray-700 text-xl sm:text-2xl font-bold"
+              className="absolute top-3 right-3 sm:top-4 sm:right-4 text-ash hover:text-body text-xl sm:text-2xl font-bold"
               onClick={() => setModal({type: null})}
               aria-label="닫기"
             >
               ×
             </button>
-            <h2 className="text-lg sm:text-xl font-black text-wine-800 mb-3 sm:mb-4 text-center">{modal.type === 'service' ? '서비스 이용약관' : modal.type === 'privacy' ? '개인정보 수집 및 이용 동의' : modal.type === 'location' ? '위치정보 이용약관' : '프로모션 정보 수신 동의'}</h2>
-            <pre className="whitespace-pre-wrap text-wine-700 text-xs sm:text-base leading-relaxed">{TERMS_CONTENT[modal.type]}</pre>
+            <h2 className="text-lg sm:text-xl font-black text-ink mb-3 sm:mb-4 text-center">{modal.type === 'service' ? '서비스 이용약관' : modal.type === 'privacy' ? '개인정보 수집 및 이용 동의' : modal.type === 'location' ? '위치정보 이용약관' : '프로모션 정보 수신 동의'}</h2>
+            <pre className="whitespace-pre-wrap text-body text-xs sm:text-base leading-relaxed">{TERMS_CONTENT[modal.type]}</pre>
           </div>
         </div>
       )}
       <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-        <button type="submit" disabled={loading} className="flex-1 bg-wine-600 hover:bg-wine-700 text-white border-2 border-wine-700 py-2 sm:py-3 px-3 sm:px-4 rounded-lg font-bold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base">
+        <button type="submit" disabled={loading} className="flex-1 bg-primary hover:bg-primary-pressed text-white border-2 border-primary-pressed py-2 sm:py-3 px-3 sm:px-4 rounded-2xl font-bold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base">
           {loading ? '회원가입 중...' : '회원가입'}
         </button>
-        <button type="button" onClick={onSwitchToLogin} className="px-4 sm:px-6 py-2 sm:py-3 border-2 border-wine-300 text-wine-600 bg-white rounded-lg font-medium hover:bg-ivory-50 transition-colors text-sm sm:text-base">
+        <button type="button" onClick={onSwitchToLogin} className="px-4 sm:px-6 py-2 sm:py-3 border-2 border-stone text-mute bg-white rounded-2xl font-medium hover:bg-canvas transition-colors text-sm sm:text-base">
           취소
         </button>
       </div>
     </form>
   );
-} 
+}

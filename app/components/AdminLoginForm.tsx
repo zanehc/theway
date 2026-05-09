@@ -43,40 +43,40 @@ export function AdminLoginForm() {
   return (
     <form onSubmit={handleLogin} className="space-y-4">
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-2xl">
           {error}
         </div>
       )}
       
       {success && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg">
+        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-2xl">
           {success}
         </div>
       )}
       
       <div>
-        <label className="block text-sm font-bold text-wine-700 mb-2">
+        <label className="block text-sm font-bold text-body mb-2">
           이메일
         </label>
         <input
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300"
+          className="w-full px-4 py-3 border border-hairline rounded-2xl text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-focus-outer focus:border-transparent transition-all duration-300"
           placeholder="admin@naver.com"
           required
         />
       </div>
 
       <div>
-        <label className="block text-sm font-bold text-wine-700 mb-2">
+        <label className="block text-sm font-bold text-body mb-2">
           비밀번호
         </label>
         <input
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300"
+          className="w-full px-4 py-3 border border-hairline rounded-2xl text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-focus-outer focus:border-transparent transition-all duration-300"
           placeholder="비밀번호를 입력하세요"
           required
         />
@@ -85,12 +85,12 @@ export function AdminLoginForm() {
       <button
         type="submit"
         disabled={loading}
-        className="w-full bg-gradient-wine text-black py-3 px-4 rounded-lg font-bold hover:shadow-wine transition-all duration-300 shadow-medium disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full bg-primary text-white py-3 px-4 rounded-2xl font-bold  transition-all duration-300  disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {loading ? '로그인 중...' : '관리자 로그인'}
       </button>
 
-      <div className="text-center text-sm text-wine-500 bg-wine-50 p-3 rounded-lg">
+      <div className="text-center text-sm text-mute bg-surface-soft p-3 rounded-2xl">
         <p className="font-bold mb-1">기본 관리자 계정</p>
         <p>이메일: admin@naver.com</p>
         <p>비밀번호: adminadmin</p>

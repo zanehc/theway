@@ -15,13 +15,19 @@ import Header from "./components/Header";
 import { NotificationProvider } from "./contexts/NotificationContext";
 import { GlobalToast } from "./components/GlobalToast";
 import { supabase } from "./lib/supabase";
+import ChurchGroupModal from "./components/ChurchGroupModal";
+
+type UserProfile = {
+  name: string;
+  church_group: string;
+};
 
 export const links: LinksFunction = () => [
   { rel: "stylesheet", href: tailwindHref },
   // Preconnect for Google Fonts
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
   { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-  // Google Fonts - Noto Sans KR (한국어) + Inter (영문) with display=swap
+  // Google Fonts - Inter as Pin Sans substitute + Noto Sans KR fallback.
   { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" },
 ];
 
@@ -37,7 +43,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
     ENV: {
       SUPABASE_URL: process.env.SUPABASE_URL,
       SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY,
-      SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     },
   });
 }
@@ -45,6 +50,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
 export default function App() {
   const [user, setUser] = useState<any>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [showChurchGroupModal, setShowChurchGroupModal] = useState(false);
   const [isClient, setIsClient] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
 
@@ -65,37 +72,72 @@ export default function App() {
   useEffect(() => {
     setIsClient(true);
 
+    const normalizeProfile = (data: any): UserProfile => ({
+      name: typeof data?.name === 'string' ? data.name : '',
+      church_group: typeof data?.church_group === 'string' ? data.church_group : '',
+    });
+
+    const isProfileComplete = (profile: UserProfile | null) =>
+      Boolean(profile?.name.trim() && profile?.church_group.trim());
+
+    const loadUserProfile = async (authUser: any) => {
+      const { data, error } = await supabase
+        .from('users')
+        .select('role, name, church_group')
+        .eq('id', authUser.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error('🔐 Root - 프로필 조회 실패:', error);
+        const fallbackProfile = {
+          name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || '',
+          church_group: '',
+        };
+        setUserProfile(fallbackProfile);
+        setShowChurchGroupModal(!isProfileComplete(fallbackProfile));
+        return;
+      }
+
+      const role = typeof data?.role === 'string' ? data.role : 'customer';
+      setUserRole(role);
+      try { sessionStorage.setItem(`user_role_${authUser.id}`, role); } catch {}
+
+      const profile = normalizeProfile(data || {
+        name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || '',
+        church_group: '',
+      });
+      setUserProfile(profile);
+      setShowChurchGroupModal(!isProfileComplete(profile));
+    };
+
     const getInitialUser = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        const user = session?.user || null;
-        setUser(user);
+        const initialUser = session?.user || null;
+        setUser(initialUser);
 
-        if (user) {
+        if (initialUser) {
           // 캐시된 역할 즉시 적용 (없으면 낙관적으로 'customer')
           let cachedRole: string | null = null;
-          try {
-            cachedRole = sessionStorage.getItem(`user_role_${user.id}`);
-          } catch {}
+          try { cachedRole = sessionStorage.getItem(`user_role_${initialUser.id}`); } catch {}
           setUserRole(cachedRole || 'customer');
 
-          // ✅ 세션 확인 즉시 authChecked=true → orders.history 바로 로딩 가능
+          // 세션 확인 즉시 authChecked=true → 최근주문 바로 로딩 가능
           setAuthChecked(true);
 
-          // DB 역할 조회는 백그라운드 (admin 여부 확인용)
-          supabase.from('users').select('role').eq('id', user.id).single().then(({ data, error }) => {
-            if (!error && data?.role) {
-              setUserRole(data.role);
-              try { sessionStorage.setItem(`user_role_${user.id}`, data.role); } catch {}
-            }
-          });
+          // 역할 캐시가 있어도 프로필은 반드시 조회해야 주문 자동 입력과 초기 팝업이 동작함
+          loadUserProfile(initialUser);
         } else {
           setUserRole(null);
+          setUserProfile(null);
+          setShowChurchGroupModal(false);
           setAuthChecked(true);
         }
       } catch {
         setUser(null);
         setUserRole(null);
+        setUserProfile(null);
+        setShowChurchGroupModal(false);
         setAuthChecked(true);
       }
     };
@@ -108,22 +150,8 @@ export default function App() {
         console.log('🔐 Root - 인증 상태 변경:', event, session?.user?.email || 'null');
 
         if (event === 'SIGNED_OUT') {
-          // localStorage에 토큰이 남아있으면 탭이동/네트워크 오류로 인한 가짜 SIGNED_OUT → 무시
-          try {
-            const stored = localStorage.getItem('theway-cafe-auth-token');
-            if (stored) {
-              const parsed = JSON.parse(stored);
-              if (parsed?.access_token) return;
-            }
-          } catch {}
-
-          setUser(null);
-          setUserRole(null);
-          try {
-            Object.keys(sessionStorage).forEach(key => {
-              if (key.startsWith('user_role_')) sessionStorage.removeItem(key);
-            });
-          } catch {}
+          // SIGNED_OUT은 무시: Supabase v2는 탭전환·네트워크 오류 시 가짜 SIGNED_OUT을 발생시킴
+          // 명시적 로그아웃은 signOutAndClearSession() + window.location.replace('/') 로 처리
           return;
         }
 
@@ -133,13 +161,13 @@ export default function App() {
           return;
         }
 
-        // 로그인/세션 갱신 처리
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        // 로그인/세션 갱신/초기 세션 처리
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
           console.log('🔐 Root - 로그인/토큰 갱신 처리');
           setUser(session.user);
           setAuthChecked(true);
 
-          // 캐시 확인 → 있으면 즉시 적용하고 DB 쿼리 스킵
+          // 캐시 확인 → 있으면 역할만 즉시 적용하고, 프로필은 계속 조회
           let cachedRole: string | null = null;
           try {
             cachedRole = sessionStorage.getItem(`user_role_${session.user.id}`);
@@ -148,31 +176,14 @@ export default function App() {
           if (cachedRole) {
             console.log('🔐 Root - 캐시된 역할 즉시 적용:', cachedRole);
             setUserRole(cachedRole);
-            return;
           }
 
-          // 캐시 미스: 낙관적으로 'customer' 즉시 설정 후 DB에서 실제 역할 확인
-          setUserRole('customer');
-
-          try {
-            const { data: userData } = await supabase
-              .from('users')
-              .select('role')
-              .eq('id', session.user.id)
-              .single();
-
-            const role = (userData?.role as string) || 'customer';
-            console.log('🔐 Root - DB 역할 확인 후 업데이트:', role);
-            setUserRole(role);
-
-            try {
-              sessionStorage.setItem(`user_role_${session.user.id}`, role);
-            } catch (storageError) {
-              console.warn('🔐 Root - 세션스토리지 저장 실패 (인증 변경):', storageError);
-            }
-          } catch (error) {
-            console.error('🔐 Root - 역할 정보 실패:', error);
+          // 캐시 미스: 낙관적으로 'customer' 즉시 설정 후 DB에서 실제 역할 + 프로필 확인
+          if (!cachedRole) {
+            setUserRole('customer');
           }
+
+          loadUserProfile(session.user);
         }
       }
     );
@@ -185,7 +196,7 @@ export default function App() {
 
 
   return (
-    <html lang="ko" className="h-full bg-ivory-50" suppressHydrationWarning>
+    <html lang="ko" className="h-full bg-surface-soft" suppressHydrationWarning>
       <head suppressHydrationWarning>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -198,16 +209,28 @@ export default function App() {
           }}
         />
       </head>
-      <body className="h-full min-h-screen bg-ivory-50" suppressHydrationWarning>
+      <body className="h-full min-h-screen bg-surface-soft text-body" suppressHydrationWarning>
         <NotificationProvider userId={user?.id} userRole={userRole}>
           <div className="app-container">
             <div className="main-content pb-24">
-              <Outlet context={{ user, userRole, authChecked }} />
+              <Outlet context={{ user, userRole, userProfile, authChecked }} />
             </div>
             <div id="modal-root" />
             {isClient && <BottomNavigation user={user} />}
           </div>
           {isClient && <GlobalToast />}
+          {isClient && showChurchGroupModal && user && (
+            <ChurchGroupModal
+              userId={user.id}
+              email={user.email || ''}
+              initialName={userProfile?.name || user.user_metadata?.name || user.email?.split('@')[0] || ''}
+              initialChurchGroup={userProfile?.church_group || ''}
+              onSaved={(profile) => {
+                setUserProfile(profile);
+                setShowChurchGroupModal(false);
+              }}
+            />
+          )}
         </NotificationProvider>
         <ScrollRestoration />
         <Scripts />
@@ -220,4 +243,3 @@ export default function App() {
 export function HydrateFallback() {
   return <p>Loading...</p>;
 }
-

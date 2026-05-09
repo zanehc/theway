@@ -8,13 +8,15 @@ import { HamburgerMenu } from "./HamburgerMenu";
 import { NotificationBell } from "./NotificationBell";
 import ModalPortal from './ModalPortal';
 import { useNotifications } from '~/contexts/NotificationContext';
+import { signOutAndClearSession } from "~/lib/authClient";
 
 interface HeaderProps {
   user: any;
   userRole: string | null;
+  userProfile?: { name?: string | null } | null;
 }
 
-export default function Header({ user, userRole }: HeaderProps) {
+export default function Header({ user, userRole, userProfile }: HeaderProps) {
   // Props에서 받은 사용자 정보 사용 (중복 상태 관리 제거)
   const [showLogin, setShowLogin] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
@@ -23,6 +25,11 @@ export default function Header({ user, userRole }: HeaderProps) {
   const [loginRequiredMessage, setLoginRequiredMessage] = useState(false);
   const [orderStats, setOrderStats] = useState({ pending: 0, preparing: 0, ready: 0, completed: 0, cancelled: 0, confirmedOrders: 0 });
   const { initializeTTS } = useNotifications();
+  const displayName = userProfile?.name?.trim()
+    || user?.name
+    || user?.user_metadata?.name
+    || user?.email?.split('@')[0]
+    || '';
 
   // Props 변경 시 로그
   useEffect(() => {
@@ -74,16 +81,11 @@ export default function Header({ user, userRole }: HeaderProps) {
     };
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     try {
-      const keysToRemove = Object.keys(localStorage).filter(key =>
-        key.includes('supabase') || key.includes('theway-cafe-auth') || key.includes('sb-')
-      );
-      keysToRemove.forEach(key => localStorage.removeItem(key));
-      localStorage.removeItem('theway-cafe-auth-token');
-    } catch (e) {}
-    try { sessionStorage.clear(); } catch (e) {}
-    window.location.replace('/');
+      await signOutAndClearSession();
+      window.location.replace('/');
+    } catch (error) {}
   };
 
   const handleLoginClick = () => {
@@ -102,22 +104,22 @@ export default function Header({ user, userRole }: HeaderProps) {
 
 
   return (
-    <header className="bg-gradient-ivory shadow-soft border-b border-ivory-200/50 backdrop-blur-sm">
+    <header className="bg-canvas border-b border-hairline-soft backdrop-blur-sm">
       <div className="max-w-7xl mx-auto px-3 sm:px-8 lg:px-12">
         <div className="flex justify-between items-center py-4 sm:py-6">
           {/* 로고 & 타이틀 - 항상 표시 */}
           <Link to="/" className="flex items-center space-x-2 sm:space-x-4 group animate-fade-in">
-            <div className="w-8 h-8 sm:w-12 sm:h-12 bg-gradient-wine rounded-xl sm:rounded-2xl flex items-center justify-center shadow-wine transition-all duration-300 group-hover:scale-110 group-hover:shadow-large">
-              <svg className="w-4 h-4 sm:w-7 sm:h-7 text-ivory-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-8 h-8 sm:w-12 sm:h-12 bg-primary rounded-2xl sm:rounded-2xl flex items-center justify-center transition-all duration-300 group-hover:scale-105">
+              <svg className="w-4 h-4 sm:w-7 sm:h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
               </svg>
             </div>
             <div>
-              <h1 className="text-lg sm:text-2xl font-black text-wine-800 tracking-tight leading-tight drop-shadow-sm">
+              <h1 className="text-lg sm:text-2xl font-black text-ink tracking-tight leading-tight ">
                 길을여는교회<br />
                 <div className="flex items-center gap-2">
-                  <span className="text-wine-600">이음카페</span>
-                  <span className="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-xs px-2 py-1 rounded-full font-bold shadow-sm">
+                  <span className="text-mute">이음카페</span>
+                  <span className="bg-secondary-bg text-ink text-xs px-2 py-1 rounded-full font-bold">
                     Beta
                   </span>
                 </div>
@@ -133,8 +135,8 @@ export default function Header({ user, userRole }: HeaderProps) {
             {user ? (
               <>
                 {/* 회원명 표시 */}
-                <div className="hidden sm:block text-wine-700 font-bold text-sm sm:text-base">
-                  {user.email?.split('@')[0]}님 안녕하세요
+                <div className="hidden sm:block text-body font-bold text-sm sm:text-base">
+                  {displayName}님 안녕하세요
                 </div>
                 {/* 알림 벨 */}
                 <NotificationBell 
@@ -145,13 +147,14 @@ export default function Header({ user, userRole }: HeaderProps) {
                 <HamburgerMenu 
                   user={user} 
                   userRole={userRole ?? 'customer'} 
+                  displayName={displayName}
                   onLogout={handleLogout}
                   onMyPageClick={() => setShowMyPage(true)}
                 />
               </>
             ) : (
               <button
-                className="bg-wine-100 hover:bg-wine-200 text-wine-700 px-3 sm:px-6 py-2 sm:py-3 rounded-lg sm:rounded-xl font-bold transition-all duration-300 shadow-soft hover:shadow-medium transform hover:-translate-y-1 text-xs sm:text-sm"
+                className="bg-surface-card hover:bg-secondary-bg text-body px-3 sm:px-6 py-2 sm:py-3 rounded-2xl sm:rounded-2xl font-bold transition-all duration-300   transform hover:-translate-y-1 text-xs sm:text-sm"
                 onClick={handleLoginClick}
               >
                 로그인
@@ -171,18 +174,18 @@ export default function Header({ user, userRole }: HeaderProps) {
           />
           {/* 모달 본체 */}
           <div
-            className="fixed left-1/2 top-1/2 z-[50001] -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl p-6 shadow-2xl w-full max-w-xs sm:max-w-md"
+            className="fixed left-1/2 top-1/2 z-[50001] -translate-x-1/2 -translate-y-1/2 bg-white rounded-2xl p-6 shadow-2xl w-full max-w-xs sm:max-w-md"
             onClick={e => e.stopPropagation()}
             style={{ maxHeight: '90vh', overflowY: 'auto' }}
           >
             <button
-              className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-xl font-bold z-10"
+              className="absolute top-3 right-3 text-ash hover:text-body text-xl font-bold z-10"
               onClick={() => setShowLogin(false)}
               aria-label="닫기"
             >
               ×
             </button>
-            <h2 className="text-xl font-black text-wine-800 mb-4 text-center">로그인</h2>
+            <h2 className="text-xl font-black text-ink mb-4 text-center">로그인</h2>
             <LoginForm onSwitchToSignup={() => {
               setShowLogin(false);
               setShowSignup(true);
@@ -192,7 +195,7 @@ export default function Header({ user, userRole }: HeaderProps) {
       )}
 
       {loginSuccess && (
-        <div className="fixed top-4 sm:top-8 left-1/2 -translate-x-1/2 z-[99999] bg-green-100 border border-green-400 text-green-700 px-4 sm:px-6 py-3 sm:py-4 rounded-lg shadow-large animate-fade-in font-bold text-sm sm:text-lg">
+        <div className="fixed top-4 sm:top-8 left-1/2 -translate-x-1/2 z-[99999] bg-green-100 border border-green-400 text-green-700 px-4 sm:px-6 py-3 sm:py-4 rounded-2xl shadow-large animate-fade-in font-bold text-sm sm:text-lg">
           로그인 되었습니다
         </div>
       )}
@@ -207,18 +210,18 @@ export default function Header({ user, userRole }: HeaderProps) {
           />
           {/* 모달 본체 */}
           <div
-            className="fixed left-1/2 top-1/2 z-[50001] -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl p-6 shadow-2xl w-full max-w-xs sm:max-w-lg"
+            className="fixed left-1/2 top-1/2 z-[50001] -translate-x-1/2 -translate-y-1/2 bg-white rounded-2xl p-6 shadow-2xl w-full max-w-xs sm:max-w-lg"
             onClick={e => e.stopPropagation()}
             style={{ maxHeight: '90vh', overflowY: 'auto' }}
           >
             <button
-              className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-xl font-bold z-10"
+              className="absolute top-3 right-3 text-ash hover:text-body text-xl font-bold z-10"
               onClick={() => setShowSignup(false)}
               aria-label="닫기"
             >
               ×
             </button>
-            <h2 className="text-xl font-black text-wine-800 mb-4 text-center">회원가입</h2>
+            <h2 className="text-xl font-black text-ink mb-4 text-center">회원가입</h2>
             <SignupForm onSwitchToLogin={() => {
               setShowSignup(false);
               setShowLogin(true);
@@ -237,7 +240,7 @@ export default function Header({ user, userRole }: HeaderProps) {
       {/* 로그인 필요 메시지 */}
       {loginRequiredMessage && (
         <div
-          className="fixed top-4 left-1/2 -translate-x-1/2 z-[99999] bg-wine-600 text-ivory-50 px-6 py-4 rounded-xl shadow-2xl font-bold text-lg flex items-center gap-4 cursor-pointer animate-fade-in"
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-[99999] bg-primary text-white px-6 py-4 rounded-2xl shadow-2xl font-bold text-lg flex items-center gap-4 cursor-pointer animate-fade-in"
           onClick={() => setLoginRequiredMessage(false)}
         >
           <span>⚠️</span>

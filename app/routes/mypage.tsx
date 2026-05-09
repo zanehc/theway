@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '~/lib/supabase';
-import { getUserOrderHistory } from '~/lib/database';
+import { updateUser } from '~/lib/database';
+import { fetchOrderHistoryForCurrentUser } from '~/lib/orderHistoryClient';
 import type { UserOrderHistory } from '~/types';
 import { useNavigate, useOutletContext } from '@remix-run/react';
 import { useNotifications } from '~/contexts/NotificationContext';
+import { signOutAndClearSession } from '~/lib/authClient';
 
 interface User {
   id: string;
@@ -13,11 +15,140 @@ interface User {
   role: string;
 }
 
+const PROFILE_TIMEOUT_MS = 2200;
+const ORDER_HISTORY_TIMEOUT_MS = 3500;
+const CACHE_TTL_MS = 60_000;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+  return new Promise((resolve) => {
+    const timer = window.setTimeout(() => resolve(fallback), timeoutMs);
+
+    promise
+      .then((value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        window.clearTimeout(timer);
+        console.warn('MyPage request timed out or failed:', error);
+        resolve(fallback);
+      });
+  });
+}
+
+function buildFallbackUser(authUser: any): User {
+  return {
+    id: authUser.id,
+    email: authUser.email || '',
+    name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || '',
+    church_group: null,
+    role: 'customer',
+  };
+}
+
+const emptyOrderHistory: UserOrderHistory = {
+  orders: [],
+  total_orders: 0,
+  total_spent: 0,
+  recent_orders: [],
+};
+
+function getStoredAuthUser() {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const storedSession = window.localStorage.getItem('theway-cafe-auth-token');
+    if (!storedSession) return null;
+
+    const parsed = JSON.parse(storedSession);
+    return parsed?.user?.id ? parsed.user : null;
+  } catch (error) {
+    console.warn('MyPage stored session parse failed:', error);
+    return null;
+  }
+}
+
+function getProfileCacheKey(userId: string) {
+  return `mypage_profile_${userId}`;
+}
+
+function getOrdersCacheKey(userId: string) {
+  return `mypage_orders_${userId}`;
+}
+
+function readSessionCache<T>(key: string): T | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (!parsed?.savedAt || Date.now() - parsed.savedAt > CACHE_TTL_MS) {
+      window.sessionStorage.removeItem(key);
+      return null;
+    }
+
+    return parsed.value as T;
+  } catch (error) {
+    console.warn('MyPage cache read failed:', error);
+    return null;
+  }
+}
+
+function writeSessionCache<T>(key: string, value: T) {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.sessionStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), value }));
+  } catch (error) {
+    console.warn('MyPage cache write failed:', error);
+  }
+}
+
+async function fetchUserProfileFast(authUser: any): Promise<User | null> {
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, email, name, church_group, role')
+    .eq('id', authUser.id)
+    .maybeSingle();
+
+  if (error) {
+    console.warn('MyPage profile fetch failed:', error);
+    return null;
+  }
+
+  if (!data) return null;
+
+  return {
+    id: String(data.id || authUser.id),
+    email: String(data.email || authUser.email || ''),
+    name: String(data.name || ''),
+    church_group: typeof data.church_group === 'string' ? data.church_group : null,
+    role: String(data.role || 'customer'),
+  };
+}
+
+function toOrderHistory(orders: any[]): UserOrderHistory {
+  return {
+    orders,
+    total_orders: orders.length,
+    total_spent: orders
+      .filter((order) => order.payment_status === 'confirmed')
+      .reduce((sum, order) => sum + Number(order.total_amount || 0), 0),
+    recent_orders: orders.slice(0, 5),
+  };
+}
+
 export default function MyPage() {
   const navigate = useNavigate();
   const { addToast } = useNotifications();
-  const { user: authUser } = useOutletContext<{ user: any; userRole: string | null }>();
-  const [user, setUser] = useState<User | null>(null);
+  const { user: contextUser } = useOutletContext<{ user: any; userRole: string | null; authChecked?: boolean }>();
+  const [authUser, setAuthUser] = useState<any>(() => contextUser || getStoredAuthUser());
+  const [user, setUser] = useState<User | null>(() => {
+    const storedUser = contextUser || getStoredAuthUser();
+    return storedUser ? buildFallbackUser(storedUser) : null;
+  });
   const [name, setName] = useState('');
   const [churchGroup, setChurchGroup] = useState('');
   const [loading, setLoading] = useState(false);
@@ -33,44 +164,116 @@ export default function MyPage() {
   const [passwordSuccess, setPasswordSuccess] = useState('');
 
   useEffect(() => {
+    let isCancelled = false;
+
+    const resolveUser = async () => {
+      try {
+        if (contextUser) {
+          if (!isCancelled) {
+            setAuthUser(contextUser);
+            setUser((currentUser) => currentUser || buildFallbackUser(contextUser));
+          }
+          return;
+        }
+
+        const storedUser = getStoredAuthUser();
+        if (storedUser && !isCancelled) {
+          setAuthUser(storedUser);
+          setUser((currentUser) => currentUser || buildFallbackUser(storedUser));
+        }
+
+        const sessionResult = await withTimeout(
+          supabase.auth.getSession(),
+          PROFILE_TIMEOUT_MS,
+          { data: { session: null }, error: null }
+        );
+        if (!isCancelled) {
+          const sessionUser = sessionResult.data.session?.user || storedUser || null;
+          setAuthUser(sessionUser);
+          if (sessionUser) {
+            setUser((currentUser) => currentUser || buildFallbackUser(sessionUser));
+          }
+        }
+      } catch (error) {
+        console.error('❌ MyPage: session check failed:', error);
+        if (!isCancelled) {
+          setAuthUser(null);
+        }
+      }
+    };
+
+    resolveUser();
+    return () => {
+      isCancelled = true;
+    };
+  }, [contextUser]);
+
+  useEffect(() => {
     if (authUser) {
       fetchUserData(authUser);
+    } else {
+      setUser(null);
+      setOrderHistory(null);
     }
-  }, [authUser?.id]);
+  }, [authUser]);
 
   const fetchUserData = async (authUser: any) => {
+    const fallbackUser = buildFallbackUser(authUser);
+    setUser((currentUser) => currentUser || fallbackUser);
+    setName((currentName) => currentName || fallbackUser.name);
+
+    const cachedProfile = readSessionCache<User>(getProfileCacheKey(authUser.id));
+    if (cachedProfile) {
+      setUser({ ...cachedProfile, email: cachedProfile.email || authUser.email || '' });
+      setName(cachedProfile.name || '');
+      setChurchGroup(cachedProfile.church_group || '');
+    }
+
+    const cachedOrders = readSessionCache<UserOrderHistory>(getOrdersCacheKey(authUser.id));
+    if (cachedOrders) {
+      setOrderHistory(cachedOrders);
+    }
+
     try {
       console.log('🔄 MyPage: fetching user data for', authUser.id);
 
-      // 서버 API를 통해 service_role key로 RLS 우회하여 조회
-      const response = await fetch(`/api/get-user?userId=${authUser.id}`);
-      const result = await response.json();
+      const profilePromise = withTimeout(
+        fetchUserProfileFast(authUser),
+        PROFILE_TIMEOUT_MS,
+        null
+      );
 
-      if (result.success && result.data) {
-        const userData = result.data;
-        console.log('🔄 MyPage: user data found:', userData);
+      const orderHistoryPromise = fetchOrderHistoryForCurrentUser(authUser.id, {
+        limit: 20,
+        timeoutMs: ORDER_HISTORY_TIMEOUT_MS,
+      });
+
+      const [userData, orderResult] = await Promise.all([
+        profilePromise,
+        orderHistoryPromise,
+      ]);
+
+      if (userData) {
+        console.log('🔄 MyPage: user data found/created:', userData);
         setUser({ ...userData, email: userData.email || authUser.email });
         setName(userData.name || '');
         setChurchGroup(userData.church_group || '');
-
-        const history = await getUserOrderHistory(authUser.id);
-        setOrderHistory(history);
+        writeSessionCache(getProfileCacheKey(authUser.id), userData);
       } else {
-        // DB에 유저가 없으면 auth 세션 정보로 폴백
-        console.warn('⚠️ MyPage: DB user not found, using auth session fallback');
-        const fallbackUser: User = {
-          id: authUser.id,
-          email: authUser.email || '',
-          name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || '',
-          church_group: null,
-          role: 'customer',
-        };
         setUser(fallbackUser);
         setName(fallbackUser.name);
         setChurchGroup('');
       }
+
+      const history = toOrderHistory(orderResult.orders || []);
+      setOrderHistory(history);
+      writeSessionCache(getOrdersCacheKey(authUser.id), history);
     } catch (error) {
       console.error('❌ MyPage: Error fetching user data:', error);
+      setUser(fallbackUser);
+      setName(fallbackUser.name);
+      setChurchGroup('');
+      setOrderHistory((currentHistory) => currentHistory || emptyOrderHistory);
     }
   };
 
@@ -87,25 +290,16 @@ export default function MyPage() {
 
     setLoading(true);
     try {
-      const response = await fetch('/api/update-profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          name: name.trim(),
-          church_group: churchGroup.trim() || null,
-          email: user?.email || authUser?.email || undefined,
-          role: user?.role || 'customer',
-        }),
+      const result = await updateUser(userId, {
+        name: name.trim(),
+        church_group: churchGroup.trim() || undefined,
       });
-      const result = await response.json();
 
-      console.log('🔄 update-profile result:', result);
+      console.log('🔄 updateUser result:', result);
 
       if (result.success) {
-        console.log('✅ Update successful');
-        // DB 재조회 없이 로컬 상태만 즉시 업데이트 (Mumbai 레이턴시 방지)
-        setUser(prev => prev ? { ...prev, name: name.trim(), church_group: churchGroup.trim() || null } : prev);
+        console.log('✅ Update successful, refreshing user data');
+        if (authUser) await fetchUserData(authUser);
         addToast('정보가 성공적으로 수정되었습니다!', 'success');
       } else {
         console.error('❌ Update failed:', result.error);
@@ -119,15 +313,8 @@ export default function MyPage() {
     }
   };
 
-  const handleLogout = () => {
-    try {
-      const keysToRemove = Object.keys(localStorage).filter(key =>
-        key.includes('supabase') || key.includes('theway-cafe-auth') || key.includes('sb-')
-      );
-      keysToRemove.forEach(key => localStorage.removeItem(key));
-      localStorage.removeItem('theway-cafe-auth-token');
-    } catch (e) {}
-    try { sessionStorage.clear(); } catch (e) {}
+  const handleLogout = async () => {
+    await signOutAndClearSession();
     window.location.replace('/');
   };
 
@@ -204,43 +391,62 @@ export default function MyPage() {
       'pending': 'bg-yellow-100 text-yellow-800',
       'preparing': 'bg-blue-100 text-blue-800',
       'ready': 'bg-green-100 text-green-800',
-      'completed': 'bg-wine-100 text-wine-800',
-      'cancelled': 'bg-red-100 text-red-800',
+      'completed': 'bg-surface-card text-ink',
+      'cancelled': 'bg-red-100 text-error',
     };
-    return colorMap[status] || 'bg-gray-100 text-gray-800';
+    return colorMap[status] || 'bg-secondary-bg text-body';
   };
 
+  if (!authUser) {
+    return (
+      <div className="min-h-screen bg-surface-soft pb-20">
+        <div className="max-w-md mx-auto px-4 py-20 text-center">
+          <div className="bg-white rounded-2xl p-6 border border-hairline-soft">
+            <h1 className="text-xl font-bold text-ink mb-3">로그인이 필요합니다</h1>
+            <p className="text-mute mb-6">마이페이지는 로그인 후 이용할 수 있습니다.</p>
+            <button
+              onClick={() => navigate('/other')}
+              className="w-full bg-primary text-white px-4 py-3 rounded-2xl font-bold hover:bg-primary-pressed"
+            >
+              로그인하러 가기
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-surface-soft pb-20">
       {/* 뒤로가기 버튼 */}
-      <div className="bg-white shadow-sm border-b">
+      <div className="bg-white  border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center h-16">
             <button
               onClick={() => navigate(-1)}
-              className="flex items-center text-gray-600 hover:text-gray-900"
+              className="flex items-center text-mute hover:text-ink"
             >
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
               뒤로가기
             </button>
-            <h1 className="ml-4 text-xl font-bold text-gray-900">마이페이지</h1>
+            <h1 className="ml-4 text-xl font-bold text-ink">마이페이지</h1>
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-white rounded-lg shadow">
+        <div className="bg-white rounded-2xl shadow">
           {/* 탭 네비게이션 */}
-          <div className="border-b border-gray-200">
+          <div className="border-b border-hairline-soft">
             <nav className="-mb-px flex space-x-8 px-6">
               <button
                 onClick={() => setActiveTab('profile')}
                 className={`py-4 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'profile'
-                    ? 'border-red-800 text-red-800'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'border-primary text-error'
+                    : 'border-transparent text-mute hover:text-body hover:border-hairline'
                 }`}
               >
                 프로필
@@ -249,8 +455,8 @@ export default function MyPage() {
                 onClick={() => setActiveTab('orders')}
                 className={`py-4 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'orders'
-                    ? 'border-red-800 text-red-800'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'border-primary text-error'
+                    : 'border-transparent text-mute hover:text-body hover:border-hairline'
                 }`}
               >
                 주문 내역
@@ -259,8 +465,8 @@ export default function MyPage() {
                 onClick={() => setActiveTab('password')}
                 className={`py-4 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'password'
-                    ? 'border-red-800 text-red-800'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'border-primary text-error'
+                    : 'border-transparent text-mute hover:text-body hover:border-hairline'
                 }`}
               >
                 비밀번호 변경
@@ -272,40 +478,40 @@ export default function MyPage() {
           <div className="p-6">
             {activeTab === 'profile' && (
               <div>
-                <h2 className="text-lg font-medium text-gray-900 mb-6">프로필 정보</h2>
+                <h2 className="text-lg font-medium text-ink mb-6">프로필 정보</h2>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">이메일</label>
+                    <label className="block text-sm font-medium text-body">이메일</label>
                     <input
                       type="email"
-                      value={authUser?.email || user?.email || ''}
+                      value={user?.email || ''}
                       disabled
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 text-gray-500"
+                      className="mt-1 block w-full px-3 py-2 border border-hairline rounded-2xl  bg-surface-soft text-mute"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">이름</label>
+                    <label className="block text-sm font-medium text-body">이름</label>
                     <input
                       type="text"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-red-500 focus:border-red-500"
+                      className="mt-1 block w-full px-3 py-2 border border-hairline rounded-2xl  focus:outline-none focus:ring-focus-outer focus:border-primary"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">소속 목장</label>
+                    <label className="block text-sm font-medium text-body">소속 목장</label>
                     <input
                       type="text"
                       value={churchGroup}
                       onChange={(e) => setChurchGroup(e.target.value)}
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-red-500 focus:border-red-500"
+                      className="mt-1 block w-full px-3 py-2 border border-hairline rounded-2xl  focus:outline-none focus:ring-focus-outer focus:border-primary"
                     />
                   </div>
                   <div className="flex justify-end space-x-3">
                     <button
                       type="submit"
                       disabled={loading}
-                      className="bg-red-800 text-white px-4 py-2 rounded-md hover:bg-red-700 disabled:opacity-50"
+                      className="bg-primary text-white px-4 py-2 rounded-2xl hover:bg-primary-pressed disabled:opacity-50"
                     >
                       {loading ? '저장 중...' : '저장'}
                     </button>
@@ -316,17 +522,17 @@ export default function MyPage() {
 
             {activeTab === 'orders' && (
               <div>
-                <h2 className="text-lg font-medium text-gray-900 mb-6">주문 내역</h2>
+                <h2 className="text-lg font-medium text-ink mb-6">주문 내역</h2>
                 {orderHistory ? (
                   <div className="space-y-4">
                     {orderHistory.orders.map((order) => (
-                      <div key={order.id} className="border rounded-lg p-4">
+                      <div key={order.id} className="border rounded-2xl p-4">
                         <div className="flex justify-between items-start mb-2">
                           <div>
-                            <p className="font-medium text-gray-900">
+                            <p className="font-medium text-ink">
                               주문 #{order.id.slice(-8)}
                             </p>
-                            <p className="text-sm text-gray-500">
+                            <p className="text-sm text-mute">
                               {new Date(order.created_at).toLocaleDateString('ko-KR')}
                             </p>
                           </div>
@@ -334,12 +540,12 @@ export default function MyPage() {
                             {getStatusLabel(order.status, order.payment_status)}
                           </span>
                         </div>
-                        <div className="text-sm text-gray-600">
+                        <div className="text-sm text-mute">
                           <p>총 금액: {order.total_amount.toLocaleString()}원</p>
                                                      {order.order_items && (
                              <div className="mt-2">
                                {order.order_items.map((item, index) => (
-                                 <p key={index} className="text-gray-500">
+                                 <p key={index} className="text-mute">
                                    {item.menu?.name || '메뉴명 없음'} x {item.quantity}
                                  </p>
                                ))}
@@ -350,42 +556,42 @@ export default function MyPage() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500">주문 내역이 없습니다.</p>
+                  <p className="text-mute">주문 내역이 없습니다.</p>
                 )}
               </div>
             )}
 
             {activeTab === 'password' && (
               <div>
-                <h2 className="text-lg font-medium text-gray-900 mb-6">비밀번호 변경</h2>
+                <h2 className="text-lg font-medium text-ink mb-6">비밀번호 변경</h2>
                 <form onSubmit={handlePasswordChange} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">현재 비밀번호</label>
+                    <label className="block text-sm font-medium text-body">현재 비밀번호</label>
                     <input
                       type="password"
                       value={currentPassword}
                       onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-red-500 focus:border-red-500"
+                      className="mt-1 block w-full px-3 py-2 border border-hairline rounded-2xl  focus:outline-none focus:ring-focus-outer focus:border-primary"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">새 비밀번호</label>
+                    <label className="block text-sm font-medium text-body">새 비밀번호</label>
                     <input
                       type="password"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-red-500 focus:border-red-500"
+                      className="mt-1 block w-full px-3 py-2 border border-hairline rounded-2xl  focus:outline-none focus:ring-focus-outer focus:border-primary"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">새 비밀번호 확인</label>
+                    <label className="block text-sm font-medium text-body">새 비밀번호 확인</label>
                     <input
                       type="password"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-red-500 focus:border-red-500"
+                      className="mt-1 block w-full px-3 py-2 border border-hairline rounded-2xl  focus:outline-none focus:ring-focus-outer focus:border-primary"
                       required
                     />
                   </div>
@@ -399,7 +605,7 @@ export default function MyPage() {
                     <button
                       type="submit"
                       disabled={passwordLoading}
-                      className="bg-red-800 text-white px-4 py-2 rounded-md hover:bg-red-700 disabled:opacity-50"
+                      className="bg-primary text-white px-4 py-2 rounded-2xl hover:bg-primary-pressed disabled:opacity-50"
                     >
                       {passwordLoading ? '변경 중...' : '비밀번호 변경'}
                     </button>
@@ -414,7 +620,7 @@ export default function MyPage() {
         <div className="mt-6">
           <button
             onClick={handleLogout}
-            className="w-full bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
+            className="w-full bg-surface-dark text-white px-4 py-2 rounded-2xl hover:bg-charcoal"
           >
             로그아웃
           </button>

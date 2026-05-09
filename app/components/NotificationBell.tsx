@@ -169,7 +169,7 @@ export function NotificationBell({ userId, userRole }: NotificationBellProps) {
       {/* 알림 벨 버튼 */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-wine-500 rounded-lg"
+        className="relative p-2 text-mute hover:text-ink focus:outline-none focus:ring-2 focus:ring-focus-outer rounded-2xl"
       >
         <svg
           className="w-6 h-6"
@@ -195,14 +195,14 @@ export function NotificationBell({ userId, userRole }: NotificationBellProps) {
 
       {/* 알림 드롭다운 */}
       {isOpen && (
-        <div className="absolute right-0 z-50 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200">
+        <div className="absolute right-0 z-50 mt-2 w-80 bg-white rounded-2xl  border border-hairline-soft">
           {/* 헤더 */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900">알림</h3>
+          <div className="flex items-center justify-between p-4 border-b border-hairline-soft">
+            <h3 className="text-lg font-semibold text-ink">알림</h3>
             {unreadCount > 0 && (
               <button
                 onClick={markAllAsRead}
-                className="text-sm text-wine-600 hover:text-wine-800"
+                className="text-sm text-mute hover:text-ink"
               >
                 모두 읽음
               </button>
@@ -212,18 +212,18 @@ export function NotificationBell({ userId, userRole }: NotificationBellProps) {
           {/* 알림 목록 */}
           <div className="max-h-96 overflow-y-auto">
             {loading ? (
-              <div className="p-4 text-center text-gray-500">
+              <div className="p-4 text-center text-mute">
                 로딩 중...
               </div>
             ) : notifications.length === 0 ? (
-              <div className="p-4 text-center text-gray-500">
+              <div className="p-4 text-center text-mute">
                 새로운 알림이 없습니다
               </div>
             ) : (
               notifications.map((notification) => (
                 <div
                   key={notification.id}
-                  className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 ${
+                  className={`p-4 border-b border-hairline-soft cursor-pointer hover:bg-surface-soft ${
                     notification.status === 'unread' ? 'bg-blue-50' : ''
                   }`}
                   onClick={() => markAsRead(notification.id)}
@@ -235,12 +235,12 @@ export function NotificationBell({ userId, userRole }: NotificationBellProps) {
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm ${
                         notification.status === 'unread' 
-                          ? 'text-gray-900 font-medium' 
-                          : 'text-gray-600'
+                          ? 'text-ink font-medium' 
+                          : 'text-mute'
                       }`}>
                         {notification.message}
                       </p>
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-mute mt-1">
                         {formatTime(notification.created_at)}
                       </p>
                     </div>
@@ -255,8 +255,8 @@ export function NotificationBell({ userId, userRole }: NotificationBellProps) {
 
           {/* 푸터 */}
           {notifications.length > 0 && (
-            <div className="p-3 bg-gray-50 text-center border-t border-gray-200">
-              <button className="text-sm text-wine-600 hover:text-wine-800">
+            <div className="p-3 bg-surface-soft text-center border-t border-hairline-soft">
+              <button className="text-sm text-mute hover:text-ink">
                 모든 알림 보기
               </button>
             </div>

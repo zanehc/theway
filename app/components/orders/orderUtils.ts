@@ -4,8 +4,8 @@ export const statusOptions: { value: OrderStatus; label: string; color: string; 
   { value: 'pending', label: '대기', color: 'text-yellow-800', bgColor: 'bg-yellow-100' },
   { value: 'preparing', label: '제조중', color: 'text-blue-800', bgColor: 'bg-blue-100' },
   { value: 'ready', label: '제조완료', color: 'text-green-800', bgColor: 'bg-green-100' },
-  { value: 'completed', label: '픽업완료', color: 'text-wine-800', bgColor: 'bg-wine-100' },
-  { value: 'cancelled', label: '취소', color: 'text-red-800', bgColor: 'bg-red-100' },
+  { value: 'completed', label: '픽업완료', color: "text-ink", bgColor: "bg-surface-card" },
+  { value: 'cancelled', label: '취소', color: "text-error", bgColor: 'bg-red-100' },
 ];
 
 export const statusButtons = [
@@ -23,12 +23,12 @@ export const orderSteps = [
 
 export const getStatusColor = (status: OrderStatus) => {
   const option = statusOptions.find(opt => opt.value === status);
-  return option?.color || 'text-gray-800';
+  return option?.color || 'text-body';
 };
 
 export const getStatusBgColor = (status: OrderStatus) => {
   const option = statusOptions.find(opt => opt.value === status);
-  return option?.bgColor || 'bg-gray-100';
+  return option?.bgColor || 'bg-secondary-bg';
 };
 
 export const getStatusLabel = (status: OrderStatus, paymentStatus?: string) => {

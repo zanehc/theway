@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '~/lib/supabase';
-import { getUserOrderHistory } from '~/lib/database';
+import { updateUser, getUserByIdOrCreate } from '~/lib/database';
+import { fetchOrderHistoryForCurrentUser } from '~/lib/orderHistoryClient';
 import type { UserOrderHistory } from '~/types';
 import ModalPortal from './ModalPortal';
 import { useNotifications } from '~/contexts/NotificationContext';
+import { signOutAndClearSession } from '~/lib/authClient';
 
 interface User {
   id: string;
@@ -16,6 +18,17 @@ interface User {
 interface MyPageModalProps {
   isOpen: boolean;
   onClose: () => void;
+}
+
+function toOrderHistory(orders: any[]): UserOrderHistory {
+  return {
+    orders,
+    total_orders: orders.length,
+    total_spent: orders
+      .filter((order) => order.payment_status === 'confirmed')
+      .reduce((sum, order) => sum + Number(order.total_amount || 0), 0),
+    recent_orders: orders.slice(0, 5),
+  };
 }
 
 export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
@@ -62,22 +75,24 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (authUser) {
         console.log('🔄 MyPageModal: fetching user data for', authUser.id);
+        
+        // 사용자 정보 조회 (없으면 생성)
+        const userData = await getUserByIdOrCreate(authUser);
 
-        // 서버 API를 통해 service_role key로 RLS 우회하여 조회
-        const response = await fetch(`/api/get-user?userId=${authUser.id}`);
-        const result = await response.json();
-
-        if (result.success && result.data) {
-          const userData = result.data;
-          console.log('🔄 MyPageModal: user data found:', userData);
+        if (userData) {
+          console.log('🔄 MyPageModal: user data found/created:', userData);
           setUser(userData);
           setName(userData.name || '');
           setChurchGroup(userData.church_group || '');
-
-          const history = await getUserOrderHistory(authUser.id);
-          setOrderHistory(history);
+          
+          // 주문 내역 조회
+          const orderResult = await fetchOrderHistoryForCurrentUser(authUser.id, {
+            limit: 20,
+            timeoutMs: 3500,
+          });
+          setOrderHistory(toOrderHistory(orderResult.orders || []));
         } else {
-          console.error('❌ MyPageModal: failed to get user data');
+          console.error('❌ MyPageModal: failed to get/create user data');
         }
       }
     } catch (error) {
@@ -101,25 +116,16 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
     setProfileSuccess('');
     setProfileError('');
     try {
-      const response = await fetch('/api/update-profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user.id,
-          name: name.trim(),
-          church_group: churchGroup.trim() || null,
-          email: user.email || undefined,
-          role: user.role || 'customer',
-        }),
+      const result = await updateUser(user.id, {
+        name: name.trim(),
+        church_group: churchGroup.trim() || undefined,
       });
-      const result = await response.json();
 
-      console.log('🔄 update-profile result:', result);
+      console.log('🔄 updateUser result:', result);
 
       if (result.success) {
-        console.log('✅ Update successful');
-        // DB 재조회 없이 로컬 상태만 즉시 업데이트 (Mumbai 레이턴시 방지)
-        setUser(prev => prev ? { ...prev, name: name.trim(), church_group: churchGroup.trim() || null } : prev);
+        console.log('✅ Update successful, refreshing user data');
+        await fetchUserData();
         setProfileSuccess('정보가 성공적으로 수정되었습니다!');
         addToast('정보가 성공적으로 수정되었습니다!', 'success');
         setTimeout(() => setProfileSuccess(''), 3000);
@@ -139,17 +145,10 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
     }
   };
 
-  const handleLogout = () => {
-    try {
-      const keysToRemove = Object.keys(localStorage).filter(key =>
-        key.includes('supabase') || key.includes('theway-cafe-auth') || key.includes('sb-')
-      );
-      keysToRemove.forEach(key => localStorage.removeItem(key));
-      localStorage.removeItem('theway-cafe-auth-token');
-    } catch (e) {}
-    try { sessionStorage.clear(); } catch (e) {}
+  const handleLogout = async () => {
+    await signOutAndClearSession();
     onClose();
-    window.location.replace('/');
+    window.location.replace('/'); // 항상 첫화면으로 이동
   };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
@@ -225,10 +224,10 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
       'pending': 'bg-yellow-100 text-yellow-800',
       'preparing': 'bg-blue-100 text-blue-800',
       'ready': 'bg-green-100 text-green-800',
-      'completed': 'bg-wine-100 text-wine-800',
+      'completed': 'bg-surface-card text-ink',
       'cancelled': 'bg-red-100 text-red-800',
     };
-    return colorMap[status] || 'bg-gray-100 text-gray-800';
+    return colorMap[status] || 'bg-secondary-bg text-body';
   };
 
   if (!isOpen) return null;
@@ -237,57 +236,57 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
     <ModalPortal>
       <div className="fixed inset-0 bg-black/60 z-[99999] min-h-screen flex items-center justify-center" onClick={onClose}>
         <div
-          className="relative my-auto rounded-xl p-6 shadow-2xl w-full max-w-xs sm:max-w-md"
+          className="relative my-auto rounded-2xl p-6 shadow-2xl w-full max-w-xs sm:max-w-md"
           onClick={e => e.stopPropagation()}
           style={{ background: '#fff', zIndex: 2147483647, maxHeight: '90vh', minHeight: 'auto', overflowY: 'auto', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}
         >
           <button
-            className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-xl font-bold z-10"
+            className="absolute top-3 right-3 text-ash hover:text-body text-xl font-bold z-10"
             onClick={onClose}
             aria-label="닫기"
           >
             ×
           </button>
-          <h2 className="text-xl font-black text-wine-800 mb-4 text-center">마이페이지</h2>
+          <h2 className="text-xl font-black text-ink mb-4 text-center">마이페이지</h2>
 
           {/* 탭 네비게이션 */}
-          <div className="flex space-x-1 mb-4 sm:mb-6 bg-ivory-100 p-1 rounded-lg">
+          <div className="flex space-x-1 mb-4 sm:mb-6 bg-surface-soft p-1 rounded-2xl">
             <button
               onClick={() => setActiveTab('profile')}
-              className={`flex-1 py-2 sm:py-3 px-3 sm:px-4 rounded-lg font-bold transition-colors text-sm sm:text-base ${
+              className={`flex-1 py-2 sm:py-3 px-3 sm:px-4 rounded-2xl font-bold transition-colors text-sm sm:text-base ${
                 activeTab === 'profile'
-                  ? 'bg-white text-wine-800 shadow-sm'
-                  : 'text-wine-600 hover:text-wine-800'
+                  ? 'bg-white text-ink '
+                  : 'text-mute hover:text-ink'
               }`}
             >
               프로필
             </button>
             <button
               onClick={() => setActiveTab('password')}
-              className={`flex-1 py-2 sm:py-3 px-3 sm:px-4 rounded-lg font-bold transition-colors text-sm sm:text-base ${
+              className={`flex-1 py-2 sm:py-3 px-3 sm:px-4 rounded-2xl font-bold transition-colors text-sm sm:text-base ${
                 activeTab === 'password'
-                  ? 'bg-white text-wine-800 shadow-sm'
-                  : 'text-wine-600 hover:text-wine-800'
+                  ? 'bg-white text-ink '
+                  : 'text-mute hover:text-ink'
               }`}
             >
               비밀번호
             </button>
             <button
               onClick={() => setActiveTab('orders')}
-              className={`flex-1 py-2 sm:py-3 px-3 sm:px-4 rounded-lg font-bold transition-colors text-sm sm:text-base ${
+              className={`flex-1 py-2 sm:py-3 px-3 sm:px-4 rounded-2xl font-bold transition-colors text-sm sm:text-base ${
                 activeTab === 'orders'
-                  ? 'bg-white text-wine-800 shadow-sm'
-                  : 'text-wine-600 hover:text-wine-800'
+                  ? 'bg-white text-ink '
+                  : 'text-mute hover:text-ink'
               }`}
             >
               주문 내역
             </button>
             <button
               onClick={() => setActiveTab('notifications')}
-              className={`flex-1 py-2 sm:py-3 px-3 sm:px-4 rounded-lg font-bold transition-colors text-sm sm:text-base ${
+              className={`flex-1 py-2 sm:py-3 px-3 sm:px-4 rounded-2xl font-bold transition-colors text-sm sm:text-base ${
                 activeTab === 'notifications'
-                  ? 'bg-white text-wine-800 shadow-sm'
-                  : 'text-wine-600 hover:text-wine-800'
+                  ? 'bg-white text-ink '
+                  : 'text-mute hover:text-ink'
               }`}
             >
               알림 설정
@@ -297,62 +296,62 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
           {activeTab === 'profile' && user && (
             <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
               <div>
-                <label className="block text-xs sm:text-sm font-bold text-wine-700 mb-1 sm:mb-2">
+                <label className="block text-xs sm:text-sm font-bold text-body mb-1 sm:mb-2">
                   이메일
                 </label>
                 <input
                   type="email"
                   value={user.email}
                   disabled
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-ivory-300 rounded-lg text-sm sm:text-lg font-medium bg-white text-gray-600 cursor-not-allowed"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-hairline rounded-2xl text-sm sm:text-lg font-medium bg-white text-mute cursor-not-allowed"
                 />
               </div>
 
               <div>
-                <label className="block text-xs sm:text-sm font-bold text-wine-700 mb-1 sm:mb-2">
+                <label className="block text-xs sm:text-sm font-bold text-body mb-1 sm:mb-2">
                   이름
                 </label>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-ivory-300 rounded-lg text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-hairline rounded-2xl text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-focus-outer focus:border-transparent transition-all duration-300"
                   placeholder="이름을 입력하세요"
                 />
               </div>
 
               <div>
-                <label className="block text-xs sm:text-sm font-bold text-wine-700 mb-1 sm:mb-2">
+                <label className="block text-xs sm:text-sm font-bold text-body mb-1 sm:mb-2">
                   목장
                 </label>
                 <input
                   type="text"
                   value={churchGroup}
                   onChange={(e) => setChurchGroup(e.target.value)}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-ivory-300 rounded-lg text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-hairline rounded-2xl text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-focus-outer focus:border-transparent transition-all duration-300"
                   placeholder="목장명을 입력하세요"
                 />
               </div>
 
               <div>
-                <label className="block text-xs sm:text-sm font-bold text-wine-700 mb-1 sm:mb-2">
+                <label className="block text-xs sm:text-sm font-bold text-body mb-1 sm:mb-2">
                   권한
                 </label>
                 <input
                   type="text"
                   value={user.role === 'admin' ? '관리자' : '일반 사용자'}
                   disabled
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-ivory-300 rounded-lg text-sm sm:text-lg font-medium bg-white text-gray-600 cursor-not-allowed"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-hairline rounded-2xl text-sm sm:text-lg font-medium bg-white text-mute cursor-not-allowed"
                 />
               </div>
 
               {profileSuccess && (
-                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                <div className="p-3 bg-green-50 border border-green-200 rounded-2xl">
                   <p className="text-green-600 text-sm font-medium">{profileSuccess}</p>
                 </div>
               )}
               {profileError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                <div className="p-3 bg-red-50 border border-red-200 rounded-2xl">
                   <p className="text-red-600 text-sm font-medium">{profileError}</p>
                 </div>
               )}
@@ -361,7 +360,7 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 bg-gradient-wine text-black py-2 sm:py-3 px-3 sm:px-4 rounded-lg font-bold hover:shadow-wine transition-all duration-300 shadow-medium disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+                  className="flex-1 bg-primary text-white py-2 sm:py-3 px-3 sm:px-4 rounded-2xl font-bold  transition-all duration-300  disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
                 >
                   {loading ? '저장 중...' : '정보 수정'}
                 </button>
@@ -369,7 +368,7 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="px-4 sm:px-6 py-2 sm:py-3 border border-red-300 text-red-600 rounded-lg font-medium hover:bg-red-50 transition-colors text-sm sm:text-base"
+                  className="px-4 sm:px-6 py-2 sm:py-3 border border-red-300 text-red-600 rounded-2xl font-medium hover:bg-red-50 transition-colors text-sm sm:text-base"
                 >
                   로그아웃
                 </button>
@@ -380,42 +379,42 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
           {activeTab === 'password' && (
             <form onSubmit={handlePasswordChange} className="space-y-4 sm:space-y-6">
               <div>
-                <label className="block text-xs sm:text-sm font-bold text-wine-700 mb-1 sm:mb-2">
+                <label className="block text-xs sm:text-sm font-bold text-body mb-1 sm:mb-2">
                   현재 비밀번호
                 </label>
                 <input
                   type="password"
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-ivory-300 rounded-lg text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-hairline rounded-2xl text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-focus-outer focus:border-transparent transition-all duration-300"
                   placeholder="현재 비밀번호를 입력하세요"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs sm:text-sm font-bold text-wine-700 mb-1 sm:mb-2">
+                <label className="block text-xs sm:text-sm font-bold text-body mb-1 sm:mb-2">
                   새 비밀번호
                 </label>
                 <input
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-ivory-300 rounded-lg text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-hairline rounded-2xl text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-focus-outer focus:border-transparent transition-all duration-300"
                   placeholder="새 비밀번호를 입력하세요 (최소 6자)"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs sm:text-sm font-bold text-wine-700 mb-1 sm:mb-2">
+                <label className="block text-xs sm:text-sm font-bold text-body mb-1 sm:mb-2">
                   새 비밀번호 확인
                 </label>
                 <input
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-ivory-300 rounded-lg text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-hairline rounded-2xl text-sm sm:text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-focus-outer focus:border-transparent transition-all duration-300"
                   placeholder="새 비밀번호를 다시 입력하세요"
                   required
                 />
@@ -423,13 +422,13 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
 
               {/* 오류 및 성공 메시지 */}
               {passwordError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                <div className="p-3 bg-red-50 border border-red-200 rounded-2xl">
                   <p className="text-red-600 text-sm font-medium">{passwordError}</p>
                 </div>
               )}
 
               {passwordSuccess && (
-                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                <div className="p-3 bg-green-50 border border-green-200 rounded-2xl">
                   <p className="text-green-600 text-sm font-medium">{passwordSuccess}</p>
                 </div>
               )}
@@ -437,7 +436,7 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
               <button
                 type="submit"
                 disabled={passwordLoading}
-                className="w-full bg-gradient-wine text-black py-2 sm:py-3 px-3 sm:px-4 rounded-lg font-bold hover:shadow-wine transition-all duration-300 shadow-medium disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+                className="w-full bg-primary text-white py-2 sm:py-3 px-3 sm:px-4 rounded-2xl font-bold  transition-all duration-300  disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
               >
                 {passwordLoading ? '변경 중...' : '비밀번호 변경'}
               </button>
@@ -448,45 +447,45 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
             <div className="space-y-4 sm:space-y-6">
               {/* 주문 통계 */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
-                <div className="bg-gradient-ivory rounded-xl p-3 sm:p-4 text-center">
-                  <div className="text-lg sm:text-2xl font-black text-wine-800">{orderHistory.total_orders}</div>
-                  <div className="text-xs sm:text-sm text-wine-600 font-medium">총 주문</div>
+                <div className="bg-surface-card rounded-2xl p-3 sm:p-4 text-center">
+                  <div className="text-lg sm:text-2xl font-black text-ink">{orderHistory.total_orders}</div>
+                  <div className="text-xs sm:text-sm text-mute font-medium">총 주문</div>
                 </div>
-                <div className="bg-gradient-ivory rounded-xl p-3 sm:p-4 text-center">
-                  <div className="text-lg sm:text-2xl font-black text-wine-800">₩{orderHistory.total_spent.toLocaleString()}</div>
-                  <div className="text-xs sm:text-sm text-wine-600 font-medium">총 결제액</div>
+                <div className="bg-surface-card rounded-2xl p-3 sm:p-4 text-center">
+                  <div className="text-lg sm:text-2xl font-black text-ink">₩{orderHistory.total_spent.toLocaleString()}</div>
+                  <div className="text-xs sm:text-sm text-mute font-medium">총 결제액</div>
                 </div>
-                <div className="bg-gradient-ivory rounded-xl p-3 sm:p-4 text-center">
-                  <div className="text-lg sm:text-2xl font-black text-wine-800">
+                <div className="bg-surface-card rounded-2xl p-3 sm:p-4 text-center">
+                  <div className="text-lg sm:text-2xl font-black text-ink">
                     {orderHistory.orders.filter(o => o.payment_status === 'confirmed').length}
                   </div>
-                  <div className="text-xs sm:text-sm text-wine-600 font-medium">결제완료</div>
+                  <div className="text-xs sm:text-sm text-mute font-medium">결제완료</div>
                 </div>
               </div>
 
               {/* 주문 목록 */}
               <div>
-                <h3 className="text-lg sm:text-xl font-black text-wine-800 mb-3 sm:mb-4">주문 내역</h3>
+                <h3 className="text-lg sm:text-xl font-black text-ink mb-3 sm:mb-4">주문 내역</h3>
                 {orderHistory.orders.length > 0 ? (
                   <div className="space-y-3 sm:space-y-4 max-h-96 overflow-y-auto">
                     {orderHistory.orders.map((order) => (
-                      <div key={order.id} className="bg-ivory-50 rounded-xl p-3 sm:p-4 border border-ivory-200">
+                      <div key={order.id} className="bg-canvas rounded-2xl p-3 sm:p-4 border border-hairline-soft">
                         {/* 주문 헤더 */}
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-2 sm:gap-0">
                           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                            <span className="text-sm sm:text-lg font-bold text-wine-800">
+                            <span className="text-sm sm:text-lg font-bold text-ink">
                               {new Date(order.created_at).toLocaleDateString('ko-KR')}
                             </span>
-                            <span className="text-xs sm:text-sm text-wine-600">
+                            <span className="text-xs sm:text-sm text-mute">
                               {new Date(order.created_at).toLocaleTimeString('ko-KR', { 
                                 hour: '2-digit', 
                                 minute: '2-digit' 
                               })}
                             </span>
-                            <span className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm font-bold ${getStatusColor(order.status)}`}>
+                            <span className={`px-2 sm:px-3 py-1 rounded-2xl text-xs sm:text-sm font-bold ${getStatusColor(order.status)}`}>
                               {getStatusLabel(order.status, order.payment_status)}
                             </span>
-                            <span className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm font-bold ${
+                            <span className={`px-2 sm:px-3 py-1 rounded-2xl text-xs sm:text-sm font-bold ${
                               order.payment_status === 'confirmed' 
                                 ? 'bg-green-100 text-green-800' 
                                 : 'bg-yellow-100 text-yellow-800'
@@ -494,7 +493,7 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
                               {order.payment_status === 'confirmed' ? '결제완료' : '결제대기'}
                             </span>
                           </div>
-                          <span className="text-sm sm:text-lg font-black text-wine-800">
+                          <span className="text-sm sm:text-lg font-black text-ink">
                             ₩{order.total_amount.toLocaleString()}
                           </span>
                         </div>
@@ -503,20 +502,20 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
                         <div className="space-y-2 sm:space-y-3">
                           {/* 고객 정보 */}
                           <div className="flex items-center justify-between text-xs sm:text-sm">
-                            <span className="text-wine-700 font-medium">고객명:</span>
-                            <span className="text-wine-800 font-bold">{order.customer_name}</span>
+                            <span className="text-body font-medium">고객명:</span>
+                            <span className="text-ink font-bold">{order.customer_name}</span>
                           </div>
                           
                           {order.church_group && (
                             <div className="flex items-center justify-between text-xs sm:text-sm">
-                              <span className="text-wine-700 font-medium">목장:</span>
-                              <span className="text-wine-800 font-bold">{order.church_group}</span>
+                              <span className="text-body font-medium">목장:</span>
+                              <span className="text-ink font-bold">{order.church_group}</span>
                             </div>
                           )}
                           
                           <div className="flex items-center justify-between text-xs sm:text-sm">
-                            <span className="text-wine-700 font-medium">결제방법:</span>
-                            <span className="text-wine-800 font-bold">
+                            <span className="text-body font-medium">결제방법:</span>
+                            <span className="text-ink font-bold">
                               {order.payment_method === 'cash' ? '현금' : '계좌이체'}
                             </span>
                           </div>
@@ -524,13 +523,13 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
                         
                         {/* 주문 아이템 */}
                         <div className="mt-3 sm:mt-4 space-y-1 sm:space-y-2">
-                          <div className="text-xs sm:text-sm font-bold text-wine-700 mb-2">주문 메뉴:</div>
+                          <div className="text-xs sm:text-sm font-bold text-body mb-2">주문 메뉴:</div>
                           {order.order_items?.map((item) => (
-                            <div key={item.id} className="flex justify-between text-xs sm:text-sm bg-white p-2 rounded-lg">
-                              <span className="text-wine-700 font-medium">
+                            <div key={item.id} className="flex justify-between text-xs sm:text-sm bg-white p-2 rounded-2xl">
+                              <span className="text-body font-medium">
                                 {item.menu?.name} x {item.quantity}
                               </span>
-                              <span className="text-wine-600 font-bold">
+                              <span className="text-mute font-bold">
                                 ₩{item.total_price.toLocaleString()}
                               </span>
                             </div>
@@ -539,45 +538,45 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
 
                         {/* 요청사항 */}
                         {order.notes && (
-                          <div className="mt-3 sm:mt-4 p-2 sm:p-3 bg-wine-50 rounded-lg border border-wine-100">
-                            <div className="text-xs sm:text-sm font-bold text-wine-700 mb-1">요청사항:</div>
-                            <p className="text-xs sm:text-sm text-wine-700">{order.notes}</p>
+                          <div className="mt-3 sm:mt-4 p-2 sm:p-3 bg-surface-soft rounded-2xl border border-hairline-soft">
+                            <div className="text-xs sm:text-sm font-bold text-body mb-1">요청사항:</div>
+                            <p className="text-xs sm:text-sm text-body">{order.notes}</p>
                           </div>
                         )}
                         
                         {/* 주문 상태 타임라인 */}
-                        <div className="mt-3 sm:mt-4 pt-3 border-t border-ivory-200">
-                          <div className="text-xs sm:text-sm font-bold text-wine-700 mb-2">주문 진행상황:</div>
+                        <div className="mt-3 sm:mt-4 pt-3 border-t border-hairline-soft">
+                          <div className="text-xs sm:text-sm font-bold text-body mb-2">주문 진행상황:</div>
                           <div className="flex items-center space-x-2">
                             <div className={`w-3 h-3 rounded-full ${
                               order.status === 'pending' || order.status === 'preparing' || order.status === 'ready' || order.status === 'completed'
-                                ? 'bg-green-500' : 'bg-gray-300'
+                                ? 'bg-green-500' : 'bg-secondary-bg'
                             }`}></div>
-                            <span className="text-xs text-wine-600">주문 접수</span>
+                            <span className="text-xs text-mute">주문 접수</span>
                             
-                            <div className="flex-1 h-1 bg-gray-200 rounded"></div>
+                            <div className="flex-1 h-1 bg-secondary-bg rounded"></div>
                             
                             <div className={`w-3 h-3 rounded-full ${
                               order.status === 'preparing' || order.status === 'ready' || order.status === 'completed'
-                                ? 'bg-blue-500' : 'bg-gray-300'
+                                ? 'bg-blue-500' : 'bg-secondary-bg'
                             }`}></div>
-                            <span className="text-xs text-wine-600">제조중</span>
+                            <span className="text-xs text-mute">제조중</span>
                             
-                            <div className="flex-1 h-1 bg-gray-200 rounded"></div>
+                            <div className="flex-1 h-1 bg-secondary-bg rounded"></div>
                             
                             <div className={`w-3 h-3 rounded-full ${
                               order.status === 'ready' || order.status === 'completed'
-                                ? 'bg-green-500' : 'bg-gray-300'
+                                ? 'bg-green-500' : 'bg-secondary-bg'
                             }`}></div>
-                            <span className="text-xs text-wine-600">제조완료</span>
+                            <span className="text-xs text-mute">제조완료</span>
                             
-                            <div className="flex-1 h-1 bg-gray-200 rounded"></div>
+                            <div className="flex-1 h-1 bg-secondary-bg rounded"></div>
                             
                             <div className={`w-3 h-3 rounded-full ${
                               order.status === 'completed'
-                                ? 'bg-wine-500' : 'bg-gray-300'
+                                ? 'bg-secondary-bg' : 'bg-secondary-bg'
                             }`}></div>
-                            <span className="text-xs text-wine-600">픽업완료</span>
+                            <span className="text-xs text-mute">픽업완료</span>
                           </div>
                         </div>
                       </div>
@@ -585,7 +584,7 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
                   </div>
                 ) : (
                   <div className="text-center py-6 sm:py-8">
-                    <p className="text-wine-400 text-sm sm:text-lg">주문 내역이 없습니다.</p>
+                    <p className="text-ash text-sm sm:text-lg">주문 내역이 없습니다.</p>
                   </div>
                 )}
               </div>
@@ -595,7 +594,7 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
           {activeTab === 'notifications' && user && (
             <div className="space-y-4 sm:space-y-6">
               <div className="text-center py-6 sm:py-8">
-                <p className="text-wine-400 text-sm sm:text-lg">알림 설정이 제거되었습니다.</p>
+                <p className="text-ash text-sm sm:text-lg">알림 설정이 제거되었습니다.</p>
               </div>
             </div>
           )}

@@ -1,21 +1,14 @@
-import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
-import { json, redirect } from "@remix-run/node";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
+import { json } from "@remix-run/node";
 import { useLoaderData, useOutletContext, useNavigation } from "@remix-run/react";
 import { useState, useEffect } from "react";
-import { updateOrderStatus } from "~/lib/database";
 import { supabase } from "~/lib/supabase";
 import type { OrderStatus } from "~/types";
 import { useNotifications } from "~/contexts/NotificationContext";
 import OrderCancellationModal from "~/components/OrderCancellationModal";
 import { OrderListSkeleton } from "~/components/LoadingSkeleton";
-
-// 파이프라인 컬럼 정의
-const PIPELINE_COLUMNS = [
-  { key: 'pending', label: '대기', emoji: '🔔', headerBg: 'bg-yellow-50 border-yellow-300', badgeBg: 'bg-yellow-100 text-yellow-800' },
-  { key: 'preparing', label: '제조중', emoji: '☕', headerBg: 'bg-blue-50 border-blue-300', badgeBg: 'bg-blue-100 text-blue-800' },
-  { key: 'ready', label: '제조완료', emoji: '✅', headerBg: 'bg-green-50 border-green-300', badgeBg: 'bg-green-100 text-green-800' },
-  { key: 'completed', label: '픽업완료', emoji: '🎉', headerBg: 'bg-wine-50 border-wine-300', badgeBg: 'bg-wine-100 text-wine-800' },
-] as const;
+import OrderStatusProgress from "~/components/orders/OrderStatusProgress";
+import { statusButtons } from "~/components/orders/orderUtils";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
@@ -24,37 +17,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
   return json({ error, success });
 }
 
-export async function action({ request }: ActionFunctionArgs) {
-  const formData = await request.formData();
-  const orderId = formData.get('orderId') as string;
-  const status = formData.get('status') as OrderStatus;
-  const paymentStatus = formData.get('paymentStatus') as string;
-  const intent = formData.get('intent') as string;
-
-  if (intent === 'updateStatus' && orderId && status) {
-    try {
-      await updateOrderStatus(orderId, status);
-      return redirect('/admin/orders');
-    } catch (error) {
-      return json({ error: '상태 업데이트에 실패했습니다.' }, { status: 400 });
-    }
-  }
-
-  if (intent === 'updatePayment' && orderId && paymentStatus) {
-    try {
-      const { supabase } = await import('~/lib/supabase');
-      const { error } = await supabase
-        .from('orders')
-        .update({ payment_status: paymentStatus })
-        .eq('id', orderId);
-      if (error) throw error;
-      return redirect('/admin/orders');
-    } catch (error) {
-      return json({ error: '결제 상태 업데이트에 실패했습니다.' }, { status: 400 });
-    }
-  }
-
-  return json({ error: '잘못된 요청입니다.' }, { status: 400 });
+export async function action(_args: ActionFunctionArgs) {
+  return json({ error: '관리자 주문 변경은 /api/admin-orders를 사용해주세요.' }, { status: 405 });
 }
 
 export default function AdminOrdersPage() {
@@ -62,512 +26,441 @@ export default function AdminOrdersPage() {
   const { user } = useOutletContext<{ user: any; userRole: string | null }>();
   const navigation = useNavigation();
   const [orders, setOrders] = useState<any[]>([]);
+  const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [mounted, setMounted] = useState(false);
-  const [viewMode, setViewMode] = useState<'pipeline' | 'list'>('pipeline');
-  const [dateFilter, setDateFilter] = useState<'today' | 'week' | 'all'>('today');
   const { toasts, addToast } = useNotifications();
-
-  const [searchQuery, setSearchQuery] = useState('');
-  const [listPage, setListPage] = useState(1);
-  const LIST_PAGE_SIZE = 20;
 
   const [cancellationModal, setCancellationModal] = useState<{
     isOpen: boolean;
     order: any | null;
   }>({ isOpen: false, order: null });
 
-  useEffect(() => { setMounted(true); }, []);
-
-  const loadOrders = async (search?: string) => {
-    try {
-      const params = search ? `?search=${encodeURIComponent(search)}` : '';
-      const response = await fetch(`/api/get-orders${params}`);
-      const result = await response.json();
-      if (result.success) {
-        setOrders(result.data || []);
-      }
-    } catch {
-      setOrders([]);
-    } finally {
-      setLoading(false);
-    }
+  const getAccessToken = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token || null;
   };
 
-  useEffect(() => {
-    if (!mounted) return;
-    loadOrders();
-  }, [mounted]);
+  const fetchAdminOrders = async () => {
+    const accessToken = await getAccessToken();
+    if (!accessToken) throw new Error('로그인 세션을 확인하지 못했습니다.');
 
-  // 토스트(알림) 변경 시 주문 목록 새로고침
+    const res = await fetch('/api/admin-orders?range=all&limit=500', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || '관리자 주문 조회에 실패했습니다.');
+    }
+
+    return data.orders || [];
+  };
+
+  const requestAdminOrderUpdate = async (payload: Record<string, unknown>) => {
+    const accessToken = await getAccessToken();
+    if (!accessToken) throw new Error('로그인 세션을 확인하지 못했습니다.');
+
+    const res = await fetch('/api/admin-orders', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || '주문 업데이트에 실패했습니다.');
+    }
+    return data.order;
+  };
+
+  useEffect(() => { setMounted(true); }, []);
+
+  useEffect(() => {
+    if (!mounted || !user) return;
+
+    let isCancelled = false;
+    const loadOrders = async () => {
+      try {
+        const result = await fetchAdminOrders();
+        if (!isCancelled) {
+          setOrders(result);
+          setLoadError('');
+        }
+      } catch (err) {
+        if (!isCancelled) {
+          const message = err instanceof Error ? err.message : '관리자 주문 조회에 실패했습니다.';
+          setOrders([]);
+          setLoadError(message);
+        }
+      } finally {
+        if (!isCancelled) setLoading(false);
+      }
+    };
+
+    loadOrders();
+    return () => { isCancelled = true; };
+  }, [mounted, user]);
+
   useEffect(() => {
     if (!mounted || toasts.length === 0) return;
-    loadOrders(searchQuery || undefined);
-  }, [toasts]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // 관리자 전용: Supabase Realtime 구독 + 폴링 폴백
-  useEffect(() => {
-    if (!mounted) return;
-
-    // Realtime 구독 — orders 테이블 변경 시 즉시 새로고침
-    const channel = supabase
-      .channel('admin-orders-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders' },
-        (payload) => {
-          console.log('📦 관리자 주문 실시간 업데이트:', payload.eventType);
-          loadOrders();
-          // 새 주문 INSERT 시 알림음
-          if (payload.eventType === 'INSERT') {
-            try {
-              // 간단한 알림음 생성 (AudioContext)
-              const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-              const osc = ctx.createOscillator();
-              const gain = ctx.createGain();
-              osc.connect(gain);
-              gain.connect(ctx.destination);
-              osc.frequency.value = 800;
-              gain.gain.value = 0.3;
-              osc.start();
-              osc.stop(ctx.currentTime + 0.2);
-              setTimeout(() => {
-                const osc2 = ctx.createOscillator();
-                const gain2 = ctx.createGain();
-                osc2.connect(gain2);
-                gain2.connect(ctx.destination);
-                osc2.frequency.value = 1000;
-                gain2.gain.value = 0.3;
-                osc2.start();
-                osc2.stop(ctx.currentTime + 0.3);
-              }, 250);
-            } catch {}
-          }
-        }
-      )
-      .subscribe();
-
-    // 폴링 폴백 — 15초마다 주문 목록 갱신 (Realtime 실패 대비)
-    const pollInterval = setInterval(() => {
-      loadOrders();
-    }, 15000);
-
-    return () => {
-      supabase.removeChannel(channel);
-      clearInterval(pollInterval);
+    const refresh = async () => {
+      try {
+        const allOrders = await fetchAdminOrders();
+        setOrders(allOrders);
+        setLoadError('');
+      } catch (err) {
+        setLoadError(err instanceof Error ? err.message : '관리자 주문 조회에 실패했습니다.');
+      }
     };
-  }, [mounted]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // 검색어 디바운스
-  useEffect(() => {
-    if (!mounted) return;
-    const timer = setTimeout(() => {
-      loadOrders(searchQuery || undefined);
-      setListPage(1);
-    }, 350);
-    return () => clearTimeout(timer);
-  }, [searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
+    refresh();
+  }, [toasts]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (navigation.state === "loading" && navigation.location?.pathname && navigation.location.pathname !== "/admin/orders") {
     return <OrderListSkeleton />;
   }
 
-  const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
-    try {
-      await updateOrderStatus(orderId, newStatus);
-      addToast('주문 상태가 업데이트되었습니다.', 'success');
-      await loadOrders();
-    } catch {
-      addToast('상태 변경에 실패했습니다.', 'error');
-    }
-  };
-
-  const handlePaymentConfirm = async (order: any) => {
-    try {
-      const { error } = await supabase
-        .from('orders')
-        .update({ payment_status: 'confirmed' })
-        .eq('id', order.id);
-      if (error) throw error;
-      addToast('결제가 확인되었습니다.', 'success');
-      await loadOrders();
-    } catch {
-      addToast('결제 확인에 실패했습니다.', 'error');
-    }
-  };
-
   const handleOrderCancelClick = (order: any) => {
     setCancellationModal({ isOpen: true, order });
+  };
+
+  const handleCancellationModalClose = () => {
+    setCancellationModal({ isOpen: false, order: null });
   };
 
   const handleOrderCancelConfirm = async (reason: string) => {
     if (!cancellationModal.order) return;
     try {
-      await updateOrderStatus(cancellationModal.order.id, 'cancelled', reason);
+      await requestAdminOrderUpdate({
+        intent: 'updateStatus',
+        orderId: cancellationModal.order.id,
+        status: 'cancelled',
+        cancellationReason: reason,
+      });
       addToast(`주문이 취소되었습니다. (사유: ${reason})`, 'warning');
-      await loadOrders();
+      setOrders(await fetchAdminOrders());
     } catch (err) {
       addToast('주문 취소에 실패했습니다.', 'error');
       throw err;
     }
   };
 
-  if (!mounted) return null;
-
-  // 날짜 필터 적용
-  const filteredOrders = orders.filter(o => {
-    if (dateFilter === 'all') return true;
-    const orderDate = new Date(o.created_at);
-    const now = new Date();
-    if (dateFilter === 'today') {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      return orderDate >= today;
+  const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
+    try {
+      await requestAdminOrderUpdate({
+        intent: 'updateStatus',
+        orderId,
+        status: newStatus,
+      });
+      addToast('주문 상태가 업데이트되었습니다.', 'success');
+      setOrders(await fetchAdminOrders());
+    } catch (err) {
+      addToast('상태 변경에 실패했습니다.', 'error');
     }
-    if (dateFilter === 'week') {
-      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      return orderDate >= weekAgo;
+  };
+
+  const handlePaymentConfirm = async (order: any) => {
+    try {
+      await requestAdminOrderUpdate({
+        intent: 'updatePayment',
+        orderId: order.id,
+        paymentStatus: 'confirmed',
+      });
+      addToast('결제가 확인되었습니다.', 'success');
+      setOrders(await fetchAdminOrders());
+    } catch (err) {
+      addToast('결제 확인에 실패했습니다.', 'error');
+    }
+  };
+
+  const handleStatusChangeWithNotification = async (order: any, newStatus: OrderStatus) => {
+    try {
+      await requestAdminOrderUpdate({
+        intent: 'updateStatus',
+        orderId: order.id,
+        status: newStatus,
+      });
+      addToast('주문 상태가 업데이트되었습니다.', 'success');
+      setOrders(await fetchAdminOrders());
+    } catch (err) {
+      addToast('상태 변경에 실패했습니다.', 'error');
+    }
+  };
+
+  const filteredOrders = orders.filter(order => {
+    if (selectedStatus === 'inprogress') {
+      return ['pending', 'preparing', 'ready', 'completed'].includes(order.status);
+    }
+    if (selectedStatus === 'done') {
+      return order.payment_status === 'confirmed';
     }
     return true;
   });
 
-  // 파이프라인 컬럼별 주문 분류
-  const ordersByStatus = PIPELINE_COLUMNS.reduce((acc, col) => {
-    acc[col.key] = filteredOrders.filter(o => o.status === col.key);
-    return acc;
-  }, {} as Record<string, any[]>);
-
-  // 취소된 주문
-  const cancelledOrders = filteredOrders.filter(o => o.status === 'cancelled');
-
-  // 다음 상태 버튼 설정
-  const getNextAction = (order: any) => {
-    switch (order.status) {
-      case 'pending': return { label: '제조시작', nextStatus: 'preparing' as OrderStatus, color: 'bg-blue-500 hover:bg-blue-600 text-white' };
-      case 'preparing': return { label: '제조완료', nextStatus: 'ready' as OrderStatus, color: 'bg-green-500 hover:bg-green-600 text-white' };
-      case 'ready': return { label: '픽업완료', nextStatus: 'completed' as OrderStatus, color: 'bg-wine-600 hover:bg-wine-700 text-white' };
-      default: return null;
-    }
+  const handleFilterClick = (btn: typeof statusButtons[number]) => {
+    setSelectedStatus(btn.key as any);
   };
 
-  const getTimeSince = (dateStr: string) => {
-    const mins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
-    if (mins < 1) return '방금';
-    if (mins < 60) return `${mins}분 전`;
-    return `${Math.floor(mins / 60)}시간 전`;
-  };
+  if (!mounted) return null;
 
   return (
-    <div className="min-h-screen bg-ivory-50 pb-20">
+    <div className="min-h-screen bg-canvas pb-20">
       {error && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg animate-slide-in">
-          {error}
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-2xl shadow-large animate-slide-in">
+          <div className="flex items-center">
+            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+            </svg>
+            {error}
+          </div>
         </div>
       )}
+
       {success && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg animate-slide-in">
-          {success}
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-2xl shadow-large animate-slide-in">
+          <div className="flex items-center">
+            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            </svg>
+            {success}
+          </div>
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4">
-        {/* 헤더 */}
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-black text-wine-800">주문 관리</h1>
-            <p className="text-xs sm:text-sm text-wine-500 font-medium">
-              {new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}
-              {' · '}{filteredOrders.length}건
-            </p>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="relative bg-surface-soft border-4 border-primary rounded-[32px] p-4 sm:p-6 mb-8">
+          <div className="flex flex-col items-center mb-4">
+            <h2 className="text-2xl sm:text-3xl font-black text-ink">주문 관리</h2>
+            <span className="mt-1 text-xs sm:text-sm text-mute font-semibold">
+              전체 기간 주문 {filteredOrders.length.toLocaleString()}건
+            </span>
           </div>
-          <div className="flex gap-1 bg-ivory-200 rounded-lg p-0.5">
-            <button
-              onClick={() => setViewMode('pipeline')}
-              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${viewMode === 'pipeline' ? 'bg-white text-wine-800 shadow-sm' : 'text-wine-500'}`}
-            >
-              보드
-            </button>
-            <button
-              onClick={() => { setViewMode('list'); setListPage(1); }}
-              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${viewMode === 'list' ? 'bg-white text-wine-800 shadow-sm' : 'text-wine-500'}`}
-            >
-              목록
-            </button>
-          </div>
-        </div>
 
-        {/* 날짜 필터 */}
-        <div className="flex gap-2 mb-4">
-          {([
-            { key: 'today', label: '오늘' },
-            { key: 'week', label: '최근 7일' },
-            { key: 'all', label: '전체' },
-          ] as const).map(f => (
-            <button
-              key={f.key}
-              onClick={() => setDateFilter(f.key)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                dateFilter === f.key
-                  ? 'bg-wine-600 text-white'
-                  : 'bg-ivory-200 text-wine-600 hover:bg-wine-100'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-wine-600"></div>
+          {/* 필터 버튼 */}
+          <div className="flex flex-wrap gap-2 mb-6 justify-center">
+            {statusButtons.map((btn) => (
+              <button
+                key={btn.key}
+                onClick={() => handleFilterClick(btn)}
+                className={`px-4 py-2 rounded-2xl font-bold text-sm transition-all duration-300 ${(btn.key === 'all' && !selectedStatus) ||
+                  (btn.key === 'inprogress' && selectedStatus === 'inprogress') ||
+                  (btn.key === 'done' && selectedStatus === 'done')
+                  ? 'bg-primary text-white '
+                  : 'bg-canvas text-body hover:bg-surface-card'
+                  }`}
+              >
+                {btn.label}
+              </button>
+            ))}
           </div>
-        ) : viewMode === 'pipeline' ? (
-          /* ===== 파이프라인 (칸반 보드) 뷰 ===== */
-          <>
-            {/* 모바일: 수직 파이프라인 */}
-            <div className="block lg:hidden space-y-3">
-              {PIPELINE_COLUMNS.map(col => {
-                const colOrders = ordersByStatus[col.key] || [];
-                if (colOrders.length === 0 && col.key === 'completed') return null; // 픽업완료는 비면 숨김
-                return (
-                  <div key={col.key} className={`border-2 rounded-xl overflow-hidden ${col.headerBg}`}>
-                    <div className="px-3 py-2 flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-base">{col.emoji}</span>
-                        <span className="font-bold text-sm">{col.label}</span>
-                      </div>
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${col.badgeBg}`}>
-                        {colOrders.length}
-                      </span>
-                    </div>
-                    {colOrders.length > 0 && (
-                      <div className="bg-white/80 p-2 space-y-2">
-                        {colOrders.map((order: any) => (
-                          <OrderCard
-                            key={order.id}
-                            order={order}
-                            nextAction={getNextAction(order)}
-                            onStatusChange={handleStatusChange}
-                            onPaymentConfirm={handlePaymentConfirm}
-                            onCancel={handleOrderCancelClick}
-                            getTimeSince={getTimeSince}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+
+          {/* 주문 목록 */}
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
-
-            {/* 데스크탑: 가로 칸반 보드 */}
-            <div className="hidden lg:grid lg:grid-cols-4 gap-3">
-              {PIPELINE_COLUMNS.map(col => {
-                const colOrders = ordersByStatus[col.key] || [];
-                return (
-                  <div key={col.key} className={`border-2 rounded-xl overflow-hidden ${col.headerBg} min-h-[300px]`}>
-                    <div className="px-3 py-2.5 flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-lg">{col.emoji}</span>
-                        <span className="font-bold text-sm">{col.label}</span>
-                      </div>
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${col.badgeBg}`}>
-                        {colOrders.length}
-                      </span>
+          ) : loadError ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-5 text-center">
+              <div className="text-sm font-bold text-red-700">{loadError}</div>
+              <button
+                type="button"
+                onClick={async () => {
+                  setLoading(true);
+                  try {
+                    const result = await fetchAdminOrders();
+                    setOrders(result);
+                    setLoadError('');
+                  } catch (err) {
+                    setLoadError(err instanceof Error ? err.message : '관리자 주문 조회에 실패했습니다.');
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                className="mt-3 rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white"
+              >
+                다시 불러오기
+              </button>
+            </div>
+          ) : filteredOrders.length > 0 ? (
+            <>
+              {/* 모바일: 카드형 */}
+              <div className="block sm:hidden space-y-4">
+                {filteredOrders.map((order) => (
+                  <div key={order.id} className="bg-canvas rounded-2xl border border-hairline p-4">
+                    <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-ash">#{order.id.slice(-8)}</span>
                     </div>
-                    <div className="bg-white/50 p-2 space-y-2 min-h-[250px]">
-                      {colOrders.length > 0 ? colOrders.map((order: any) => (
-                        <OrderCard
-                          key={order.id}
-                          order={order}
-                          nextAction={getNextAction(order)}
-                          onStatusChange={handleStatusChange}
-                          onPaymentConfirm={handlePaymentConfirm}
-                          onCancel={handleOrderCancelClick}
-                          getTimeSince={getTimeSince}
-                        />
-                      )) : (
-                        <div className="flex items-center justify-center h-32 text-gray-400 text-sm">
-                          주문 없음
+                    <div className="font-bold text-ink mb-1">{order.customer_name}</div>
+                    <div className="text-sm text-mute mb-2">{order.church_group}</div>
+                    <div className="text-sm text-body mb-2">
+                      {new Date(order.created_at).toLocaleString('ko-KR')}
+                    </div>
+                    <div className="space-y-1 mb-3">
+                      {order.order_items?.map((item: any) => (
+                        <div key={item.id} className="text-sm text-body">
+                          {item.menu?.name} x {item.quantity}
                         </div>
+                      ))}
+                    </div>
+                    <div className="font-bold text-ink mb-3">₩{order.total_amount?.toLocaleString()}</div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {order.status === 'pending' && (
+                        <button
+                          onClick={() => handleStatusChangeWithNotification(order, 'preparing')}
+                          className="px-3 py-1 bg-blue-100 text-blue-800 rounded text-xs font-bold hover:bg-blue-200"
+                        >
+                          제조시작
+                        </button>
+                      )}
+                      {order.status === 'preparing' && (
+                        <button
+                          onClick={() => handleStatusChangeWithNotification(order, 'ready')}
+                          className="px-3 py-1 bg-green-100 text-green-800 rounded text-xs font-bold hover:bg-green-200"
+                        >
+                          제조완료
+                        </button>
+                      )}
+                      {order.status === 'ready' && (
+                        <button
+                          onClick={() => handleStatusChange(order.id, 'completed')}
+                          className="px-3 py-1 bg-surface-card text-ink rounded text-xs font-bold hover:bg-secondary-bg"
+                        >
+                          픽업완료
+                        </button>
+                      )}
+                      {order.payment_status !== 'confirmed' && (
+                        <button
+                          onClick={() => handlePaymentConfirm(order)}
+                          className="px-3 py-1 bg-purple-100 text-purple-800 rounded text-xs font-bold hover:bg-purple-200"
+                        >
+                          결제확인
+                        </button>
+                      )}
+                      {order.status !== 'cancelled' && (
+                        <button
+                          onClick={() => handleOrderCancelClick(order)}
+                          className="px-3 py-1 bg-red-100 text-red-800 rounded text-xs font-bold hover:bg-red-200"
+                        >
+                          취소
+                        </button>
                       )}
                     </div>
                   </div>
-                );
-              })}
+                ))}
+              </div>
+
+              {/* 데스크탑: 테이블 */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="min-w-full text-center border-separate border-spacing-y-2">
+                  <thead>
+                    <tr className="bg-surface-soft text-body text-sm">
+                      <th className="px-2 py-2">주문번호</th>
+                      <th className="px-2 py-2">주문인</th>
+                      <th className="px-2 py-2">주문시간</th>
+                      <th className="px-2 py-2">주문메뉴</th>
+                      <th className="px-2 py-2">주문상태</th>
+                      <th className="px-2 py-2">액션</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredOrders.map((order, idx) => (
+                      <tr key={order.id} className="bg-canvas">
+                        <td className="font-bold text-body align-middle text-xs">#{idx + 1}</td>
+                        <td className="align-middle">
+                          <div className="flex flex-col items-center">
+                            <span className="font-bold text-ink">{order.customer_name}</span>
+                            <span className="text-body text-xs mt-1">{order.church_group}</span>
+                          </div>
+                        </td>
+                        <td className="align-middle">
+                          <div className="flex flex-col items-center">
+                            <span className="text-body text-xs">{new Date(order.created_at).toLocaleDateString('ko-KR')}</span>
+                            <span className="text-body text-xs mt-1">{new Date(order.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</span>
+                          </div>
+                        </td>
+                        <td className="align-middle">
+                          <div className="flex flex-col items-center">
+                            <div className="flex flex-col gap-1 items-center">
+                              {order.order_items?.map((item: any) => (
+                                <div key={item.id} className="text-xs text-body">
+                                  {item.menu?.name} x {item.quantity}
+                                </div>
+                              ))}
+                            </div>
+                            <span className="font-bold text-ink mt-1">₩{order.total_amount?.toLocaleString()}</span>
+                          </div>
+                        </td>
+                        <td className="align-middle">
+                          <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
+                        </td>
+                        <td className="align-middle">
+                          <div className="flex flex-wrap gap-1 justify-center">
+                            {order.status === 'pending' && (
+                              <button
+                                onClick={() => handleStatusChangeWithNotification(order, 'preparing')}
+                                className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-bold hover:bg-blue-200"
+                              >
+                                제조시작
+                              </button>
+                            )}
+                            {order.status === 'preparing' && (
+                              <button
+                                onClick={() => handleStatusChangeWithNotification(order, 'ready')}
+                                className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-bold hover:bg-green-200"
+                              >
+                                제조완료
+                              </button>
+                            )}
+                            {order.status === 'ready' && (
+                              <button
+                                onClick={() => handleStatusChange(order.id, 'completed')}
+                                className="px-2 py-1 bg-surface-card text-ink rounded text-xs font-bold hover:bg-secondary-bg"
+                              >
+                                픽업완료
+                              </button>
+                            )}
+                            {order.payment_status !== 'confirmed' && (
+                              <button
+                                onClick={() => handlePaymentConfirm(order)}
+                                className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-bold hover:bg-purple-200"
+                              >
+                                결제확인
+                              </button>
+                            )}
+                            {order.status !== 'cancelled' && (
+                              <button
+                                onClick={() => handleOrderCancelClick(order)}
+                                className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-bold hover:bg-red-200"
+                              >
+                                취소
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-ash">주문 내역이 없습니다.</p>
             </div>
-
-            {/* 취소된 주문 */}
-            {cancelledOrders.length > 0 && (
-              <div className="mt-4 border-2 border-red-200 rounded-xl overflow-hidden bg-red-50">
-                <div className="px-3 py-2 flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-base">❌</span>
-                    <span className="font-bold text-sm text-red-700">취소됨</span>
-                  </div>
-                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800">
-                    {cancelledOrders.length}
-                  </span>
-                </div>
-                <div className="bg-white/80 p-2 space-y-2">
-                  {cancelledOrders.map((order: any) => (
-                    <div key={order.id} className="bg-white border border-red-100 rounded-lg p-2.5 opacity-60">
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="font-bold text-sm text-gray-600">{order.customer_name}</span>
-                        <span className="text-xs text-gray-400">{getTimeSince(order.created_at)}</span>
-                      </div>
-                      <p className="text-xs text-gray-500 truncate">
-                        {order.order_items?.map((i: any) => `${i.menu?.name} x${i.quantity}`).join(', ')}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </>
-        ) : (
-          /* ===== 리스트 뷰 ===== */
-          <div className="space-y-3">
-            {/* 검색 */}
-            <div className="relative">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-wine-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <input
-                type="text"
-                placeholder="고객명으로 검색..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-white border-2 border-wine-100 rounded-xl text-sm focus:outline-none focus:border-wine-400"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-wine-400 hover:text-wine-600"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-            {filteredOrders.length > 0 ? filteredOrders
-              .slice((listPage - 1) * LIST_PAGE_SIZE, listPage * LIST_PAGE_SIZE)
-              .map((order: any) => (
-              <div key={order.id} className="bg-white border-2 border-wine-100 rounded-xl p-3 sm:p-4">
-                {/* 진행 바 */}
-                <div className="mb-3">
-                  <div className="flex justify-between mb-1">
-                    {PIPELINE_COLUMNS.map((step, idx) => {
-                      const currentIdx = PIPELINE_COLUMNS.findIndex(s => s.key === order.status);
-                      const isActive = idx <= currentIdx;
-                      return (
-                        <span key={step.key} className={`text-xs font-bold ${isActive ? 'text-wine-800' : 'text-gray-300'}`}>
-                          {step.label}
-                        </span>
-                      );
-                    })}
-                    <span className={`text-xs font-bold ${order.payment_status === 'confirmed' ? 'text-green-700' : 'text-gray-300'}`}>
-                      결제완료
-                    </span>
-                  </div>
-                  <div className="relative w-full h-2 bg-gray-200 rounded-full">
-                    <div
-                      className="absolute h-2 rounded-full bg-wine-600 transition-all"
-                      style={{ width: `${Math.min(((PIPELINE_COLUMNS.findIndex(s => s.key === order.status) + 1) / 4) * 80, 80)}%` }}
-                    />
-                    <div
-                      className={`absolute h-2 rounded-full transition-all ${order.payment_status === 'confirmed' ? 'bg-green-500' : 'bg-gray-200'}`}
-                      style={{ width: '20%', right: 0 }}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <span className="font-bold text-wine-800">{order.customer_name}</span>
-                    {order.church_group && (
-                      <span className="text-wine-500 text-xs ml-2">{order.church_group}</span>
-                    )}
-                  </div>
-                  <span className="text-xs text-wine-400">{getTimeSince(order.created_at)}</span>
-                </div>
-
-                <div className="space-y-1 mb-2">
-                  {order.order_items?.map((item: any) => (
-                    <div key={item.id} className="flex justify-between text-sm text-wine-700">
-                      <span>{item.menu?.name} x {item.quantity}</span>
-                      <span>₩{item.total_price?.toLocaleString()}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex items-center justify-between pt-2 border-t border-wine-100">
-                  <span className="font-bold text-wine-800">₩{order.total_amount?.toLocaleString()}</span>
-                  <div className="flex gap-1.5">
-                    {(() => {
-                      const action = getNextAction(order);
-                      return action ? (
-                        <button
-                          onClick={() => handleStatusChange(order.id, action.nextStatus)}
-                          className={`px-3 py-1 rounded-lg text-xs font-bold ${action.color}`}
-                        >
-                          {action.label}
-                        </button>
-                      ) : null;
-                    })()}
-                    {order.payment_status !== 'confirmed' && (
-                      <button
-                        onClick={() => handlePaymentConfirm(order)}
-                        className="px-3 py-1 bg-purple-100 text-purple-800 rounded-lg text-xs font-bold hover:bg-purple-200"
-                      >
-                        결제확인
-                      </button>
-                    )}
-                    {order.status !== 'cancelled' && order.status !== 'completed' && (
-                      <button
-                        onClick={() => handleOrderCancelClick(order)}
-                        className="px-3 py-1 bg-red-100 text-red-800 rounded-lg text-xs font-bold hover:bg-red-200"
-                      >
-                        취소
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )) : (
-              <div className="text-center py-16">
-                <p className="text-wine-400">{searchQuery ? `"${searchQuery}" 검색 결과가 없습니다.` : '주문 내역이 없습니다.'}</p>
-              </div>
-            )}
-            {filteredOrders.length > LIST_PAGE_SIZE && (
-              <div className="flex justify-center items-center gap-2 pt-2">
-                <button
-                  onClick={() => setListPage(p => Math.max(1, p - 1))}
-                  disabled={listPage === 1}
-                  className="px-3 py-1.5 bg-wine-100 text-wine-700 rounded-lg text-xs font-bold disabled:opacity-40 hover:bg-wine-200"
-                >
-                  이전
-                </button>
-                <span className="text-xs text-wine-600 font-bold">
-                  {listPage} / {Math.ceil(filteredOrders.length / LIST_PAGE_SIZE)}
-                  <span className="text-wine-400 font-normal ml-1">({filteredOrders.length}건)</span>
-                </span>
-                <button
-                  onClick={() => setListPage(p => Math.min(Math.ceil(filteredOrders.length / LIST_PAGE_SIZE), p + 1))}
-                  disabled={listPage === Math.ceil(filteredOrders.length / LIST_PAGE_SIZE)}
-                  className="px-3 py-1.5 bg-wine-100 text-wine-700 rounded-lg text-xs font-bold disabled:opacity-40 hover:bg-wine-200"
-                >
-                  다음
-                </button>
-              </div>
-            )}
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {cancellationModal.order && (
         <OrderCancellationModal
           isOpen={cancellationModal.isOpen}
-          onClose={() => setCancellationModal({ isOpen: false, order: null })}
+          onClose={handleCancellationModalClose}
           onConfirm={handleOrderCancelConfirm}
           orderInfo={{
             customerName: cancellationModal.order.customer_name,
@@ -577,71 +470,6 @@ export default function AdminOrdersPage() {
           }}
         />
       )}
-    </div>
-  );
-}
-
-// 주문 카드 컴포넌트
-function OrderCard({ order, nextAction, onStatusChange, onPaymentConfirm, onCancel, getTimeSince }: {
-  order: any;
-  nextAction: { label: string; nextStatus: OrderStatus; color: string } | null;
-  onStatusChange: (id: string, status: OrderStatus) => void;
-  onPaymentConfirm: (order: any) => void;
-  onCancel: (order: any) => void;
-  getTimeSince: (date: string) => string;
-}) {
-  const itemSummary = order.order_items
-    ?.map((i: any) => `${i.menu?.name} x${i.quantity}`)
-    .join(', ') || '';
-
-  return (
-    <div className="bg-white border border-gray-200 rounded-lg p-2.5 shadow-sm">
-      <div className="flex justify-between items-center mb-1.5">
-        <span className="font-bold text-sm text-wine-800">{order.customer_name}</span>
-        <span className="text-xs text-gray-400">{getTimeSince(order.created_at)}</span>
-      </div>
-
-      {order.church_group && (
-        <span className="text-xs text-wine-500">{order.church_group}</span>
-      )}
-
-      <p className="text-xs text-wine-700 mt-1 leading-relaxed">{itemSummary}</p>
-
-      <div className="flex items-center justify-between mt-2">
-        <span className="font-bold text-sm text-wine-800">₩{order.total_amount?.toLocaleString()}</span>
-        <div className="flex items-center gap-1">
-          {order.payment_status === 'confirmed' ? (
-            <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-xs font-bold">결제완료</span>
-          ) : (
-            <button
-              onClick={() => onPaymentConfirm(order)}
-              className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-bold hover:bg-purple-200"
-            >
-              결제확인
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* 액션 버튼 */}
-      <div className="flex gap-1.5 mt-2">
-        {nextAction && (
-          <button
-            onClick={() => onStatusChange(order.id, nextAction.nextStatus)}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${nextAction.color}`}
-          >
-            {nextAction.label}
-          </button>
-        )}
-        {order.status !== 'cancelled' && order.status !== 'completed' && (
-          <button
-            onClick={() => onCancel(order)}
-            className="px-2 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-bold hover:bg-red-100"
-          >
-            취소
-          </button>
-        )}
-      </div>
     </div>
   );
 }

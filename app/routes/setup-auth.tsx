@@ -65,26 +65,26 @@ ORDER BY created_at DESC;`
   };
 
   return (
-    <div className="min-h-screen bg-gradient-warm p-8">
+    <div className="min-h-screen bg-surface-soft p-8">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-4xl font-black text-wine-800 mb-8 text-center">Supabase 인증 설정</h1>
+        <h1 className="text-4xl font-black text-ink mb-8 text-center">Supabase 인증 설정</h1>
         
         <div className="bg-white rounded-2xl shadow-large p-8 mb-8">
-          <h2 className="text-2xl font-black text-wine-800 mb-6">설정 순서</h2>
+          <h2 className="text-2xl font-black text-ink mb-6">설정 순서</h2>
           <div className="space-y-6">
-            <div className="bg-ivory-50 p-6 rounded-lg">
-              <h3 className="text-xl font-bold text-wine-800 mb-4">1. Supabase Dashboard 설정</h3>
-              <ol className="list-decimal list-inside text-wine-700 space-y-2">
+            <div className="bg-canvas p-6 rounded-2xl">
+              <h3 className="text-xl font-bold text-ink mb-4">1. Supabase Dashboard 설정</h3>
+              <ol className="list-decimal list-inside text-body space-y-2">
                 <li>Supabase 프로젝트 대시보드 접속</li>
                 <li><strong>Authentication &gt; Settings</strong>에서 <strong>"Enable email confirmations"</strong> 체크 해제</li>
                 <li><strong>Database &gt; Policies</strong>에서 아래 SQL 실행</li>
               </ol>
             </div>
 
-            <div className="bg-ivory-50 p-6 rounded-lg">
-              <h3 className="text-xl font-bold text-wine-800 mb-4">2. 테스트</h3>
-              <ol className="list-decimal list-inside text-wine-700 space-y-2">
-                <li><a href="/debug-login" className="text-wine-600 underline font-bold">디버그 페이지</a>에서 "테스트 사용자 생성" 클릭</li>
+            <div className="bg-canvas p-6 rounded-2xl">
+              <h3 className="text-xl font-bold text-ink mb-4">2. 테스트</h3>
+              <ol className="list-decimal list-inside text-body space-y-2">
+                <li><a href="/debug-login" className="text-mute underline font-bold">디버그 페이지</a>에서 "테스트 사용자 생성" 클릭</li>
                 <li>생성된 계정으로 로그인 시도</li>
                 <li>회원가입 후 자동 로그인 확인</li>
               </ol>
@@ -97,30 +97,30 @@ ORDER BY created_at DESC;`
           <div className="space-y-6">
             <div className="bg-white rounded-2xl shadow-large p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-black text-wine-800">RLS 정책 설정 SQL</h3>
+                <h3 className="text-xl font-black text-ink">RLS 정책 설정 SQL</h3>
                 <button
                   onClick={() => copyToClipboard(sqlCommands.disableEmailConfirmation, 'rls')}
-                  className="px-4 py-2 bg-wine-600 text-white rounded-lg font-bold hover:bg-wine-700 transition-colors text-sm"
+                  className="px-4 py-2 bg-primary text-white rounded-2xl font-bold hover:bg-primary-pressed transition-colors text-sm"
                 >
                   {copied === 'rls' ? '복사됨!' : '복사'}
                 </button>
               </div>
-              <pre className="text-sm text-wine-700 bg-ivory-50 p-4 rounded-lg overflow-x-auto max-h-96">
+              <pre className="text-sm text-body bg-canvas p-4 rounded-2xl overflow-x-auto max-h-96">
                 {sqlCommands.disableEmailConfirmation}
               </pre>
             </div>
 
             <div className="bg-white rounded-2xl shadow-large p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-black text-wine-800">사용자 확인 쿼리</h3>
+                <h3 className="text-xl font-black text-ink">사용자 확인 쿼리</h3>
                 <button
                   onClick={() => copyToClipboard(sqlCommands.checkUsers, 'check')}
-                  className="px-4 py-2 bg-wine-600 text-white rounded-lg font-bold hover:bg-wine-700 transition-colors text-sm"
+                  className="px-4 py-2 bg-primary text-white rounded-2xl font-bold hover:bg-primary-pressed transition-colors text-sm"
                 >
                   {copied === 'check' ? '복사됨!' : '복사'}
                 </button>
               </div>
-              <pre className="text-sm text-wine-700 bg-ivory-50 p-4 rounded-lg overflow-x-auto max-h-96">
+              <pre className="text-sm text-body bg-canvas p-4 rounded-2xl overflow-x-auto max-h-96">
                 {sqlCommands.checkUsers}
               </pre>
             </div>
@@ -129,23 +129,23 @@ ORDER BY created_at DESC;`
           {/* 빠른 액션 */}
           <div className="space-y-6">
             <div className="bg-white rounded-2xl shadow-large p-6">
-              <h3 className="text-xl font-black text-wine-800 mb-4">빠른 액션</h3>
+              <h3 className="text-xl font-black text-ink mb-4">빠른 액션</h3>
               <div className="space-y-4">
                 <a
                   href="/debug-login"
-                  className="block w-full p-4 bg-gradient-wine text-ivory-50 rounded-lg font-bold hover:shadow-wine transition-all duration-300 text-center"
+                  className="block w-full p-4 bg-primary text-white rounded-2xl font-bold  transition-all duration-300 text-center"
                 >
                   🔧 로그인 디버그 페이지
                 </a>
                 <a
                   href="/"
-                  className="block w-full p-4 bg-ivory-200 text-wine-700 rounded-lg font-bold hover:bg-wine-100 transition-colors text-center"
+                  className="block w-full p-4 bg-surface-card text-body rounded-2xl font-bold hover:bg-surface-card transition-colors text-center"
                 >
                   🏠 홈으로 돌아가기
                 </a>
                 <a
                   href="/supabase-config"
-                  className="block w-full p-4 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-colors text-center"
+                  className="block w-full p-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-colors text-center"
                 >
                   📋 상세 설정 가이드
                 </a>
@@ -153,17 +153,17 @@ ORDER BY created_at DESC;`
             </div>
 
             <div className="bg-white rounded-2xl shadow-large p-6">
-              <h3 className="text-xl font-black text-wine-800 mb-4">문제 해결</h3>
+              <h3 className="text-xl font-black text-ink mb-4">문제 해결</h3>
               <div className="space-y-3 text-sm">
-                <div className="bg-red-50 p-3 rounded-lg border border-red-200">
+                <div className="bg-red-50 p-3 rounded-2xl border border-red-200">
                   <p className="text-red-800 font-bold">🚨 로그인 실패</p>
                   <p className="text-red-700">이메일 확인을 비활성화했는지 확인하세요.</p>
                 </div>
-                <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+                <div className="bg-yellow-50 p-3 rounded-2xl border border-yellow-200">
                   <p className="text-yellow-800 font-bold">⚠️ RLS 오류</p>
                   <p className="text-yellow-700">RLS 정책이 올바르게 설정되었는지 확인하세요.</p>
                 </div>
-                <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                <div className="bg-blue-50 p-3 rounded-2xl border border-blue-200">
                   <p className="text-blue-800 font-bold">💡 팁</p>
                   <p className="text-blue-700">브라우저 콘솔에서 에러 메시지를 확인하세요.</p>
                 </div>
@@ -171,17 +171,17 @@ ORDER BY created_at DESC;`
             </div>
 
             <div className="bg-white rounded-2xl shadow-large p-6">
-              <h3 className="text-xl font-black text-wine-800 mb-4">환경변수 확인</h3>
+              <h3 className="text-xl font-black text-ink mb-4">환경변수 확인</h3>
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between items-center p-2 bg-ivory-50 rounded">
-                  <span className="text-wine-700">SUPABASE_URL:</span>
-                  <span className="text-wine-800 font-bold">
+                <div className="flex justify-between items-center p-2 bg-canvas rounded">
+                  <span className="text-body">SUPABASE_URL:</span>
+                  <span className="text-ink font-bold">
                     {typeof window !== 'undefined' ? (window.__ENV?.SUPABASE_URL ? '✅ 설정됨' : '❌ 설정되지 않음') : '서버사이드'}
                   </span>
                 </div>
-                <div className="flex justify-between items-center p-2 bg-ivory-50 rounded">
-                  <span className="text-wine-700">SUPABASE_ANON_KEY:</span>
-                  <span className="text-wine-800 font-bold">
+                <div className="flex justify-between items-center p-2 bg-canvas rounded">
+                  <span className="text-body">SUPABASE_ANON_KEY:</span>
+                  <span className="text-ink font-bold">
                     {typeof window !== 'undefined' ? (window.__ENV?.SUPABASE_ANON_KEY ? '✅ 설정됨' : '❌ 설정되지 않음') : '서버사이드'}
                   </span>
                 </div>

@@ -114,21 +114,21 @@ export default function ProfileSetup() {
 
   if (initialLoading || !user) {
     return (
-      <div className="min-h-screen bg-gradient-warm flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-wine-600"></div>
+      <div className="min-h-screen bg-surface-soft flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-warm flex items-center justify-center p-4">
+    <div className="min-h-screen bg-surface-soft flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-large p-8 w-full max-w-md">
         <div className="text-center mb-8">
           <div className="text-5xl mb-4">☕</div>
-          <h1 className="text-2xl sm:text-3xl font-black text-wine-800 mb-2">
+          <h1 className="text-2xl sm:text-3xl font-black text-ink mb-2">
             {existingProfile ? '프로필 수정' : '환영합니다!'}
           </h1>
-          <p className="text-wine-600 text-sm sm:text-base">
+          <p className="text-mute text-sm sm:text-base">
             {existingProfile
               ? '정보를 수정해주세요'
               : '이음카페 이용을 위해 정보를 입력해주세요'}
@@ -137,34 +137,34 @@ export default function ProfileSetup() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg text-sm">
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-2xl text-sm">
               {error}
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-bold text-wine-700 mb-2">
+            <label className="block text-sm font-bold text-body mb-2">
               이름 *
             </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300"
+              className="w-full px-4 py-3 border border-hairline rounded-2xl text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-focus-outer focus:border-transparent transition-all duration-300"
               placeholder="이름을 입력하세요"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-wine-700 mb-2">
+            <label className="block text-sm font-bold text-body mb-2">
               소속 목장 *
             </label>
             <input
               type="text"
               value={churchGroup}
               onChange={(e) => setChurchGroup(e.target.value)}
-              className="w-full px-4 py-3 border border-ivory-300 rounded-lg text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-wine-500 focus:border-transparent transition-all duration-300"
+              className="w-full px-4 py-3 border border-hairline rounded-2xl text-lg font-medium bg-white text-black focus:outline-none focus:ring-2 focus:ring-focus-outer focus:border-transparent transition-all duration-300"
               placeholder="예: 1목장, 청년부 등"
               required
             />
@@ -173,13 +173,13 @@ export default function ProfileSetup() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-gradient-wine text-black py-3 px-4 rounded-lg font-bold hover:shadow-wine transition-all duration-300 shadow-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-primary text-white py-3 px-4 rounded-2xl font-bold  transition-all duration-300  disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? '저장 중...' : '프로필 저장'}
           </button>
         </form>
 
-        <div className="mt-6 text-center text-sm text-wine-500">
+        <div className="mt-6 text-center text-sm text-mute">
           <p>이메일: {user.email}</p>
         </div>
       </div>
