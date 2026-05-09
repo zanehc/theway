@@ -23,6 +23,8 @@ export default function OrdersHistoryPage() {
   const navigate = useNavigate();
 
   const contextUser = outletContext?.user || null;
+  const userRole = outletContext?.userRole || null;
+  const isAdmin = userRole === 'admin' || userRole === 'staff';
   const authChecked = outletContext?.authChecked ?? true;
   const displayName = outletContext?.userProfile?.name?.trim()
     || contextUser?.user_metadata?.name
@@ -43,7 +45,9 @@ export default function OrdersHistoryPage() {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token;
     if (!token) return [];
-    const res = await fetch('/api/orders/history?limit=50', {
+    // 관리자/스태프는 전체 주문을 더 많이 조회
+    const limit = isAdmin ? 200 : 50;
+    const res = await fetch(`/api/orders/history?limit=${limit}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
@@ -189,7 +193,7 @@ export default function OrdersHistoryPage() {
         {user && (
           <div className="mb-4">
             <h1 className="text-base sm:text-lg font-bold text-ink truncate">
-              {displayName}님의 주문 내역
+              {isAdmin ? '전체 주문 내역' : `${displayName}님의 주문 내역`}
             </h1>
           </div>
         )}
