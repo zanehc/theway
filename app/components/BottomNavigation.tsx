@@ -11,51 +11,30 @@ export default function BottomNavigation({ user }: BottomNavigationProps) {
   const navigate = useNavigate();
   const [showLoginModal, setShowLoginModal] = useState(false);
   
-  // 각 탭의 데이터를 미리 로드하기 위한 fetcher들
-  const recentFetcher = useFetcher();
   const ordersFetcher = useFetcher();
 
-  // Props 변경 시 로그
   useEffect(() => {
     console.log('📱 BottomNavigation - Props 업데이트:', { user: user?.email || 'null' });
   }, [user]);
 
-  // 데이터 프리로딩 함수 (Safari 호환성 개선)
   const prefetchTabData = useCallback((path: string) => {
-    if (!user) return; // 로그인하지 않은 사용자는 스킵
-    
-    // Safari에서 안전한 프리로딩을 위한 예외 처리
+    if (!user) return;
     try {
-      switch (path) {
-        case '/orders/history':
-          if (recentFetcher.state === 'idle' && !recentFetcher.data) {
-            recentFetcher.load('/orders/history');
-          }
-          break;
-        case '/orders/new':
-          if (ordersFetcher.state === 'idle' && !ordersFetcher.data) {
-            ordersFetcher.load('/orders/new');
-          }
-          break;
+      if (path === '/orders/new' && ordersFetcher.state === 'idle' && !ordersFetcher.data) {
+        ordersFetcher.load('/orders/new');
       }
     } catch (error) {
       console.warn('Tab prefetch failed:', error);
     }
-  }, [user, recentFetcher, ordersFetcher]);
+  }, [user, ordersFetcher]);
 
-  // 현재 탭이 아닌 다른 탭들의 데이터를 미리 로드
   useEffect(() => {
     if (!user) return;
-    
     const currentPath = location.pathname;
-    const tabsToPreload = ['/orders/history', '/orders/new'].filter(path => path !== currentPath);
-    
-    // 500ms 지연 후 프리로딩 시작 (현재 페이지 로딩을 방해하지 않기 위해)
-    const timer = setTimeout(() => {
-      tabsToPreload.forEach(path => prefetchTabData(path));
-    }, 500);
-
-    return () => clearTimeout(timer);
+    if (currentPath !== '/orders/new') {
+      const timer = setTimeout(() => prefetchTabData('/orders/new'), 500);
+      return () => clearTimeout(timer);
+    }
   }, [location.pathname, user, prefetchTabData]);
 
   const isActive = (path: string) => {
@@ -100,17 +79,6 @@ export default function BottomNavigation({ user }: BottomNavigationProps) {
         </svg>
       ),
       label: "홈",
-      showWhenLoggedIn: true,
-      showWhenLoggedOut: true,
-    },
-    {
-      path: "/orders/history",
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
-      label: "최근주문",
       showWhenLoggedIn: true,
       showWhenLoggedOut: true,
     },
@@ -187,6 +155,7 @@ export default function BottomNavigation({ user }: BottomNavigationProps) {
               <Link
                 key={item.path}
                 to={item.path}
+                prefetch="intent"
                 onClick={(e) => handleNavClick(item, e)}
                 onMouseEnter={() => handleNavHover(item.path)}
                 className={`flex flex-col items-center py-2 px-3 min-w-0 flex-1 transition-colors duration-200 ${
