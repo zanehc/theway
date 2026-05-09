@@ -41,6 +41,11 @@ export default function AdminOrdersPage() {
     order: any | null;
   }>({ isOpen: false, order: null });
 
+  const [deleteMode, setDeleteMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleteConfirming, setDeleteConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
   const getAccessToken = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     return session?.access_token || null;
@@ -167,6 +172,60 @@ export default function AdminOrdersPage() {
     }
   };
 
+  const toggleSelectOrder = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = (currentIds: string[]) => {
+    const allSel = currentIds.length > 0 && currentIds.every((id) => selectedIds.has(id));
+    if (allSel) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(currentIds));
+    }
+  };
+
+  const exitDeleteMode = () => {
+    setDeleteMode(false);
+    setSelectedIds(new Set());
+    setDeleteConfirming(false);
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    setDeleting(true);
+    try {
+      const accessToken = await getAccessToken();
+      if (!accessToken) throw new Error('로그인 세션을 확인하지 못했습니다.');
+
+      const res = await fetch('/api/admin-orders', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ intent: 'deleteOrders', orderIds: Array.from(selectedIds) }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || '주문 삭제에 실패했습니다.');
+
+      addToast(`${data.deletedCount}건의 주문이 삭제되었습니다.`, 'success');
+      setSelectedIds(new Set());
+      setDeleteMode(false);
+      setDeleteConfirming(false);
+      setOrders(await fetchAdminOrders());
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : '주문 삭제에 실패했습니다.', 'error');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const handlePaymentConfirm = async (order: any) => {
     try {
       await requestAdminOrderUpdate({
@@ -205,6 +264,9 @@ export default function AdminOrdersPage() {
     return true;
   });
 
+  const filteredIds = filteredOrders.map((o: any) => o.id);
+  const allSelected = filteredIds.length > 0 && filteredIds.every((id: string) => selectedIds.has(id));
+
   const handleFilterClick = (btn: typeof statusButtons[number]) => {
     setSelectedStatus(btn.key as any);
   };
@@ -237,12 +299,80 @@ export default function AdminOrdersPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="relative bg-surface-soft border-4 border-primary rounded-[32px] p-4 sm:p-6 mb-8">
-          <div className="flex flex-col items-center mb-4">
-            <h2 className="text-2xl sm:text-3xl font-black text-ink">주문 관리</h2>
-            <span className="mt-1 text-xs sm:text-sm text-mute font-semibold">
-              전체 기간 주문 {filteredOrders.length.toLocaleString()}건
-            </span>
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h2 className="text-2xl sm:text-3xl font-black text-ink">주문 관리</h2>
+              <span className="mt-1 text-xs sm:text-sm text-mute font-semibold">
+                전체 기간 주문 {filteredOrders.length.toLocaleString()}건
+              </span>
+            </div>
+            {!deleteMode ? (
+              <button
+                type="button"
+                onClick={() => setDeleteMode(true)}
+                className="ml-4 shrink-0 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-100"
+              >
+                삭제 모드
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={exitDeleteMode}
+                className="ml-4 shrink-0 rounded-2xl border border-hairline bg-canvas px-3 py-2 text-xs font-bold text-body hover:bg-surface-card"
+              >
+                취소
+              </button>
+            )}
           </div>
+
+          {/* 삭제 모드 툴바 */}
+          {deleteMode && (
+            <div className="mb-4 flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={() => toggleSelectAll(filteredIds)}
+                  className="h-4 w-4 rounded accent-primary"
+                />
+                <span className="text-sm font-bold text-ink">전체 선택</span>
+              </label>
+              <span className="text-sm text-mute font-medium">
+                {selectedIds.size > 0 ? `${selectedIds.size}건 선택됨` : ''}
+              </span>
+              <div className="ml-auto flex items-center gap-2">
+                {deleteConfirming ? (
+                  <>
+                    <span className="text-sm font-bold text-red-700">정말 삭제할까요?</span>
+                    <button
+                      type="button"
+                      onClick={handleDeleteSelected}
+                      disabled={deleting}
+                      className="rounded-xl bg-red-600 px-4 py-1.5 text-sm font-black text-white hover:bg-red-700 disabled:opacity-60"
+                    >
+                      {deleting ? '삭제 중...' : '확인'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteConfirming(false)}
+                      className="rounded-xl border border-hairline bg-canvas px-4 py-1.5 text-sm font-bold text-body hover:bg-surface-card"
+                    >
+                      아니오
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setDeleteConfirming(true)}
+                    disabled={selectedIds.size === 0}
+                    className="rounded-xl bg-red-600 px-4 py-1.5 text-sm font-black text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-200"
+                  >
+                    선택 삭제
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* 필터 버튼 */}
           <div className="flex flex-wrap gap-2 mb-6 justify-center">
@@ -294,8 +424,23 @@ export default function AdminOrdersPage() {
               {/* 모바일: 카드형 */}
               <div className="block sm:hidden space-y-4">
                 {filteredOrders.map((order) => (
-                  <div key={order.id} className="bg-canvas rounded-2xl border border-hairline p-4">
-                    <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
+                  <div
+                    key={order.id}
+                    className={`bg-canvas rounded-2xl border p-4 ${deleteMode && selectedIds.has(order.id) ? 'border-red-400 bg-red-50' : 'border-hairline'}`}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      {deleteMode && (
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(order.id)}
+                          onChange={() => toggleSelectOrder(order.id)}
+                          className="mt-0.5 mr-3 h-4 w-4 shrink-0 rounded accent-primary"
+                        />
+                      )}
+                      <div className="flex-1">
+                        <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
+                      </div>
+                    </div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs text-ash">#{getOrderNumber(order)}</span>
                     </div>
@@ -364,6 +509,16 @@ export default function AdminOrdersPage() {
                 <table className="min-w-full text-center border-separate border-spacing-y-2">
                   <thead>
                     <tr className="bg-surface-soft text-body text-sm">
+                      {deleteMode && (
+                        <th className="px-2 py-2 w-10">
+                          <input
+                            type="checkbox"
+                            checked={allSelected}
+                            onChange={() => toggleSelectAll(filteredIds)}
+                            className="h-4 w-4 rounded accent-primary"
+                          />
+                        </th>
+                      )}
                       <th className="px-2 py-2">주문번호</th>
                       <th className="px-2 py-2">주문인</th>
                       <th className="px-2 py-2">주문시간</th>
@@ -374,7 +529,17 @@ export default function AdminOrdersPage() {
                   </thead>
                   <tbody>
                     {filteredOrders.map((order) => (
-                      <tr key={order.id} className="bg-canvas">
+                      <tr key={order.id} className={`${deleteMode && selectedIds.has(order.id) ? 'bg-red-50' : 'bg-canvas'}`}>
+                        {deleteMode && (
+                          <td className="align-middle px-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(order.id)}
+                              onChange={() => toggleSelectOrder(order.id)}
+                              className="h-4 w-4 rounded accent-primary"
+                            />
+                          </td>
+                        )}
                         <td className="font-bold text-body align-middle text-xs">#{getOrderNumber(order)}</td>
                         <td className="align-middle">
                           <div className="flex flex-col items-center">

@@ -225,8 +225,44 @@ export async function action({ request }: ActionFunctionArgs) {
   if ("error" in admin) return admin.error;
 
   const payload = await request.json().catch(() => ({}));
-  const orderId = typeof payload.orderId === "string" ? payload.orderId : "";
   const intent = typeof payload.intent === "string" ? payload.intent : "";
+
+  if (intent === "deleteOrders") {
+    const orderIds = Array.isArray(payload.orderIds)
+      ? payload.orderIds.filter((id: unknown): id is string => typeof id === "string")
+      : [];
+
+    if (orderIds.length === 0) {
+      return json({ error: "삭제할 주문을 선택해주세요." }, { status: 400 });
+    }
+
+    // notifications → order_items → orders 순서로 삭제 (FK 순서 준수)
+    await admin.supabase.from("notifications").delete().in("order_id", orderIds);
+
+    const { error: itemsError } = await admin.supabase
+      .from("order_items")
+      .delete()
+      .in("order_id", orderIds);
+
+    if (itemsError) {
+      console.error("API admin delete order_items failed:", itemsError);
+      return json({ error: "주문 항목 삭제에 실패했습니다." }, { status: 500 });
+    }
+
+    const { error: ordersError } = await admin.supabase
+      .from("orders")
+      .delete()
+      .in("id", orderIds);
+
+    if (ordersError) {
+      console.error("API admin delete orders failed:", ordersError);
+      return json({ error: "주문 삭제에 실패했습니다." }, { status: 500 });
+    }
+
+    return json({ success: true, deletedCount: orderIds.length });
+  }
+
+  const orderId = typeof payload.orderId === "string" ? payload.orderId : "";
 
   if (!orderId) {
     return json({ error: "주문 ID가 없습니다." }, { status: 400 });
