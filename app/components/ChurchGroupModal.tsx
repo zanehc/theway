@@ -27,7 +27,6 @@ export default function ChurchGroupModal({
       setError('이름을 입력해주세요.');
       return;
     }
-
     if (!churchGroup.trim()) {
       setError('소속 목장을 입력해주세요.');
       return;
@@ -37,38 +36,29 @@ export default function ChurchGroupModal({
     setError('');
 
     try {
-      const { data: updatedProfile, error: updateError } = await supabase
-        .from('users')
-        .update({
-          name: name.trim(),
-          church_group: churchGroup.trim(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', userId)
-        .select('id')
-        .maybeSingle();
-
-      if (updateError || !updatedProfile) {
-        const { error: insertError } = await supabase
-          .from('users')
-          .insert({
-            id: userId,
-            email,
-            name: name.trim(),
-            church_group: churchGroup.trim(),
-            role: 'customer'
-          });
-
-        if (insertError) {
-          setError('저장에 실패했습니다. 다시 시도해주세요.');
-          return;
-        }
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) {
+        setError('로그인 세션이 만료됐습니다. 다시 로그인해주세요.');
+        return;
       }
 
-      onSaved({
-        name: name.trim(),
-        church_group: churchGroup.trim()
+      const res = await fetch('/api/profile-save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name: name.trim(), church_group: churchGroup.trim(), email }),
       });
+
+      const result = await res.json();
+      if (!res.ok || !result.success) {
+        setError(result.error || '저장에 실패했습니다. 다시 시도해주세요.');
+        return;
+      }
+
+      onSaved({ name: name.trim(), church_group: churchGroup.trim() });
     } catch {
       setError('오류가 발생했습니다. 다시 시도해주세요.');
     } finally {
