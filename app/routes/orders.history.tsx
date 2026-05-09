@@ -2,12 +2,10 @@ import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useOutletContext, useNavigate, useNavigation } from "@remix-run/react";
 import { useState, useEffect } from "react";
-import type { OrderStatus } from "~/types";
+import { getOrdersByUserId } from "~/lib/database";
 import { useNotifications } from "~/contexts/NotificationContext";
 import { OrderListSkeleton } from "~/components/LoadingSkeleton";
 import OrderStatusProgress from "~/components/orders/OrderStatusProgress";
-import { supabase } from "~/lib/supabase";
-import { fetchOrderHistoryForCurrentUser } from "~/lib/orderHistoryClient";
 
 const ORDERS_PER_PAGE = 10;
 
@@ -20,50 +18,24 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 export default function OrdersHistoryPage() {
   const { error, success } = useLoaderData<typeof loader>();
-  const outletContext = useOutletContext<{ user: any; userRole: string | null; authChecked: boolean }>();
+  const outletContext = useOutletContext<{ user: any; userRole: string | null }>();
   const navigation = useNavigation();
   const navigate = useNavigate();
 
   const contextUser = outletContext?.user || null;
-  const authChecked = outletContext?.authChecked ?? false;
   const [user, setUser] = useState<any>(contextUser);
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
-  const [localAuthChecked, setLocalAuthChecked] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const { toasts, addToast } = useNotifications();
 
   useEffect(() => { setMounted(true); }, []);
 
+  useEffect(() => { setUser(contextUser); }, [contextUser]);
+
   useEffect(() => {
     if (!mounted) return;
-
-    let isCancelled = false;
-
-    const syncUser = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!isCancelled) {
-          setUser(contextUser || session?.user || null);
-          setLocalAuthChecked(true);
-        }
-      } catch {
-        if (!isCancelled) {
-          setUser(contextUser || null);
-          setLocalAuthChecked(true);
-        }
-      }
-    };
-
-    syncUser();
-    return () => { isCancelled = true; };
-  }, [mounted, contextUser]);
-
-  useEffect(() => {
-    // 루트 인증 또는 라우트 자체 인증 확인 중 하나가 끝날 때까지 대기
-    if (!mounted || (!authChecked && !localAuthChecked)) return;
     if (!user) {
       setOrders([]);
       setLoading(false);
@@ -72,23 +44,11 @@ export default function OrdersHistoryPage() {
 
     let isCancelled = false;
     const loadOrders = async () => {
-      setLoading(true);
       try {
-        const result = await fetchOrderHistoryForCurrentUser(user.id, {
-          limit: 50,
-          timeoutMs: 7000,
-        });
-
-        if (!isCancelled) {
-          setOrders(result.orders || []);
-          setLoadError(result.error || null);
-        }
-      } catch (err) {
-        console.error("Load recent orders failed:", err);
-        if (!isCancelled) {
-          setOrders([]);
-          setLoadError("최근 주문을 불러오지 못했습니다.");
-        }
+        const result = await getOrdersByUserId(user.id);
+        if (!isCancelled) setOrders(result || []);
+      } catch {
+        if (!isCancelled) setOrders([]);
       } finally {
         if (!isCancelled) setLoading(false);
       }
@@ -96,25 +56,12 @@ export default function OrdersHistoryPage() {
 
     loadOrders();
     return () => { isCancelled = true; };
-  }, [mounted, authChecked, localAuthChecked, user]);
+  }, [mounted, user]);
 
   useEffect(() => {
     if (!mounted || toasts.length === 0 || !user) return;
-    const refresh = async () => {
-      try {
-        const result = await fetchOrderHistoryForCurrentUser(user.id, {
-          limit: 50,
-          timeoutMs: 7000,
-        });
-        setOrders(result.orders || []);
-        setLoadError(result.error || null);
-      } catch {
-        setOrders([]);
-        setLoadError("최근 주문을 불러오지 못했습니다.");
-      }
-    };
-    refresh();
-  }, [toasts, mounted, user]); // eslint-disable-line react-hooks/exhaustive-deps
+    getOrdersByUserId(user.id).then(result => setOrders(result || [])).catch(() => {});
+  }, [toasts]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (navigation.state === "loading" && navigation.location?.pathname && navigation.location.pathname !== "/orders/history") {
     return <OrderListSkeleton />;
@@ -241,18 +188,7 @@ export default function OrdersHistoryPage() {
             </span>
           </div>
 
-          {loadError ? (
-            <div className="rounded-2xl border border-hairline bg-canvas px-4 py-8 text-center">
-              <p className="text-sm font-bold text-mute">{loadError}</p>
-              <button
-                type="button"
-                onClick={() => window.location.reload()}
-                className="mt-4 rounded-2xl bg-primary px-4 py-2 text-sm font-bold text-white hover:bg-primary-pressed"
-              >
-                다시 시도
-              </button>
-            </div>
-          ) : orders.length > 0 ? (
+          {orders.length > 0 ? (
             <>
               {/* 모바일: 카드형 */}
               <div className="block sm:hidden space-y-4">
