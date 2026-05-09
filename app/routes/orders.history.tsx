@@ -479,34 +479,40 @@ export default function OrdersHistoryPage() {
                         <span className="text-xs font-bold text-ink mt-1 block">₩{order.total_amount?.toLocaleString()}</span>
                       </div>
                       {/* 2행: 주문상태 + 액션 */}
-                      <div className="flex items-center justify-between gap-2">
-                        <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
+                      <div className={isAdmin ? "space-y-2" : "flex items-center justify-between gap-2"}>
+                        <div className={isAdmin ? "flex justify-center" : ""}>
+                          <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
+                        </div>
                         {isAdmin ? (
-                          <AdminActions order={order} />
+                          <div className="rounded-xl border border-hairline bg-surface-soft px-2 py-2">
+                            <AdminActions order={order} />
+                          </div>
                         ) : (
-                          <div className="flex items-center gap-1.5 shrink-0">
+                          <div className="flex w-28 shrink-0 flex-col items-stretch gap-1.5">
                             {order.status === 'pending' && (
                               cancelConfirmId === order.id ? (
-                                <div className="flex items-center gap-1">
-                                  <span className="text-[11px] font-bold text-red-700">취소할까요?</span>
+                                <div className="rounded-xl border border-red-200 bg-red-50 p-1.5">
+                                  <span className="mb-1 block text-center text-[11px] font-bold text-red-700">취소할까요?</span>
+                                  <div className="grid grid-cols-2 gap-1">
                                   <button
                                     onClick={() => handleCustomerCancel(order.id)}
                                     disabled={cancellingId === order.id}
-                                    className="px-2 py-1 bg-red-600 text-white rounded-lg text-[11px] font-black hover:bg-red-700 disabled:opacity-60"
+                                      className="rounded-lg bg-red-600 px-2 py-1 text-[11px] font-black text-white hover:bg-red-700 disabled:opacity-60"
                                   >
                                     {cancellingId === order.id ? '처리중' : '확인'}
                                   </button>
                                   <button
                                     onClick={() => setCancelConfirmId(null)}
-                                    className="px-2 py-1 bg-surface-card text-body rounded-lg text-[11px] font-bold hover:bg-secondary-bg"
+                                      className="rounded-lg bg-surface-card px-2 py-1 text-[11px] font-bold text-body hover:bg-secondary-bg"
                                   >
-                                    아니오
+                                      취소
                                   </button>
+                                  </div>
                                 </div>
                               ) : (
                                 <button
                                   onClick={() => setCancelConfirmId(order.id)}
-                                  className="px-3 py-1 bg-surface-card text-mute rounded-xl text-xs font-bold hover:bg-secondary-bg"
+                                  className="w-full rounded-xl bg-surface-card px-3 py-1.5 text-xs font-bold text-mute hover:bg-secondary-bg"
                                 >
                                   취소
                                 </button>
@@ -514,7 +520,7 @@ export default function OrdersHistoryPage() {
                             )}
                             <button
                               onClick={() => handleQuickOrder(order)}
-                              className="px-3 py-1 bg-red-100 text-red-800 rounded-xl text-xs font-bold hover:bg-red-200"
+                              className="w-full rounded-xl bg-red-100 px-3 py-1.5 text-xs font-bold text-red-800 hover:bg-red-200"
                             >
                               빠른주문
                             </button>
