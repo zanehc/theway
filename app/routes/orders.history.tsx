@@ -53,6 +53,8 @@ export default function OrdersHistoryPage() {
   const [mounted, setMounted] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [cancellationModal, setCancellationModal] = useState<{ isOpen: boolean; order: any | null }>({ isOpen: false, order: null });
+  const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const { toasts, addToast } = useNotifications();
   const requestedTab = searchParams.get('tab');
   const activeTab = isAdmin && requestedTab === 'dashboard' ? 'dashboard' : 'list';
@@ -142,6 +144,28 @@ export default function OrdersHistoryPage() {
       await refreshOrders();
     } catch {
       addToast('결제 확인에 실패했습니다.', 'error');
+    }
+  };
+
+  const handleCustomerCancel = async (orderId: string) => {
+    setCancellingId(orderId);
+    try {
+      const token = await getAccessToken();
+      if (!token) throw new Error('로그인 세션을 확인하지 못했습니다.');
+      const res = await fetch('/api/cancel-order', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || '취소에 실패했습니다.');
+      addToast('주문이 취소되었습니다.', 'warning');
+      await refreshOrders();
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : '취소에 실패했습니다.', 'error');
+    } finally {
+      setCancelConfirmId(null);
+      setCancellingId(null);
     }
   };
 
@@ -460,12 +484,41 @@ export default function OrdersHistoryPage() {
                         {isAdmin ? (
                           <AdminActions order={order} />
                         ) : (
-                          <button
-                            onClick={() => handleQuickOrder(order)}
-                            className="px-3 py-1 bg-red-100 text-red-800 rounded-xl text-xs font-bold hover:bg-red-200 shrink-0"
-                          >
-                            빠른주문
-                          </button>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {order.status === 'pending' && (
+                              cancelConfirmId === order.id ? (
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[11px] font-bold text-red-700">취소할까요?</span>
+                                  <button
+                                    onClick={() => handleCustomerCancel(order.id)}
+                                    disabled={cancellingId === order.id}
+                                    className="px-2 py-1 bg-red-600 text-white rounded-lg text-[11px] font-black hover:bg-red-700 disabled:opacity-60"
+                                  >
+                                    {cancellingId === order.id ? '처리중' : '확인'}
+                                  </button>
+                                  <button
+                                    onClick={() => setCancelConfirmId(null)}
+                                    className="px-2 py-1 bg-surface-card text-body rounded-lg text-[11px] font-bold hover:bg-secondary-bg"
+                                  >
+                                    아니오
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => setCancelConfirmId(order.id)}
+                                  className="px-3 py-1 bg-surface-card text-mute rounded-xl text-xs font-bold hover:bg-secondary-bg"
+                                >
+                                  취소
+                                </button>
+                              )
+                            )}
+                            <button
+                              onClick={() => handleQuickOrder(order)}
+                              className="px-3 py-1 bg-red-100 text-red-800 rounded-xl text-xs font-bold hover:bg-red-200"
+                            >
+                              빠른주문
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -534,12 +587,41 @@ export default function OrdersHistoryPage() {
                             {isAdmin ? (
                               <AdminActions order={order} />
                             ) : (
-                              <button
-                                onClick={() => handleQuickOrder(order)}
-                                className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-bold hover:bg-red-200"
-                              >
-                                빠른주문
-                              </button>
+                              <div className="flex flex-col items-center gap-1.5">
+                                {order.status === 'pending' && (
+                                  cancelConfirmId === order.id ? (
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-[11px] font-bold text-red-700">취소?</span>
+                                      <button
+                                        onClick={() => handleCustomerCancel(order.id)}
+                                        disabled={cancellingId === order.id}
+                                        className="px-2 py-1 bg-red-600 text-white rounded text-[11px] font-black hover:bg-red-700 disabled:opacity-60"
+                                      >
+                                        {cancellingId === order.id ? '처리중' : '확인'}
+                                      </button>
+                                      <button
+                                        onClick={() => setCancelConfirmId(null)}
+                                        className="px-2 py-1 bg-surface-card text-body rounded text-[11px] font-bold hover:bg-secondary-bg"
+                                      >
+                                        아니오
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={() => setCancelConfirmId(order.id)}
+                                      className="px-2 py-1 bg-surface-card text-mute rounded text-xs font-bold hover:bg-secondary-bg"
+                                    >
+                                      취소
+                                    </button>
+                                  )
+                                )}
+                                <button
+                                  onClick={() => handleQuickOrder(order)}
+                                  className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-bold hover:bg-red-200"
+                                >
+                                  빠른주문
+                                </button>
+                              </div>
                             )}
                           </td>
                         </tr>
