@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '~/lib/supabase';
-import { getUserOrderHistory, updateUser, getUserByIdOrCreate } from '~/lib/database';
+import { updateUser } from '~/lib/database';
+import { fetchOrderHistoryForCurrentUser } from '~/lib/orderHistoryClient';
 import type { UserOrderHistory } from '~/types';
 import { useNavigate, useOutletContext } from '@remix-run/react';
 import { useNotifications } from '~/contexts/NotificationContext';
@@ -14,7 +15,9 @@ interface User {
   role: string;
 }
 
-const PROFILE_TIMEOUT_MS = 5000;
+const PROFILE_TIMEOUT_MS = 2200;
+const ORDER_HISTORY_TIMEOUT_MS = 3500;
+const CACHE_TTL_MS = 60_000;
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
   return new Promise((resolve) => {
@@ -50,17 +53,104 @@ const emptyOrderHistory: UserOrderHistory = {
   recent_orders: [],
 };
 
+function getStoredAuthUser() {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const storedSession = window.localStorage.getItem('theway-cafe-auth-token');
+    if (!storedSession) return null;
+
+    const parsed = JSON.parse(storedSession);
+    return parsed?.user?.id ? parsed.user : null;
+  } catch (error) {
+    console.warn('MyPage stored session parse failed:', error);
+    return null;
+  }
+}
+
+function getProfileCacheKey(userId: string) {
+  return `mypage_profile_${userId}`;
+}
+
+function getOrdersCacheKey(userId: string) {
+  return `mypage_orders_${userId}`;
+}
+
+function readSessionCache<T>(key: string): T | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (!parsed?.savedAt || Date.now() - parsed.savedAt > CACHE_TTL_MS) {
+      window.sessionStorage.removeItem(key);
+      return null;
+    }
+
+    return parsed.value as T;
+  } catch (error) {
+    console.warn('MyPage cache read failed:', error);
+    return null;
+  }
+}
+
+function writeSessionCache<T>(key: string, value: T) {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.sessionStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), value }));
+  } catch (error) {
+    console.warn('MyPage cache write failed:', error);
+  }
+}
+
+async function fetchUserProfileFast(authUser: any): Promise<User | null> {
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, email, name, church_group, role')
+    .eq('id', authUser.id)
+    .maybeSingle();
+
+  if (error) {
+    console.warn('MyPage profile fetch failed:', error);
+    return null;
+  }
+
+  if (!data) return null;
+
+  return {
+    id: String(data.id || authUser.id),
+    email: String(data.email || authUser.email || ''),
+    name: String(data.name || ''),
+    church_group: typeof data.church_group === 'string' ? data.church_group : null,
+    role: String(data.role || 'customer'),
+  };
+}
+
+function toOrderHistory(orders: any[]): UserOrderHistory {
+  return {
+    orders,
+    total_orders: orders.length,
+    total_spent: orders
+      .filter((order) => order.payment_status === 'confirmed')
+      .reduce((sum, order) => sum + Number(order.total_amount || 0), 0),
+    recent_orders: orders.slice(0, 5),
+  };
+}
+
 export default function MyPage() {
   const navigate = useNavigate();
   const { addToast } = useNotifications();
   const { user: contextUser } = useOutletContext<{ user: any; userRole: string | null; authChecked?: boolean }>();
-  const [authUser, setAuthUser] = useState<any>(contextUser || null);
-  const [user, setUser] = useState<User | null>(null);
+  const [authUser, setAuthUser] = useState<any>(() => contextUser || getStoredAuthUser());
+  const [user, setUser] = useState<User | null>(() => {
+    const storedUser = contextUser || getStoredAuthUser();
+    return storedUser ? buildFallbackUser(storedUser) : null;
+  });
   const [name, setName] = useState('');
   const [churchGroup, setChurchGroup] = useState('');
-  const [initialLoading, setInitialLoading] = useState(true);
-  const [authResolved, setAuthResolved] = useState(false);
-  const [profileLoading, setProfileLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [orderHistory, setOrderHistory] = useState<UserOrderHistory | null>(null);
   const [activeTab, setActiveTab] = useState<'profile' | 'orders' | 'password'>('profile');
@@ -77,15 +167,19 @@ export default function MyPage() {
     let isCancelled = false;
 
     const resolveUser = async () => {
-      setInitialLoading(true);
-      setAuthResolved(false);
       try {
         if (contextUser) {
           if (!isCancelled) {
             setAuthUser(contextUser);
-            setAuthResolved(true);
+            setUser((currentUser) => currentUser || buildFallbackUser(contextUser));
           }
           return;
+        }
+
+        const storedUser = getStoredAuthUser();
+        if (storedUser && !isCancelled) {
+          setAuthUser(storedUser);
+          setUser((currentUser) => currentUser || buildFallbackUser(storedUser));
         }
 
         const sessionResult = await withTimeout(
@@ -94,18 +188,16 @@ export default function MyPage() {
           { data: { session: null }, error: null }
         );
         if (!isCancelled) {
-          setAuthUser(sessionResult.data.session?.user || null);
-          setAuthResolved(true);
+          const sessionUser = sessionResult.data.session?.user || storedUser || null;
+          setAuthUser(sessionUser);
+          if (sessionUser) {
+            setUser((currentUser) => currentUser || buildFallbackUser(sessionUser));
+          }
         }
       } catch (error) {
         console.error('❌ MyPage: session check failed:', error);
         if (!isCancelled) {
           setAuthUser(null);
-          setAuthResolved(true);
-        }
-      } finally {
-        if (!isCancelled) {
-          setInitialLoading(false);
         }
       }
     };
@@ -117,58 +209,71 @@ export default function MyPage() {
   }, [contextUser]);
 
   useEffect(() => {
-    if (!authResolved) return;
-
     if (authUser) {
       fetchUserData(authUser);
     } else {
       setUser(null);
       setOrderHistory(null);
     }
-  }, [authResolved, authUser]);
+  }, [authUser]);
 
   const fetchUserData = async (authUser: any) => {
-    setProfileLoading(true);
+    const fallbackUser = buildFallbackUser(authUser);
+    setUser((currentUser) => currentUser || fallbackUser);
+    setName((currentName) => currentName || fallbackUser.name);
+
+    const cachedProfile = readSessionCache<User>(getProfileCacheKey(authUser.id));
+    if (cachedProfile) {
+      setUser({ ...cachedProfile, email: cachedProfile.email || authUser.email || '' });
+      setName(cachedProfile.name || '');
+      setChurchGroup(cachedProfile.church_group || '');
+    }
+
+    const cachedOrders = readSessionCache<UserOrderHistory>(getOrdersCacheKey(authUser.id));
+    if (cachedOrders) {
+      setOrderHistory(cachedOrders);
+    }
+
     try {
       console.log('🔄 MyPage: fetching user data for', authUser.id);
 
-      const userData = await withTimeout(
-        getUserByIdOrCreate(authUser),
+      const profilePromise = withTimeout(
+        fetchUserProfileFast(authUser),
         PROFILE_TIMEOUT_MS,
         null
       );
+
+      const orderHistoryPromise = fetchOrderHistoryForCurrentUser(authUser.id, {
+        limit: 20,
+        timeoutMs: ORDER_HISTORY_TIMEOUT_MS,
+      });
+
+      const [userData, orderResult] = await Promise.all([
+        profilePromise,
+        orderHistoryPromise,
+      ]);
 
       if (userData) {
         console.log('🔄 MyPage: user data found/created:', userData);
         setUser({ ...userData, email: userData.email || authUser.email });
         setName(userData.name || '');
         setChurchGroup(userData.church_group || '');
+        writeSessionCache(getProfileCacheKey(authUser.id), userData);
       } else {
-        // DB 조회/생성 실패 시 auth 세션 정보로 폴백하여 폼이 동작하도록 함
-        console.warn('⚠️ MyPage: DB user not found, using auth session fallback');
-        const fallbackUser = buildFallbackUser(authUser);
         setUser(fallbackUser);
         setName(fallbackUser.name);
         setChurchGroup('');
       }
 
-      setProfileLoading(false);
-
-      const history = await withTimeout(
-        getUserOrderHistory(authUser.id),
-        PROFILE_TIMEOUT_MS,
-        emptyOrderHistory
-      );
+      const history = toOrderHistory(orderResult.orders || []);
       setOrderHistory(history);
+      writeSessionCache(getOrdersCacheKey(authUser.id), history);
     } catch (error) {
       console.error('❌ MyPage: Error fetching user data:', error);
-      const fallbackUser = buildFallbackUser(authUser);
       setUser(fallbackUser);
       setName(fallbackUser.name);
       setChurchGroup('');
-      setOrderHistory(emptyOrderHistory);
-    } finally {
-      setProfileLoading(false);
+      setOrderHistory((currentHistory) => currentHistory || emptyOrderHistory);
     }
   };
 
@@ -291,18 +396,6 @@ export default function MyPage() {
     };
     return colorMap[status] || 'bg-secondary-bg text-body';
   };
-
-  if (initialLoading || !authResolved || profileLoading) {
-    return (
-      <div className="min-h-screen bg-surface-soft pb-20">
-        <div className="max-w-md mx-auto px-4 py-20 text-center">
-          <div className="bg-white rounded-2xl p-6 border border-hairline-soft">
-            <p className="text-mute font-medium">마이페이지를 불러오는 중입니다...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   if (!authUser) {
     return (

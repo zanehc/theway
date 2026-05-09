@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '~/lib/supabase';
-import { getUserOrderHistory, updateUser, getUserByIdOrCreate } from '~/lib/database';
+import { updateUser, getUserByIdOrCreate } from '~/lib/database';
+import { fetchOrderHistoryForCurrentUser } from '~/lib/orderHistoryClient';
 import type { UserOrderHistory } from '~/types';
 import ModalPortal from './ModalPortal';
 import { useNotifications } from '~/contexts/NotificationContext';
@@ -17,6 +18,17 @@ interface User {
 interface MyPageModalProps {
   isOpen: boolean;
   onClose: () => void;
+}
+
+function toOrderHistory(orders: any[]): UserOrderHistory {
+  return {
+    orders,
+    total_orders: orders.length,
+    total_spent: orders
+      .filter((order) => order.payment_status === 'confirmed')
+      .reduce((sum, order) => sum + Number(order.total_amount || 0), 0),
+    recent_orders: orders.slice(0, 5),
+  };
 }
 
 export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
@@ -74,8 +86,11 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
           setChurchGroup(userData.church_group || '');
           
           // 주문 내역 조회
-          const history = await getUserOrderHistory(authUser.id);
-          setOrderHistory(history);
+          const orderResult = await fetchOrderHistoryForCurrentUser(authUser.id, {
+            limit: 20,
+            timeoutMs: 3500,
+          });
+          setOrderHistory(toOrderHistory(orderResult.orders || []));
         } else {
           console.error('❌ MyPageModal: failed to get/create user data');
         }

@@ -24,7 +24,7 @@ function getSupabaseAnonKey(): string {
 
 function getSupabaseServiceKey(): string | undefined {
   if (isBrowser) {
-    return (window as any).__ENV?.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+    return undefined;
   }
   return process.env.SUPABASE_SERVICE_ROLE_KEY;
 }
@@ -205,7 +205,6 @@ declare global {
     __ENV?: {
       SUPABASE_URL?: string;
       SUPABASE_ANON_KEY?: string;
-      SUPABASE_SERVICE_ROLE_KEY?: string;
     };
   }
 } 

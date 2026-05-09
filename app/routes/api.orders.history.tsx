@@ -4,14 +4,13 @@ import { createServerSupabaseClient } from "~/lib/supabase";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
-  const userId = url.searchParams.get("userId");
   const requestedLimit = Number(url.searchParams.get("limit") || 30);
   const limit = Number.isFinite(requestedLimit)
     ? Math.min(Math.max(Math.floor(requestedLimit), 1), 50)
     : 30;
   const token = request.headers.get("Authorization")?.replace(/^Bearer\s+/i, "");
 
-  if (!userId || !token) {
+  if (!token) {
     return json({ error: "인증 정보가 없습니다.", orders: [] }, { status: 401 });
   }
 
@@ -22,20 +21,31 @@ export async function loader({ request }: LoaderFunctionArgs) {
     return json({ error: "로그인이 만료되었습니다.", orders: [] }, { status: 401 });
   }
 
-  if (authData.user.id !== userId) {
-    return json({ error: "주문 내역을 볼 권한이 없습니다.", orders: [] }, { status: 403 });
-  }
+  const effectiveUserId = authData.user.id;
 
   const { data, error } = await supabase
     .from("orders")
     .select(`
-      *,
+      id,
+      user_id,
+      customer_name,
+      church_group,
+      total_amount,
+      status,
+      payment_status,
+      payment_method,
+      created_at,
       order_items (
-        *,
+        id,
+        menu_id,
+        quantity,
+        unit_price,
+        total_price,
+        notes,
         menu:menus (id, name, price)
       )
     `)
-    .eq("user_id", userId)
+    .eq("user_id", effectiveUserId)
     .order("created_at", { ascending: false })
     .limit(limit);
 
@@ -51,7 +61,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const { data: orders, error: ordersError } = await supabase
     .from("orders")
     .select("*")
-    .eq("user_id", userId)
+    .eq("user_id", effectiveUserId)
     .order("created_at", { ascending: false })
     .limit(limit);
 

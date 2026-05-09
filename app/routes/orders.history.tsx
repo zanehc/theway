@@ -2,7 +2,7 @@ import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useOutletContext, useNavigate, useNavigation } from "@remix-run/react";
 import { useState, useEffect } from "react";
-import { getOrdersByUserId } from "~/lib/database";
+import { fetchOrderHistoryForCurrentUser } from "~/lib/orderHistoryClient";
 import { useNotifications } from "~/contexts/NotificationContext";
 import { OrderListSkeleton } from "~/components/LoadingSkeleton";
 import OrderStatusProgress from "~/components/orders/OrderStatusProgress";
@@ -18,14 +18,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 export default function OrdersHistoryPage() {
   const { error, success } = useLoaderData<typeof loader>();
-  const outletContext = useOutletContext<{ user: any; userRole: string | null }>();
+  const outletContext = useOutletContext<{ user: any; userRole: string | null; authChecked?: boolean }>();
   const navigation = useNavigation();
   const navigate = useNavigate();
 
   const contextUser = outletContext?.user || null;
+  const authChecked = outletContext?.authChecked ?? true;
   const [user, setUser] = useState<any>(contextUser);
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const { toasts, addToast } = useNotifications();
@@ -35,20 +37,31 @@ export default function OrdersHistoryPage() {
   useEffect(() => { setUser(contextUser); }, [contextUser]);
 
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || !authChecked) return;
     if (!user) {
       setOrders([]);
       setLoading(false);
+      setLoadError(null);
       return;
     }
 
     let isCancelled = false;
     const loadOrders = async () => {
+      setLoading(true);
+      setLoadError(null);
       try {
-        const result = await getOrdersByUserId(user.id);
-        if (!isCancelled) setOrders(result || []);
-      } catch {
-        if (!isCancelled) setOrders([]);
+        const result = await fetchOrderHistoryForCurrentUser(user.id);
+        if (isCancelled) return;
+
+        setOrders(result.orders || []);
+        if (result.error) {
+          setLoadError(result.error);
+        }
+      } catch (error) {
+        if (!isCancelled) {
+          setOrders([]);
+          setLoadError("주문 내역을 불러오지 못했습니다.");
+        }
       } finally {
         if (!isCancelled) setLoading(false);
       }
@@ -56,11 +69,16 @@ export default function OrdersHistoryPage() {
 
     loadOrders();
     return () => { isCancelled = true; };
-  }, [mounted, user]);
+  }, [mounted, authChecked, user]);
 
   useEffect(() => {
     if (!mounted || toasts.length === 0 || !user) return;
-    getOrdersByUserId(user.id).then(result => setOrders(result || [])).catch(() => {});
+    fetchOrderHistoryForCurrentUser(user.id)
+      .then(result => {
+        setOrders(result.orders || []);
+        setLoadError(result.error || null);
+      })
+      .catch(() => {});
   }, [toasts]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (navigation.state === "loading" && navigation.location?.pathname && navigation.location.pathname !== "/orders/history") {
@@ -187,6 +205,12 @@ export default function OrdersHistoryPage() {
               {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
             </span>
           </div>
+
+          {loadError && (
+            <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+              {loadError}
+            </div>
+          )}
 
           {orders.length > 0 ? (
             <>

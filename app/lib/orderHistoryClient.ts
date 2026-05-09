@@ -11,10 +11,27 @@ type OrderHistoryResponse = {
   timedOut?: boolean;
 };
 
+const AUTH_STORAGE_KEY = "theway-cafe-auth-token";
+
 const timeout = (ms: number, message: string) =>
   new Promise<never>((_, reject) => {
     window.setTimeout(() => reject(new Error(message)), ms);
   });
+
+function getStoredAccessToken() {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const storedSession = window.localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!storedSession) return null;
+
+    const parsed = JSON.parse(storedSession);
+    return typeof parsed?.access_token === "string" ? parsed.access_token : null;
+  } catch (error) {
+    console.warn("Stored auth token read failed:", error);
+    return null;
+  }
+}
 
 export async function fetchOrderHistoryForCurrentUser(
   userId: string,
@@ -25,12 +42,18 @@ export async function fetchOrderHistoryForCurrentUser(
   const abortTimer = window.setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const sessionResult = await Promise.race([
-      supabase.auth.getSession(),
-      timeout(Math.min(3000, timeoutMs), "세션 확인 시간이 초과되었습니다."),
-    ]);
+    let accessToken = getStoredAccessToken();
+    let tokenSource: "stored" | "session" | null = accessToken ? "stored" : null;
 
-    const accessToken = sessionResult.data.session?.access_token;
+    if (!accessToken) {
+      const sessionResult = await Promise.race([
+        supabase.auth.getSession(),
+        timeout(Math.min(1500, timeoutMs), "세션 확인 시간이 초과되었습니다."),
+      ]);
+      accessToken = sessionResult.data.session?.access_token || null;
+      tokenSource = accessToken ? "session" : null;
+    }
+
     if (!accessToken) {
       return { orders: [], error: "로그인 세션을 확인하지 못했습니다." };
     }
@@ -38,11 +61,25 @@ export async function fetchOrderHistoryForCurrentUser(
     const params = new URLSearchParams({ userId });
     if (options.limit) params.set("limit", String(options.limit));
 
-    const response = await fetch(`/api/orders/history?${params.toString()}`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-      cache: "no-store",
-      signal: controller.signal,
-    });
+    const requestOrders = (token: string) =>
+      fetch(`/api/orders/history?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+        signal: controller.signal,
+      });
+
+    let response = await requestOrders(accessToken);
+
+    if (response.status === 401 && tokenSource === "stored") {
+      const sessionResult = await Promise.race([
+        supabase.auth.getSession(),
+        timeout(Math.min(1500, timeoutMs), "세션 확인 시간이 초과되었습니다."),
+      ]);
+      const refreshedToken = sessionResult.data.session?.access_token;
+      if (refreshedToken && refreshedToken !== accessToken) {
+        response = await requestOrders(refreshedToken);
+      }
+    }
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
