@@ -98,7 +98,7 @@ type CartItem = {
 export default function NewOrder() {
   const { menus: loadedMenus } = useLoaderData<typeof loader>();
   const menus = loadedMenus as unknown as Menu[];
-  const outletContext = useOutletContext<{ user: any; userRole: string | null }>();
+  const outletContext = useOutletContext<{ user: any; userRole: string | null; userProfile?: { name: string; church_group: string } | null }>();
   const navigation = useNavigation();
   const fetcher = useFetcher();
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -112,23 +112,16 @@ export default function NewOrder() {
   const isSubmitting = fetcher.state === 'submitting';
   const actionData = fetcher.data as { error?: string; success?: boolean; orderId?: string } | undefined;
 
+  // context에서 프로필 가져오기
   useEffect(() => {
-    async function fetchUserInfo() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('name, church_group')
-          .eq('id', user.id)
-          .single();
-        if (userData) {
-          setCustomerName(typeof userData.name === 'string' ? userData.name : '');
-          setChurchGroup(typeof userData.church_group === 'string' ? userData.church_group : '');
-        }
-      }
+    const profile = outletContext?.userProfile;
+    if (profile) {
+      setCustomerName(profile.name || '');
+      setChurchGroup(profile.church_group || '');
     }
-    fetchUserInfo();
+  }, [outletContext?.userProfile]);
 
+  useEffect(() => {
     // 재주문 정보가 있으면 자동 채우기
     const reorderRaw = localStorage.getItem('reorder');
     if (reorderRaw) {
@@ -195,7 +188,7 @@ export default function NewOrder() {
     { id: 'ice coffee', name: 'Ice 커피', shortName: 'Ice' },
     { id: 'hot coffee', name: 'Hot 커피', shortName: 'Hot' },
     { id: 'tea', name: '차', shortName: 'Tea' },
-    { id: 'beverage', name: '음료', shortName: 'Ade' }
+    { id: 'beverage', name: 'ADE / 음료', shortName: '음료' }
   ];
 
   // 선택된 카테고리에 따른 메뉴 필터링

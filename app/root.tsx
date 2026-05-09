@@ -15,6 +15,7 @@ import Header from "./components/Header";
 import { NotificationProvider } from "./contexts/NotificationContext";
 import { GlobalToast } from "./components/GlobalToast";
 import { supabase } from "./lib/supabase";
+import ChurchGroupModal from "./components/ChurchGroupModal";
 
 export const links: LinksFunction = () => [
   { rel: "stylesheet", href: tailwindHref },
@@ -44,6 +45,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
 export default function App() {
   const [user, setUser] = useState<any>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [userProfile, setUserProfile] = useState<{ name: string; church_group: string } | null>(null);
+  const [showChurchGroupModal, setShowChurchGroupModal] = useState(false);
   const [isClient, setIsClient] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
 
@@ -79,12 +82,17 @@ export default function App() {
           // 세션 확인 즉시 authChecked=true → 최근주문 바로 로딩 가능
           setAuthChecked(true);
 
-          // DB 역할 조회는 백그라운드 (admin 여부 확인용)
-          supabase.from('users').select('role').eq('id', user.id).single().then(({ data, error }) => {
-            const role = typeof data?.role === 'string' ? data.role : null;
-            if (!error && role) {
-              setUserRole(role);
-              try { sessionStorage.setItem(`user_role_${user.id}`, role); } catch {}
+          // DB 역할 + 프로필 조회는 백그라운드
+          supabase.from('users').select('role, name, church_group').eq('id', user.id).single().then(({ data, error }) => {
+            if (!error && data) {
+              const role = typeof data.role === 'string' ? data.role : null;
+              if (role) {
+                setUserRole(role);
+                try { sessionStorage.setItem(`user_role_${user.id}`, role); } catch {}
+              }
+              const profile = { name: (data.name as string) || '', church_group: (data.church_group as string) || '' };
+              setUserProfile(profile);
+              if (!profile.church_group) setShowChurchGroupModal(true);
             }
           });
         } else {
@@ -135,19 +143,25 @@ export default function App() {
             return;
           }
 
-          // 캐시 미스: 낙관적으로 'customer' 즉시 설정 후 DB에서 실제 역할 확인
+          // 캐시 미스: 낙관적으로 'customer' 즉시 설정 후 DB에서 실제 역할 + 프로필 확인
           setUserRole('customer');
 
           try {
             const { data: userData } = await supabase
               .from('users')
-              .select('role')
+              .select('role, name, church_group')
               .eq('id', session.user.id)
               .single();
 
             const role = (userData?.role as string) || 'customer';
             console.log('🔐 Root - DB 역할 확인 후 업데이트:', role);
             setUserRole(role);
+
+            if (userData) {
+              const profile = { name: (userData.name as string) || '', church_group: (userData.church_group as string) || '' };
+              setUserProfile(profile);
+              if (!profile.church_group) setShowChurchGroupModal(true);
+            }
 
             try {
               sessionStorage.setItem(`user_role_${session.user.id}`, role);
@@ -186,12 +200,21 @@ export default function App() {
         <NotificationProvider userId={user?.id} userRole={userRole}>
           <div className="app-container">
             <div className="main-content pb-24">
-              <Outlet context={{ user, userRole, authChecked }} />
+              <Outlet context={{ user, userRole, userProfile, authChecked }} />
             </div>
             <div id="modal-root" />
             {isClient && <BottomNavigation user={user} />}
           </div>
           {isClient && <GlobalToast />}
+          {isClient && showChurchGroupModal && user && (
+            <ChurchGroupModal
+              userId={user.id}
+              onSaved={(churchGroup) => {
+                setUserProfile(prev => prev ? { ...prev, church_group: churchGroup } : { name: '', church_group: churchGroup });
+                setShowChurchGroupModal(false);
+              }}
+            />
+          )}
         </NotificationProvider>
         <ScrollRestoration />
         <Scripts />
