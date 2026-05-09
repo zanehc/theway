@@ -3,7 +3,6 @@ import { json } from "@remix-run/node";
 import { useLoaderData, useOutletContext, useNavigate, useNavigation } from "@remix-run/react";
 import { useState, useEffect } from "react";
 import { supabase } from "~/lib/supabase";
-import { getOrdersByUserId } from "~/lib/database";
 import { useNotifications } from "~/contexts/NotificationContext";
 import { OrderListSkeleton } from "~/components/LoadingSkeleton";
 import OrderStatusProgress from "~/components/orders/OrderStatusProgress";
@@ -36,9 +35,16 @@ export default function OrdersHistoryPage() {
 
   useEffect(() => { setUser(contextUser); }, [contextUser]);
 
-  const fetchOrders = async (userId: string) => {
-    await supabase.auth.getSession();
-    return getOrdersByUserId(userId);
+  const fetchOrders = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) return [];
+    const res = await fetch('/api/orders/history?limit=50', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    const body = await res.json();
+    return body.orders || [];
   };
 
   useEffect(() => {
@@ -49,7 +55,7 @@ export default function OrdersHistoryPage() {
     const loadOrders = async () => {
       setLoading(true);
       try {
-        const result = await fetchOrders(user.id);
+        const result = await fetchOrders();
         if (!cancelled) setOrders(result);
       } catch {
         if (!cancelled) setOrders([]);
@@ -64,7 +70,7 @@ export default function OrdersHistoryPage() {
 
   useEffect(() => {
     if (!mounted || toasts.length === 0 || !user) return;
-    fetchOrders(user.id).then(result => setOrders(result)).catch(() => {});
+    fetchOrders().then(result => setOrders(result)).catch(() => {});
   }, [toasts]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (navigation.state === "loading" && navigation.location?.pathname && navigation.location.pathname !== "/orders/history") {
@@ -175,20 +181,20 @@ export default function OrdersHistoryPage() {
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {user && (
-          <div className="mb-6">
-            <h1 className="text-xl sm:text-2xl font-bold text-ink">
-              {user.email}님의 주문 내역
+          <div className="mb-4">
+            <h1 className="text-base sm:text-lg font-bold text-ink truncate">
+              {user.email?.split('@')[0]}님의 주문 내역
             </h1>
           </div>
         )}
 
         <div className="relative bg-surface-soft border-4 border-primary rounded-[32px] p-4 sm:p-6 mb-8">
           <div className="flex flex-col items-center mb-4">
-            <h2 className="text-2xl sm:text-3xl font-black text-ink">주문 내역</h2>
-            <span className="mt-1 text-xs sm:text-sm text-mute font-semibold">
-              {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
+            <h2 className="text-xl sm:text-2xl font-black text-ink">주문 내역</h2>
+            <span className="mt-1 text-xs text-mute font-semibold">
+              {new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}
             </span>
           </div>
 
@@ -199,30 +205,36 @@ export default function OrdersHistoryPage() {
                 {orders
                   .slice((currentPage - 1) * ORDERS_PER_PAGE, currentPage * ORDERS_PER_PAGE)
                   .map((order) => (
-                    <div key={order.id} className="bg-canvas rounded-2xl border border-hairline p-4">
-                      <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
+                    <div key={order.id} className="bg-canvas rounded-2xl border border-hairline p-3">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs text-ash">#{order.id.slice(-8)}</span>
+                        <span className="text-xs text-ash">#{order.id.slice(-6)}</span>
+                        <span className="text-xs text-mute">
+                          {new Date(order.created_at).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}
+                          {' '}
+                          {new Date(order.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
                       </div>
-                      <div className="font-bold text-ink mb-1">{order.customer_name}</div>
-                      <div className="text-sm text-mute mb-2">{order.church_group}</div>
-                      <div className="text-sm text-body mb-2">
-                        {new Date(order.created_at).toLocaleString('ko-KR')}
+                      <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
+                      <div className="flex items-center gap-2 mt-2 mb-1">
+                        <span className="text-sm font-bold text-ink">{order.customer_name}</span>
+                        {order.church_group && <span className="text-xs text-mute">{order.church_group}</span>}
                       </div>
-                      <div className="space-y-1 mb-3">
+                      <div className="space-y-0.5 mb-2">
                         {order.order_items?.map((item: any) => (
-                          <div key={item.id} className="text-sm text-body">
-                            {item.menu?.name} x {item.quantity}
+                          <div key={item.id} className="text-xs text-body">
+                            {item.menu?.name} × {item.quantity}
                           </div>
                         ))}
                       </div>
-                      <div className="font-bold text-ink mb-3">₩{order.total_amount?.toLocaleString()}</div>
-                      <button
-                        onClick={() => handleQuickOrder(order)}
-                        className="mt-2 w-full px-3 py-1 bg-red-100 text-red-800 rounded text-xs font-bold hover:bg-red-200"
-                      >
-                        빠른 주문
-                      </button>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold text-ink">₩{order.total_amount?.toLocaleString()}</span>
+                        <button
+                          onClick={() => handleQuickOrder(order)}
+                          className="px-3 py-1 bg-red-100 text-red-800 rounded-xl text-xs font-bold hover:bg-red-200"
+                        >
+                          빠른주문
+                        </button>
+                      </div>
                     </div>
                   ))}
               </div>

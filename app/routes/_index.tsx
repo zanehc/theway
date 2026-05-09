@@ -169,11 +169,11 @@ export default function Index() {
                 </svg>
               </div>
               <div>
-                <h1 className="text-xl font-black text-ink leading-tight">
+                <h1 className="text-sm sm:text-base font-black text-ink leading-tight whitespace-nowrap">
                   길을여는교회 이음카페
                 </h1>
                 <div className="flex items-center gap-2">
-                  <span className="bg-primary text-white text-xs px-2 py-1 rounded-full font-bold border border-primary-pressed">
+                  <span className="bg-primary text-white text-xs px-1.5 py-0.5 rounded-full font-bold border border-primary-pressed">
                     Beta
                   </span>
                 </div>
