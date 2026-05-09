@@ -59,19 +59,49 @@ async function ensureOrderUserProfile(
     return;
   }
 
+  // User doesn't exist by ID — insert a new row
   const { error: insertError } = await client
     .from('users')
     .insert({
       id: payload.userId,
-      email: payload.email,
+      email: payload.email || null,
       name: payload.name,
       church_group: payload.churchGroup,
       role: 'customer',
       updated_at: new Date().toISOString(),
     });
 
-  if (insertError && insertError.code !== '23505') {
+  if (!insertError) return;
+
+  if (insertError.code !== '23505') {
     throw new Error(`users_insert - ${getSupabaseErrorDetail(insertError)}`);
+  }
+
+  // 23505: unique constraint — could be email conflict when the same person uses multiple
+  // OAuth providers (e.g. Google + Kakao). Verify if our UUID actually has a row now.
+  const { data: verifyProfile } = await client
+    .from('users')
+    .select('id')
+    .eq('id', payload.userId)
+    .maybeSingle();
+
+  if (verifyProfile) return;
+
+  // Email unique constraint conflict: this UUID has no row yet.
+  // Insert with a placeholder email unique to this UUID so the FK constraint is satisfied.
+  const { error: retryError } = await client
+    .from('users')
+    .insert({
+      id: payload.userId,
+      email: `${payload.userId}@oauth-multi-provider.internal`,
+      name: payload.name,
+      church_group: payload.churchGroup,
+      role: 'customer',
+      updated_at: new Date().toISOString(),
+    });
+
+  if (retryError && retryError.code !== '23505') {
+    throw new Error(`users_insert - ${getSupabaseErrorDetail(retryError)}`);
   }
 }
 
@@ -148,7 +178,9 @@ export async function action({ request }: ActionFunctionArgs) {
         userExists: !!finalUserId
       });
 
-      await ensureOrderUserProfile(writeClient, {
+      // Use service role client for profile ensure so RLS doesn't block
+      // multi-OAuth users (e.g. same person using both Google and Kakao).
+      await ensureOrderUserProfile(serverSupabase, {
         userId: finalUserId,
         email: authData.user?.email || '',
         name: customerName,
