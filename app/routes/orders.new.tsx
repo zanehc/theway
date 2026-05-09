@@ -12,6 +12,69 @@ import { MenuListSkeleton } from "~/components/LoadingSkeleton";
 const menuCache = { data: null as any, timestamp: 0 };
 const MENU_CACHE_DURATION = 300000; // 5분
 
+function getSupabaseErrorDetail(error: unknown) {
+  if (error && typeof error === 'object') {
+    const code = 'code' in error ? (error as { code?: string }).code : null;
+    const message = 'message' in error ? (error as { message?: string }).message : null;
+    return [code, message].filter(Boolean).join(': ');
+  }
+
+  return String(error);
+}
+
+async function ensureOrderUserProfile(
+  client: ReturnType<typeof createServerSupabaseClient>,
+  payload: { userId: string; email: string; name: string; churchGroup: string }
+) {
+  const { data: existingProfile, error: selectError } = await client
+    .from('users')
+    .select('id, name, church_group')
+    .eq('id', payload.userId)
+    .maybeSingle();
+
+  if (selectError) {
+    throw new Error(`users_select - ${getSupabaseErrorDetail(selectError)}`);
+  }
+
+  if (existingProfile) {
+    const needsProfileUpdate =
+      existingProfile.name !== payload.name ||
+      existingProfile.church_group !== payload.churchGroup;
+
+    if (needsProfileUpdate) {
+      const { error: updateError } = await client
+        .from('users')
+        .update({
+          name: payload.name,
+          church_group: payload.churchGroup,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', payload.userId);
+
+      if (updateError) {
+        throw new Error(`users_update - ${getSupabaseErrorDetail(updateError)}`);
+      }
+    }
+
+    return;
+  }
+
+  const { error: insertError } = await client
+    .from('users')
+    .insert({
+      id: payload.userId,
+      email: payload.email,
+      name: payload.name,
+      church_group: payload.churchGroup,
+      role: 'customer',
+      updated_at: new Date().toISOString(),
+    });
+
+  if (insertError && insertError.code !== '23505') {
+    throw new Error(`users_insert - ${getSupabaseErrorDetail(insertError)}`);
+  }
+}
+
 export async function loader({ request }: LoaderFunctionArgs) {
   try {
     // 캐시된 메뉴 데이터가 유효한지 확인
@@ -61,7 +124,8 @@ export async function action({ request }: ActionFunctionArgs) {
         return json({ error: '로그인 정보가 확인되지 않아 주문을 생성할 수 없습니다. 다시 로그인 해주세요.' }, { status: 400 });
       }
 
-      const { data: profile } = await serverSupabase
+      const writeClient = createServerSupabaseClient(accessToken);
+      const { data: profile } = await writeClient
         .from('users')
         .select('name, church_group')
         .eq('id', finalUserId)
@@ -84,7 +148,13 @@ export async function action({ request }: ActionFunctionArgs) {
         userExists: !!finalUserId
       });
 
-      const writeClient = createServerSupabaseClient(accessToken);
+      await ensureOrderUserProfile(writeClient, {
+        userId: finalUserId,
+        email: authData.user?.email || '',
+        name: customerName,
+        churchGroup,
+      });
+
       const result = await createOrder(
         {
           user_id: finalUserId || undefined,
@@ -108,6 +178,9 @@ export async function action({ request }: ActionFunctionArgs) {
           error: `주문 생성에 실패했습니다. (${error.message})`,
           step: error.step,
         }, { status: 400 });
+      }
+      if (error instanceof Error) {
+        return json({ error: `주문 생성에 실패했습니다. (${error.message})` }, { status: 400 });
       }
       return json({ error: '주문 생성에 실패했습니다.' }, { status: 400 });
     }
