@@ -6,6 +6,8 @@ import { supabase } from "~/lib/supabase";
 import { useNotifications } from "~/contexts/NotificationContext";
 import { OrderListSkeleton } from "~/components/LoadingSkeleton";
 import OrderStatusProgress from "~/components/orders/OrderStatusProgress";
+import OrderCancellationModal from "~/components/OrderCancellationModal";
+import type { OrderStatus } from "~/types";
 
 const ORDERS_PER_PAGE = 10;
 
@@ -30,24 +32,27 @@ export default function OrdersHistoryPage() {
     || contextUser?.user_metadata?.name
     || contextUser?.email?.split('@')[0]
     || '';
+
   const [user, setUser] = useState<any>(contextUser);
   const [orders, setOrders] = useState<any[]>([]);
   const [loadError, setLoadError] = useState('');
-  const [debugInfo, setDebugInfo] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [cancellationModal, setCancellationModal] = useState<{ isOpen: boolean; order: any | null }>({ isOpen: false, order: null });
   const { toasts, addToast } = useNotifications();
 
   useEffect(() => { setMounted(true); }, []);
-
   useEffect(() => { setUser(contextUser); }, [contextUser]);
 
-  const fetchOrders = async () => {
+  const getAccessToken = async () => {
     const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
+    return session?.access_token || null;
+  };
+
+  const fetchOrders = async () => {
+    const token = await getAccessToken();
     if (!token) return [];
-    // 관리자/스태프는 전체 주문을 더 많이 조회
     const limit = isAdmin ? 200 : 50;
     const res = await fetch(`/api/orders/history?limit=${limit}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -57,8 +62,61 @@ export default function OrdersHistoryPage() {
       throw new Error(body.error || `주문 내역 조회 실패 (${res.status})`);
     }
     const body = await res.json();
-    setDebugInfo(`서버 isAdmin=${body.isAdmin}, 주문수=${body.orders?.length ?? 0}, 클라이언트 userRole=${userRole}`);
     return body.orders || [];
+  };
+
+  const requestAdminOrderUpdate = async (payload: Record<string, unknown>) => {
+    const token = await getAccessToken();
+    if (!token) throw new Error('로그인 세션을 확인하지 못했습니다.');
+    const res = await fetch('/api/admin-orders', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || '주문 업데이트에 실패했습니다.');
+    return data.order;
+  };
+
+  const refreshOrders = async () => {
+    try {
+      const result = await fetchOrders();
+      setOrders(result);
+      setLoadError('');
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : '주문 내역을 불러오지 못했습니다.');
+    }
+  };
+
+  const handleStatusChange = async (order: any, newStatus: OrderStatus) => {
+    try {
+      await requestAdminOrderUpdate({ intent: 'updateStatus', orderId: order.id, status: newStatus });
+      addToast('주문 상태가 업데이트되었습니다.', 'success');
+      await refreshOrders();
+    } catch {
+      addToast('상태 변경에 실패했습니다.', 'error');
+    }
+  };
+
+  const handlePaymentConfirm = async (order: any) => {
+    try {
+      await requestAdminOrderUpdate({ intent: 'updatePayment', orderId: order.id, paymentStatus: 'confirmed' });
+      addToast('결제가 확인되었습니다.', 'success');
+      await refreshOrders();
+    } catch {
+      addToast('결제 확인에 실패했습니다.', 'error');
+    }
+  };
+
+  const handleCancelConfirm = async (reason: string) => {
+    if (!cancellationModal.order) return;
+    try {
+      await requestAdminOrderUpdate({ intent: 'updateStatus', orderId: cancellationModal.order.id, status: 'cancelled', cancellationReason: reason });
+      addToast(`주문이 취소되었습니다. (사유: ${reason})`, 'warning');
+      await refreshOrders();
+    } catch {
+      addToast('주문 취소에 실패했습니다.', 'error');
+    }
   };
 
   useEffect(() => {
@@ -83,8 +141,7 @@ export default function OrdersHistoryPage() {
 
     loadOrders();
     return () => { cancelled = true; };
-  // userRole을 포함: role이 DB에서 확인된 뒤 재조회 (customer→admin 전환 대응)
-  }, [mounted, authChecked, user, userRole]);
+  }, [mounted, authChecked, user, userRole]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!mounted || toasts.length === 0 || !user) return;
@@ -105,14 +162,48 @@ export default function OrdersHistoryPage() {
       }));
       localStorage.setItem('quickOrderItems', JSON.stringify(orderItems));
       navigate('/orders/new');
-    } catch (err) {
+    } catch {
       addToast('빠른주문 처리에 실패했습니다.', 'error');
     }
   };
 
+  const AdminActions = ({ order }: { order: any }) => (
+    <div className="flex flex-wrap gap-1">
+      {order.status === 'pending' && (
+        <button onClick={() => handleStatusChange(order, 'preparing')}
+          className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-bold hover:bg-blue-200">
+          제조시작
+        </button>
+      )}
+      {order.status === 'preparing' && (
+        <button onClick={() => handleStatusChange(order, 'ready')}
+          className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-bold hover:bg-green-200">
+          제조완료
+        </button>
+      )}
+      {order.status === 'ready' && (
+        <button onClick={() => handleStatusChange(order, 'completed')}
+          className="px-2 py-1 bg-surface-card text-ink rounded text-xs font-bold hover:bg-secondary-bg">
+          픽업완료
+        </button>
+      )}
+      {order.payment_status !== 'confirmed' && (
+        <button onClick={() => handlePaymentConfirm(order)}
+          className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-bold hover:bg-purple-200">
+          결제확인
+        </button>
+      )}
+      {order.status !== 'cancelled' && (
+        <button onClick={() => setCancellationModal({ isOpen: true, order })}
+          className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-bold hover:bg-red-200">
+          취소
+        </button>
+      )}
+    </div>
+  );
+
   if (!mounted) return <OrderListSkeleton />;
 
-  // 비로그인 처리
   if (!loading && !user) {
     return (
       <div className="min-h-screen bg-canvas pb-20">
@@ -123,16 +214,10 @@ export default function OrdersHistoryPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 11V7a4 4 0 00-8 0v4M8 11v6a2 2 0 002 2h4a2 2 0 002-2v-6M8 11h8" />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold text-ink mb-2">
-              최근 주문을 확인하려면 로그인이 필요합니다
-            </h3>
-            <p className="text-mute mb-6">
-              홈탭에서 로그인 후 최근 주문 내역을 확인해보세요.
-            </p>
-            <button
-              onClick={() => navigate('/')}
-              className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-2xl text-white bg-primary hover:bg-primary-pressed transition-colors"
-            >
+            <h3 className="text-lg font-semibold text-ink mb-2">최근 주문을 확인하려면 로그인이 필요합니다</h3>
+            <p className="text-mute mb-6">홈탭에서 로그인 후 최근 주문 내역을 확인해보세요.</p>
+            <button onClick={() => navigate('/')}
+              className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-2xl text-white bg-primary hover:bg-primary-pressed transition-colors">
               홈으로 가기
             </button>
           </div>
@@ -151,7 +236,7 @@ export default function OrdersHistoryPage() {
           </div>
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="bg-white rounded-2xl  p-4 sm:p-6">
+              <div key={i} className="bg-white rounded-2xl p-4 sm:p-6">
                 <div className="flex justify-between items-start mb-4">
                   <div className="space-y-2">
                     <div className="h-5 bg-secondary-bg rounded w-32 animate-pulse"></div>
@@ -179,23 +264,12 @@ export default function OrdersHistoryPage() {
     <div className="min-h-screen bg-canvas pb-20">
       {error && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-2xl shadow-large animate-slide-in">
-          <div className="flex items-center">
-            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-            </svg>
-            {error}
-          </div>
+          {error}
         </div>
       )}
-
       {success && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-2xl shadow-large animate-slide-in">
-          <div className="flex items-center">
-            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-            </svg>
-            {success}
-          </div>
+          {success}
         </div>
       )}
 
@@ -216,12 +290,6 @@ export default function OrdersHistoryPage() {
             </span>
           </div>
 
-          {debugInfo && (
-            <div className="mb-3 rounded-xl bg-yellow-50 border border-yellow-300 px-3 py-2 text-xs text-yellow-800 font-mono">
-              🔍 {debugInfo}
-            </div>
-          )}
-
           {loadError ? (
             <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-5 text-center">
               <div className="text-sm font-bold text-red-700">{loadError}</div>
@@ -229,15 +297,8 @@ export default function OrdersHistoryPage() {
                 type="button"
                 onClick={async () => {
                   setLoading(true);
-                  try {
-                    const result = await fetchOrders();
-                    setOrders(result);
-                    setLoadError('');
-                  } catch (err) {
-                    setLoadError(err instanceof Error ? err.message : '주문 내역을 불러오지 못했습니다.');
-                  } finally {
-                    setLoading(false);
-                  }
+                  await refreshOrders();
+                  setLoading(false);
                 }}
                 className="mt-3 rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white"
               >
@@ -274,12 +335,16 @@ export default function OrdersHistoryPage() {
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-bold text-ink">₩{order.total_amount?.toLocaleString()}</span>
-                        <button
-                          onClick={() => handleQuickOrder(order)}
-                          className="px-3 py-1 bg-red-100 text-red-800 rounded-xl text-xs font-bold hover:bg-red-200"
-                        >
-                          빠른주문
-                        </button>
+                        {isAdmin ? (
+                          <AdminActions order={order} />
+                        ) : (
+                          <button
+                            onClick={() => handleQuickOrder(order)}
+                            className="px-3 py-1 bg-red-100 text-red-800 rounded-xl text-xs font-bold hover:bg-red-200"
+                          >
+                            빠른주문
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -295,7 +360,7 @@ export default function OrdersHistoryPage() {
                       <th className="px-2 py-2">주문시간</th>
                       <th className="px-2 py-2">주문메뉴</th>
                       <th className="px-2 py-2">주문상태</th>
-                      <th className="px-2 py-2">빠른주문</th>
+                      <th className="px-2 py-2">{isAdmin ? '액션' : '빠른주문'}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -334,12 +399,16 @@ export default function OrdersHistoryPage() {
                             <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
                           </td>
                           <td className="align-middle">
-                            <button
-                              onClick={() => handleQuickOrder(order)}
-                              className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-bold hover:bg-red-200"
-                            >
-                              빠른주문
-                            </button>
+                            {isAdmin ? (
+                              <AdminActions order={order} />
+                            ) : (
+                              <button
+                                onClick={() => handleQuickOrder(order)}
+                                className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-bold hover:bg-red-200"
+                              >
+                                빠른주문
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -377,6 +446,20 @@ export default function OrdersHistoryPage() {
           )}
         </div>
       </div>
+
+      {cancellationModal.order && (
+        <OrderCancellationModal
+          isOpen={cancellationModal.isOpen}
+          onClose={() => setCancellationModal({ isOpen: false, order: null })}
+          onConfirm={handleCancelConfirm}
+          orderInfo={{
+            customerName: cancellationModal.order.customer_name,
+            orderItems: cancellationModal.order.order_items
+              ?.map((item: any) => `${item.menu?.name} x ${item.quantity}`)
+              .join(', ') || ''
+          }}
+        />
+      )}
     </div>
   );
 }
