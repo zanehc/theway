@@ -59,12 +59,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 export default function Index() {
   const { error, success, news } = useLoaderData<typeof loader>();
-  const outletContext = useOutletContext<{ user: any; userRole: string | null }>();
+  const outletContext = useOutletContext<{ user: any; userRole: string | null; userProfile?: { name: string; church_group: string } | null }>();
   const navigation = useNavigation();
   const [mounted, setMounted] = useState(false);
 
   const user = outletContext?.user || null;
   const userRole = outletContext?.userRole || null;
+  const displayName = outletContext?.userProfile?.name?.trim()
+    || user?.user_metadata?.name
+    || user?.email?.split('@')[0]
+    || '';
 
   // 교회소식 상태 (서버 데이터로 초기화, 저장 후 즉시 반영용)
   const [newsData, setNewsData] = useState<any>(news);
@@ -191,7 +195,7 @@ export default function Index() {
                     aria-label="마이페이지로 이동"
                   >
                     <div className="text-body font-bold text-sm">
-                      {user.email?.split('@')[0]}님
+                      {displayName}님
                     </div>
                     <div className="text-mute text-xs">
                       안녕하세요

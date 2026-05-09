@@ -18,12 +18,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 export default function OrdersHistoryPage() {
   const { error, success } = useLoaderData<typeof loader>();
-  const outletContext = useOutletContext<{ user: any; userRole: string | null; authChecked?: boolean }>();
+  const outletContext = useOutletContext<{ user: any; userRole: string | null; userProfile?: { name: string; church_group: string } | null; authChecked?: boolean }>();
   const navigation = useNavigation();
   const navigate = useNavigate();
 
   const contextUser = outletContext?.user || null;
   const authChecked = outletContext?.authChecked ?? true;
+  const displayName = outletContext?.userProfile?.name?.trim()
+    || contextUser?.user_metadata?.name
+    || contextUser?.email?.split('@')[0]
+    || '';
   const [user, setUser] = useState<any>(contextUser);
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -185,7 +189,7 @@ export default function OrdersHistoryPage() {
         {user && (
           <div className="mb-4">
             <h1 className="text-base sm:text-lg font-bold text-ink truncate">
-              {user.email?.split('@')[0]}님의 주문 내역
+              {displayName}님의 주문 내역
             </h1>
           </div>
         )}

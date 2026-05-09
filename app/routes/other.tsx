@@ -6,8 +6,9 @@ import { signOutAndClearSession } from "~/lib/authClient";
 
 export default function OtherPage() {
   // root.tsx에서 관리하는 인증 상태를 사용
-  const outletContext = useOutletContext<{ user: any; userRole: string | null }>();
+  const outletContext = useOutletContext<{ user: any; userRole: string | null; userProfile?: { name: string; church_group: string } | null }>();
   const contextUser = outletContext?.user || null;
+  const contextProfile = outletContext?.userProfile || null;
 
   const [user, setUser] = useState<any>(contextUser);
   const [userData, setUserData] = useState<any>(null);
@@ -23,6 +24,11 @@ export default function OtherPage() {
   const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState(false);
   const [mounted, setMounted] = useState(false);
   const navigate = useNavigate();
+  const displayName = userData?.name?.trim()
+    || contextProfile?.name?.trim()
+    || user?.user_metadata?.name
+    || user?.email?.split('@')[0]
+    || '';
 
   // 클라이언트 마운트 확인
   useEffect(() => {
@@ -216,7 +222,8 @@ export default function OtherPage() {
             <div className="space-y-4">
               <div className="text-center">
                 <p className="text-mute mb-2">현재 로그인된 사용자</p>
-                <p className="font-semibold text-ink">{user.email}</p>
+                <p className="font-semibold text-ink">{displayName}</p>
+                {user.email && <p className="mt-1 text-xs text-mute">{user.email}</p>}
               </div>
 
               <button

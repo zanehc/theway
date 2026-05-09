@@ -13,9 +13,10 @@ import { signOutAndClearSession } from "~/lib/authClient";
 interface HeaderProps {
   user: any;
   userRole: string | null;
+  userProfile?: { name?: string | null } | null;
 }
 
-export default function Header({ user, userRole }: HeaderProps) {
+export default function Header({ user, userRole, userProfile }: HeaderProps) {
   // Props에서 받은 사용자 정보 사용 (중복 상태 관리 제거)
   const [showLogin, setShowLogin] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
@@ -24,6 +25,11 @@ export default function Header({ user, userRole }: HeaderProps) {
   const [loginRequiredMessage, setLoginRequiredMessage] = useState(false);
   const [orderStats, setOrderStats] = useState({ pending: 0, preparing: 0, ready: 0, completed: 0, cancelled: 0, confirmedOrders: 0 });
   const { initializeTTS } = useNotifications();
+  const displayName = userProfile?.name?.trim()
+    || user?.name
+    || user?.user_metadata?.name
+    || user?.email?.split('@')[0]
+    || '';
 
   // Props 변경 시 로그
   useEffect(() => {
@@ -130,7 +136,7 @@ export default function Header({ user, userRole }: HeaderProps) {
               <>
                 {/* 회원명 표시 */}
                 <div className="hidden sm:block text-body font-bold text-sm sm:text-base">
-                  {user.email?.split('@')[0]}님 안녕하세요
+                  {displayName}님 안녕하세요
                 </div>
                 {/* 알림 벨 */}
                 <NotificationBell 
@@ -141,6 +147,7 @@ export default function Header({ user, userRole }: HeaderProps) {
                 <HamburgerMenu 
                   user={user} 
                   userRole={userRole ?? 'customer'} 
+                  displayName={displayName}
                   onLogout={handleLogout}
                   onMyPageClick={() => setShowMyPage(true)}
                 />

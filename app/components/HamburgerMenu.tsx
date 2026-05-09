@@ -6,12 +6,19 @@ import ModalPortal from './ModalPortal';
 interface HamburgerMenuProps {
   user: any;
   userRole: string | null;
+  displayName?: string;
   onLogout: () => void;
   onMyPageClick: () => void;
 }
 
-export function HamburgerMenu({ user, userRole, onLogout, onMyPageClick }: HamburgerMenuProps) {
+export function HamburgerMenu({ user, userRole, displayName, onLogout, onMyPageClick }: HamburgerMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const resolvedName = displayName?.trim()
+    || user?.name
+    || user?.user_metadata?.name
+    || user?.email?.split('@')[0]
+    || user?.email
+    || '';
 
   const toggleMenu = () => {
     setIsOpen(!isOpen);
@@ -58,7 +65,7 @@ export function HamburgerMenu({ user, userRole, onLogout, onMyPageClick }: Hambu
               <>
                 {/* 사용자 정보 */}
                 <div className="px-4 py-3 border-b border-hairline-soft">
-                  <div className="text-sm font-bold text-ink">{user.name || user.email}</div>
+                  <div className="text-sm font-bold text-ink">{resolvedName}</div>
                   <div className="text-xs text-mute">{userRole === 'admin' ? '관리자' : '일반 사용자'}</div>
                 </div>
 
@@ -143,4 +150,4 @@ export function HamburgerMenu({ user, userRole, onLogout, onMyPageClick }: Hambu
       )}
     </div>
   );
-} 
+}
