@@ -117,8 +117,7 @@ export async function action({ request }: ActionFunctionArgs) {
       const category = formData.get('category') as string;
       const imageFile = formData.get('image') as File | null;
       const removeImage = formData.get('removeImage') === 'true';
-      const hasNewImage = formData.get('hasNewImage') === 'true';
-      const imageFileSelected = formData.get('imageFileSelected') === 'true';
+      const hasUploadedImage = imageFile instanceof File && imageFile.size > 0;
 
       console.log('🔍 Raw FormData entry for image:', formData.get('image'));
       console.log('🔍 FormData has image:', formData.has('image'));
@@ -131,7 +130,7 @@ export async function action({ request }: ActionFunctionArgs) {
         }
       }
 
-      console.log('Form data:', { id, name, description, price, category, removeImage, hasNewImage, imageFileSelected });
+      console.log('Form data:', { id, name, description, price, category, removeImage, hasUploadedImage });
       console.log('Image file:', imageFile ? { name: imageFile.name, size: imageFile.size } : 'null');
 
       if (!id || !name || !price || !category) {
@@ -166,7 +165,7 @@ export async function action({ request }: ActionFunctionArgs) {
       console.log('Existing menu:', existingMenu);
 
       // 이미지 처리 로직 개선
-      if (removeImage && !imageFileSelected) {
+      if (removeImage && !hasUploadedImage) {
         console.log('Removing existing image only (no new image selected):', existingMenu?.image_url);
         // 기존 이미지만 삭제
         if (existingMenu?.image_url) {
@@ -174,7 +173,7 @@ export async function action({ request }: ActionFunctionArgs) {
           console.log('Delete result:', deleteResult);
         }
         updateData.image_url = null;
-      } else if (imageFile && imageFile.size > 0) {
+      } else if (hasUploadedImage) {
         console.log('🔄 Uploading new image for menu:', id);
         console.log('📁 Image file details:', {
           name: imageFile.name,
@@ -199,12 +198,6 @@ export async function action({ request }: ActionFunctionArgs) {
         } else {
           console.log('❌ Image upload failed, keeping existing image');
           return json({ error: '이미지 업로드에 실패했습니다.' }, { status: 400 });
-        }
-      } else if (imageFileSelected && (!imageFile || imageFile.size === 0)) {
-        console.log('Image was selected but file is missing or empty');
-        // 이미지가 선택되었지만 파일이 없는 경우 처리
-        if (existingMenu?.image_url) {
-          console.log('Keeping existing image due to missing file');
         }
       }
 
@@ -379,6 +372,7 @@ export default function Menus() {
       reader.onload = (e) => {
         console.log('✅ File preview ready');
         setImagePreview(e.target?.result as string);
+        setShouldRemoveImage(false);
       };
       reader.readAsDataURL(file);
     } else {
@@ -613,7 +607,10 @@ export default function Menus() {
              <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full max-h-[90vh] overflow-y-auto">
                <h2 className="text-2xl font-black text-ink mb-6">메뉴 수정</h2>
                
-               <div className="space-y-4">
+               <fetcher.Form method="post" encType="multipart/form-data" className="space-y-4">
+                 <input type="hidden" name="intent" value="updateMenu" />
+                 <input type="hidden" name="id" value={editingMenu.id} />
+                 <input type="hidden" name="removeImage" value={shouldRemoveImage ? 'true' : 'false'} />
                  
                  <div>
                    <label className="block text-sm font-bold text-body mb-2">메뉴명 *</label>
@@ -666,7 +663,7 @@ export default function Menus() {
 
                  <div>
                    <label className="block text-sm font-bold text-body mb-2">이미지</label>
-                   {editingMenu.image_url && (
+                   {editingMenu.image_url && !shouldRemoveImage && !imagePreview && (
                      <div className="mb-2">
                        <img 
                          src={editingMenu.image_url} 
@@ -692,6 +689,18 @@ export default function Menus() {
                          className="mt-1 text-xs text-red-600 hover:text-red-800 font-medium"
                        >
                          현재 이미지 삭제
+                       </button>
+                     </div>
+                   )}
+                   {shouldRemoveImage && (
+                     <div className="mb-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
+                       <p className="text-sm font-bold text-red-700">저장하면 현재 이미지가 삭제됩니다.</p>
+                       <button
+                         type="button"
+                         onClick={() => setShouldRemoveImage(false)}
+                         className="mt-2 text-xs font-bold text-red-700 underline"
+                       >
+                         삭제 취소
                        </button>
                      </div>
                    )}
@@ -723,105 +732,14 @@ export default function Menus() {
                      취소
                    </button>
                    <button
-                     type="button"
+                     type="submit"
                      disabled={fetcher.state === 'submitting'}
-                     onClick={() => {
-                       alert('버튼 클릭됨!');
-                       console.log('🚀 Button click - Manual form submission started');
-                       
-                       const nameInput = document.querySelector('input[name="name"]') as HTMLInputElement;
-                       const descInput = document.querySelector('textarea[name="description"]') as HTMLTextAreaElement;
-                       const priceInput = document.querySelector('input[name="price"]') as HTMLInputElement;
-                       const categoryInput = document.querySelector('select[name="category"]') as HTMLSelectElement;
-                       
-                       const formData = new FormData();
-                       
-                       // 기본 필드들 추가
-                       formData.append('intent', 'updateMenu');
-                       formData.append('id', editingMenu.id);
-                       formData.append('name', nameInput.value);
-                       formData.append('description', descInput.value);
-                       formData.append('price', priceInput.value);
-                       formData.append('category', categoryInput.value);
-                       formData.append('removeImage', shouldRemoveImage ? 'true' : 'false');
-                       formData.append('hasNewImage', imagePreview ? 'true' : 'false');
-                       formData.append('imageFileSelected', imagePreview ? 'true' : 'false');
-                       
-                       // 파일 입력 처리
-                       const fileInput = document.getElementById('edit-image-input') as HTMLInputElement;
-                       const file = fileInput?.files?.[0];
-                       
-                       console.log('📝 Button click - Manual FormData creation:', {
-                         fileInputExists: !!fileInput,
-                         filesLength: fileInput?.files?.length || 0,
-                         file: file ? { name: file.name, size: file.size, type: file.type } : 'null',
-                         imagePreview: !!imagePreview
-                       });
-                       
-                       if (file && file.size > 0) {
-                         console.log('✅ Adding file to FormData:', file.name);
-                         formData.append('image', file);
-                       } else {
-                         console.log('❌ No valid file found, adding empty string');
-                         formData.append('image', '');
-                       }
-                       
-                       // 네이티브 fetch를 사용하여 직접 업로드
-                       console.log('🚀 Using native fetch instead of fetcher.submit');
-                       
-                       fetch('/menus?index', {
-                         method: 'POST',
-                         body: formData,
-                         headers: {
-                           'Accept': 'application/json'
-                         }
-                       })
-                       .then(async response => {
-                         console.log('🔍 Response status:', response.status);
-                         console.log('🔍 Response ok:', response.ok);
-                         console.log('🔍 Response headers:', Object.fromEntries(response.headers.entries()));
-                         
-                         const text = await response.text();
-                         console.log('🔍 Raw response text:', text);
-                         
-                         if (!response.ok) {
-                           throw new Error(`HTTP ${response.status}: ${text}`);
-                         }
-                         
-                         try {
-                           return JSON.parse(text);
-                         } catch (parseError) {
-                           console.error('❌ JSON parse error:', parseError);
-                           console.error('❌ Response text that failed to parse:', text);
-                           throw new Error('서버 응답을 파싱할 수 없습니다: ' + text);
-                         }
-                       })
-                       .then(data => {
-                         console.log('✅ Native fetch response:', data);
-                         if (data.success) {
-                           setSuccessMessage(data.message);
-                           setEditingMenu(null);
-                           setImagePreview(null);
-                           setShouldRemoveImage(false);
-                           setTimeout(() => {
-                             setSuccessMessage(null);
-                             window.location.reload();
-                           }, 2000);
-                         } else {
-                           alert(data.error || '업로드에 실패했습니다.');
-                         }
-                       })
-                       .catch(error => {
-                         console.error('❌ Native fetch error:', error);
-                         alert('업로드 중 오류가 발생했습니다: ' + error.message);
-                       });
-                     }}
                      className="flex-1 bg-primary text-white py-3 px-4 rounded-2xl font-bold  transition-all duration-300 disabled:opacity-50"
                    >
                      {fetcher.state === 'submitting' ? '수정 중...' : '수정'}
                    </button>
                  </div>
-               </div>
+               </fetcher.Form>
              </div>
            </div>
          )}
