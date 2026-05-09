@@ -2,7 +2,7 @@ import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher, useOutletContext, useNavigation } from "@remix-run/react";
 import { useState, useEffect } from "react";
-import { getMenus, createOrder } from "~/lib/database";
+import { getMenus, createOrder, OrderCreationError } from "~/lib/database";
 
 import type { Menu } from "~/types";
 import { createServerSupabaseClient, supabase } from "~/lib/supabase";
@@ -103,6 +103,12 @@ export async function action({ request }: ActionFunctionArgs) {
       return json({ success: true, orderId: result.id });
     } catch (error) {
       console.error('Create order error:', error);
+      if (error instanceof OrderCreationError) {
+        return json({
+          error: `주문 생성에 실패했습니다. (${error.message})`,
+          step: error.step,
+        }, { status: 400 });
+      }
       return json({ error: '주문 생성에 실패했습니다.' }, { status: 400 });
     }
   }

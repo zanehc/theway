@@ -2,6 +2,27 @@ import { createServerSupabaseClient, supabase } from './supabase';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Menu, Order, OrderItem, User, OrderWithItems, UserOrderHistory, OrderStatusUpdate } from '~/types';
 
+type OrderCreationStep = 'orders_insert' | 'order_items_insert';
+
+export class OrderCreationError extends Error {
+  step: OrderCreationStep;
+  cause: unknown;
+
+  constructor(step: OrderCreationStep, cause: unknown) {
+    const detail = cause && typeof cause === 'object'
+      ? [
+          'code' in cause ? (cause as { code?: string }).code : null,
+          'message' in cause ? (cause as { message?: string }).message : null,
+        ].filter(Boolean).join(': ')
+      : String(cause);
+
+    super(`${step}${detail ? ` - ${detail}` : ''}`);
+    this.name = 'OrderCreationError';
+    this.step = step;
+    this.cause = cause;
+  }
+}
+
 function getWriteClient() {
   return typeof window === 'undefined' ? createServerSupabaseClient() : supabase;
 }
@@ -241,7 +262,7 @@ export async function createOrder(orderData: {
       .select()
       .single();
 
-    if (orderError) throw orderError;
+    if (orderError) throw new OrderCreationError('orders_insert', orderError);
 
     // Insert order items
     const orderItems = orderData.items.map(item => ({
@@ -257,7 +278,7 @@ export async function createOrder(orderData: {
       .from('order_items')
       .insert(orderItems);
 
-    if (itemsError) throw itemsError;
+    if (itemsError) throw new OrderCreationError('order_items_insert', itemsError);
 
     // 주문 생성 후 알림 전송
     try {

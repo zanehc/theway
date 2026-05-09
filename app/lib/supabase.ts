@@ -83,13 +83,13 @@ function initSupabaseClient(): ReturnType<typeof createClient> {
 export const createServerSupabaseClient = (accessToken?: string) => {
   if (!isBrowser && accessToken) {
     return createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
+      accessToken: async () => accessToken,
       auth: {
         persistSession: false,
         autoRefreshToken: false,
       },
       global: {
         headers: {
-          Authorization: `Bearer ${accessToken}`,
           'X-Client-Info': 'theway-cafe-app',
         },
       },
