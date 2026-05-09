@@ -52,14 +52,24 @@ export default function ChurchGroupModal({
         body: JSON.stringify({ name: name.trim(), church_group: churchGroup.trim(), email }),
       });
 
-      const result = await res.json();
+      let result: any = {};
+      try {
+        result = await res.json();
+      } catch {
+        console.error('[profile-save] JSON parse error, status:', res.status);
+        setError(`저장에 실패했습니다. (HTTP ${res.status})`);
+        return;
+      }
+
       if (!res.ok || !result.success) {
+        console.error('[profile-save] error:', result);
         setError(result.error || '저장에 실패했습니다. 다시 시도해주세요.');
         return;
       }
 
       onSaved({ name: name.trim(), church_group: churchGroup.trim() });
-    } catch {
+    } catch (err) {
+      console.error('[profile-save] unexpected error:', err);
       setError('오류가 발생했습니다. 다시 시도해주세요.');
     } finally {
       setLoading(false);
