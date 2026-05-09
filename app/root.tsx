@@ -16,6 +16,7 @@ import { NotificationProvider } from "./contexts/NotificationContext";
 import { GlobalToast } from "./components/GlobalToast";
 import { supabase } from "./lib/supabase";
 import ChurchGroupModal from "./components/ChurchGroupModal";
+import { usePushSubscription } from "./hooks/usePushSubscription";
 
 type UserProfile = {
   name: string;
@@ -43,6 +44,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     ENV: {
       SUPABASE_URL: process.env.SUPABASE_URL,
       SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY,
+      VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY,
     },
   });
 }
@@ -54,6 +56,8 @@ export default function App() {
   const [showChurchGroupModal, setShowChurchGroupModal] = useState(false);
   const [isClient, setIsClient] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
+
+  usePushSubscription(user?.id);
 
   // Safari 호환성을 위해 항상 useLoaderData 호출
   const loaderData = useLoaderData<typeof loader>();

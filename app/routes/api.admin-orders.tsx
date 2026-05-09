@@ -1,7 +1,16 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { createClient } from "@supabase/supabase-js";
+import webpush from "web-push";
 import { createServerSupabaseClient } from "~/lib/supabase";
+
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    "mailto:admin@theway-cafe.com",
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  );
+}
 
 async function requireAdmin(request: Request) {
   const token = request.headers.get("Authorization")?.replace(/^Bearer\s+/i, "");
@@ -73,6 +82,38 @@ async function createNotification(
   if (error) {
     console.error("API admin notification insert failed:", error);
   }
+}
+
+async function sendWebPush(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  userId: string,
+  payload: { title: string; body: string; orderId: string; url: string }
+) {
+  if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) return;
+
+  const { data: subs } = await supabase
+    .from("push_subscriptions")
+    .select("endpoint, p256dh, auth")
+    .eq("user_id", userId);
+
+  if (!subs?.length) return;
+
+  const message = JSON.stringify(payload);
+  await Promise.allSettled(
+    subs.map((sub) =>
+      webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+        message
+      ).catch((err) => {
+        // 만료된 구독은 DB에서 제거
+        if (err.statusCode === 404 || err.statusCode === 410) {
+          supabase.from("push_subscriptions").delete()
+            .eq("user_id", userId).eq("endpoint", sub.endpoint);
+        }
+        console.error("Web push send error:", (err as any).statusCode);
+      })
+    )
+  );
 }
 
 export async function loader({ request }: LoaderFunctionArgs) {
@@ -176,12 +217,21 @@ export async function action({ request }: ActionFunctionArgs) {
     }
 
     if (order.user_id) {
-      await createNotification(admin.supabase, {
-        user_id: order.user_id,
-        order_id: orderId,
-        type: status === "cancelled" ? "order_cancelled" : "order_status",
-        message: getStatusMessage(orderId, status, cancellationReason),
-      });
+      const message = getStatusMessage(orderId, status, cancellationReason);
+      await Promise.all([
+        createNotification(admin.supabase, {
+          user_id: order.user_id,
+          order_id: orderId,
+          type: status === "cancelled" ? "order_cancelled" : "order_status",
+          message,
+        }),
+        sendWebPush(admin.supabase, order.user_id, {
+          title: "이음카페",
+          body: message,
+          orderId,
+          url: "/orders/history",
+        }),
+      ]);
     }
 
     return json({ success: true, order }, { headers: { "Cache-Control": "no-store" } });
@@ -209,12 +259,21 @@ export async function action({ request }: ActionFunctionArgs) {
     }
 
     if (order.user_id && paymentStatus === "confirmed") {
-      await createNotification(admin.supabase, {
-        user_id: order.user_id,
-        order_id: orderId,
-        type: "payment_confirmed",
-        message: `결제가 확인되었습니다. 감사합니다! (주문번호: ${orderId.slice(-8)})`,
-      });
+      const message = `결제가 확인되었습니다. 감사합니다! (주문번호: ${orderId.slice(-8)})`;
+      await Promise.all([
+        createNotification(admin.supabase, {
+          user_id: order.user_id,
+          order_id: orderId,
+          type: "payment_confirmed",
+          message,
+        }),
+        sendWebPush(admin.supabase, order.user_id, {
+          title: "이음카페",
+          body: message,
+          orderId,
+          url: "/orders/history",
+        }),
+      ]);
     }
 
     return json({ success: true, order }, { headers: { "Cache-Control": "no-store" } });
