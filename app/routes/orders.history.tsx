@@ -479,8 +479,8 @@ export default function OrdersHistoryPage() {
                         <span className="text-xs font-bold text-ink mt-1 block">₩{order.total_amount?.toLocaleString()}</span>
                       </div>
                       {/* 2행: 주문상태 + 액션 */}
-                      <div className={isAdmin ? "space-y-2" : "flex items-center justify-between gap-2"}>
-                        <div className={isAdmin ? "flex justify-center" : ""}>
+                      <div className="space-y-2">
+                        <div className="flex justify-center">
                           <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
                         </div>
                         {isAdmin ? (
@@ -488,10 +488,10 @@ export default function OrdersHistoryPage() {
                             <AdminActions order={order} />
                           </div>
                         ) : (
-                          <div className="flex w-28 shrink-0 flex-col items-stretch gap-1.5">
+                          <div className="grid grid-cols-2 gap-2">
                             {order.status === 'pending' && (
                               cancelConfirmId === order.id ? (
-                                <div className="rounded-xl border border-red-200 bg-red-50 p-1.5">
+                                <div className="col-span-2 rounded-xl border border-red-200 bg-red-50 p-2">
                                   <span className="mb-1 block text-center text-[11px] font-bold text-red-700">취소할까요?</span>
                                   <div className="grid grid-cols-2 gap-1">
                                   <button
@@ -512,7 +512,7 @@ export default function OrdersHistoryPage() {
                               ) : (
                                 <button
                                   onClick={() => setCancelConfirmId(order.id)}
-                                  className="w-full rounded-xl bg-surface-card px-3 py-1.5 text-xs font-bold text-mute hover:bg-secondary-bg"
+                                  className="rounded-xl bg-surface-card px-3 py-2 text-xs font-bold text-mute hover:bg-secondary-bg"
                                 >
                                   취소
                                 </button>
@@ -520,7 +520,7 @@ export default function OrdersHistoryPage() {
                             )}
                             <button
                               onClick={() => handleQuickOrder(order)}
-                              className="w-full rounded-xl bg-red-100 px-3 py-1.5 text-xs font-bold text-red-800 hover:bg-red-200"
+                              className={`${order.status === 'pending' ? '' : 'col-span-2'} rounded-xl bg-red-100 px-3 py-2 text-xs font-bold text-red-800 hover:bg-red-200`}
                             >
                               빠른주문
                             </button>
