@@ -24,10 +24,17 @@ function OrderItemBadges({ items }: { items?: any[] }) {
       {items.map((item: any, index: number) => (
         <span
           key={item.id || `${item.menu?.name || 'menu'}-${index}`}
-          className="inline-flex max-w-full items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-sm font-black leading-tight text-ink sm:text-[15px]"
+          className="inline-flex max-w-full flex-col rounded-2xl border border-primary/20 bg-primary/10 px-3 py-1.5 text-sm font-black leading-tight text-ink sm:text-[15px]"
         >
-          <span className="truncate">{item.menu?.name || '메뉴명 없음'}</span>
-          <span className="shrink-0 text-primary">x {item.quantity}</span>
+          <span className="inline-flex max-w-full items-center gap-1">
+            <span className="truncate">{item.menu?.name || '메뉴명 없음'}</span>
+            <span className="shrink-0 text-primary">x {item.quantity}</span>
+          </span>
+          {item.notes && (
+            <span className="mt-0.5 max-w-full truncate text-[11px] font-bold text-mute">
+              {item.notes}
+            </span>
+          )}
         </span>
       ))}
     </div>

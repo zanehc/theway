@@ -473,8 +473,8 @@ export default function OrdersHistoryPage() {
               <div className="block sm:hidden space-y-3">
                 {orders
                   .slice((currentPage - 1) * ORDERS_PER_PAGE, currentPage * ORDERS_PER_PAGE)
-                  .map((order) => (
-                    <div key={order.id} className={`rounded-2xl border p-3 ${order.status === 'cancelled' ? 'bg-red-50 border-red-200 opacity-80' : 'bg-canvas border-hairline'}`}>
+                  .map((order, idx) => (
+                    <div key={order.id} className={`rounded-2xl border p-3 ${order.status === 'cancelled' ? 'bg-red-50 border-red-200 opacity-80' : idx % 2 === 1 ? 'bg-surface-card border-hairline' : 'bg-canvas border-hairline'}`}>
                       {/* 헤더: 번호 + 주문인 + 시간 */}
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -570,16 +570,22 @@ export default function OrdersHistoryPage() {
                   <tbody>
                     {orders
                       .slice((currentPage - 1) * ORDERS_PER_PAGE, currentPage * ORDERS_PER_PAGE)
-                      .map((order) => (
+                      .map((order, idx) => {
+                        const rowBg = order.status === 'cancelled'
+                          ? 'bg-red-50'
+                          : idx % 2 === 1
+                            ? 'bg-surface-card'
+                            : 'bg-canvas';
+                        return (
                         <tr key={order.id} className={order.status === 'cancelled' ? 'opacity-70' : ''}>
                           {/* 번호 */}
-                          <td className={`px-3 py-3 text-center align-middle rounded-l-xl ${order.status === 'cancelled' ? 'bg-red-50' : 'bg-canvas'}`}>
+                          <td className={`px-3 py-3 text-center align-middle rounded-l-xl ${rowBg}`}>
                             <span className="font-bold text-body text-xs">
                               #{getOrderNumber(order)}
                             </span>
                           </td>
                           {/* 주문인 */}
-                          <td className={`px-3 py-3 text-center align-middle ${order.status === 'cancelled' ? 'bg-red-50' : 'bg-canvas'}`}>
+                          <td className={`px-3 py-3 text-center align-middle ${rowBg}`}>
                             <div className="font-bold text-ink text-sm">{order.customer_name}</div>
                             <div className="text-body text-xs mt-0.5">{order.church_group}</div>
                             {order.status === 'cancelled' && (
@@ -587,12 +593,12 @@ export default function OrdersHistoryPage() {
                             )}
                           </td>
                           {/* 시간 */}
-                          <td className={`px-3 py-3 text-center align-middle ${order.status === 'cancelled' ? 'bg-red-50' : 'bg-canvas'}`}>
+                          <td className={`px-3 py-3 text-center align-middle ${rowBg}`}>
                             <div className="text-body text-xs">{new Date(order.created_at).toLocaleDateString('ko-KR')}</div>
                             <div className="text-body text-xs mt-0.5">{new Date(order.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</div>
                           </td>
                           {/* 주문메뉴 (1행) / 주문상태 (2행) */}
-                          <td className={`px-3 py-2 align-middle ${order.status === 'cancelled' ? 'bg-red-50' : 'bg-canvas'}`}>
+                          <td className={`px-3 py-2 align-middle ${rowBg}`}>
                             {/* 1행: 메뉴 */}
                             <div className="mb-2">
                               <OrderItemBadges items={order.order_items} />
@@ -612,7 +618,7 @@ export default function OrdersHistoryPage() {
                             </div>
                           </td>
                           {/* 액션 */}
-                          <td className={`px-3 py-3 text-center align-middle rounded-r-xl ${order.status === 'cancelled' ? 'bg-red-50' : 'bg-canvas'}`}>
+                          <td className={`px-3 py-3 text-center align-middle rounded-r-xl ${rowBg}`}>
                             {isAdmin ? (
                               <AdminActions order={order} />
                             ) : (
@@ -654,7 +660,8 @@ export default function OrdersHistoryPage() {
                             )}
                           </td>
                         </tr>
-                      ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

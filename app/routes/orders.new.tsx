@@ -7,6 +7,7 @@ import { getMenus, createOrder, OrderCreationError } from "~/lib/database";
 import type { Menu } from "~/types";
 import { createServerSupabaseClient, supabase } from "~/lib/supabase";
 import { MenuListSkeleton } from "~/components/LoadingSkeleton";
+import OrderReviewSheet, { type ItemOptions, type ReviewCartItem } from "~/components/OrderReviewSheet";
 
 // 메뉴 데이터 캐시 (메뉴는 자주 변경되지 않으므로 더 긴 캐시 시간)
 const menuCache = { data: null as any, timestamp: 0 };
@@ -221,11 +222,22 @@ export async function action({ request }: ActionFunctionArgs) {
   return json({ error: '잘못된 요청입니다.' }, { status: 400 });
 }
 
-type CartItem = {
-  menu: Menu;
-  quantity: number;
-  total_price: number;
-};
+type CartItem = ReviewCartItem;
+
+function buildItemNotes(opts?: ItemOptions): string | undefined {
+  if (!opts) return undefined;
+  const parts: string[] = [];
+  if (opts.strength === 'light') parts.push('연하게');
+  if (opts.water === 'more') parts.push('물 많게');
+  if (opts.water === 'less') parts.push('물 적게');
+  if (opts.ice === 'more') parts.push('얼음 많게');
+  if (opts.ice === 'less') parts.push('얼음 적게');
+  return parts.length ? parts.join(', ') : undefined;
+}
+
+function normalizeItemOptions(options: ItemOptions[] | undefined, quantity: number) {
+  return Array.from({ length: quantity }, (_, index) => options?.[index] || {});
+}
 
 export default function NewOrder() {
   const { menus: loadedMenus } = useLoaderData<typeof loader>();
@@ -236,9 +248,8 @@ export default function NewOrder() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerName, setCustomerName] = useState('');
   const [churchGroup, setChurchGroup] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('transfer');
   const [notes, setNotes] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('ice coffee');
+  const [showReview, setShowReview] = useState(false);
 
   // 주문 제출 상태 확인
   const isSubmitting = fetcher.state === 'submitting';
@@ -261,7 +272,6 @@ export default function NewOrder() {
         const reorder = JSON.parse(reorderRaw);
         setCustomerName(reorder.customerName || '');
         setChurchGroup(reorder.churchGroup || '');
-        setPaymentMethod(reorder.paymentMethod || 'transfer');
         setNotes(reorder.notes || '');
         // 메뉴 id로 메뉴 객체 매칭
         if (Array.isArray(reorder.items)) {
@@ -323,13 +333,13 @@ export default function NewOrder() {
     { id: 'beverage', name: 'ADE / 음료', shortName: '음료' }
   ];
 
-  // 선택된 카테고리에 따른 메뉴 필터링
-  const filteredMenus = menus.filter(menu => menu.category === selectedCategory);
-  const selectedCategoryInfo = categories.find(category => category.id === selectedCategory) || categories[0];
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const getCartItem = (menuId: string) => cart.find(item => item.menu.id === menuId);
   const getMenuCategoryLabel = (categoryId: string) =>
     categories.find(category => category.id === categoryId)?.shortName || categoryId;
+  const categoriesWithMenus = categories
+    .map(category => ({ ...category, items: menus.filter(menu => menu.category === category.id) }))
+    .filter(category => category.items.length > 0);
 
   const addToCart = (menu: Menu) => {
     setCart(prev => {
@@ -337,11 +347,16 @@ export default function NewOrder() {
       if (existingItem) {
         return prev.map(item =>
           item.menu.id === menu.id
-            ? { ...item, quantity: item.quantity + 1, total_price: (item.quantity + 1) * menu.price }
+            ? {
+                ...item,
+                quantity: item.quantity + 1,
+                total_price: (item.quantity + 1) * menu.price,
+                options: normalizeItemOptions(item.options, item.quantity + 1),
+              }
             : item
         );
       }
-      return [...prev, { menu, quantity: 1, total_price: menu.price }];
+      return [...prev, { menu, quantity: 1, total_price: menu.price, options: [{}] }];
     });
   };
 
@@ -354,14 +369,19 @@ export default function NewOrder() {
         if (existingItem) {
           return prev.map(item =>
             item.menu.id === menuId
-              ? { ...item, quantity, total_price: quantity * item.menu.price }
+              ? {
+                  ...item,
+                  quantity,
+                  total_price: quantity * item.menu.price,
+                  options: normalizeItemOptions(item.options, quantity),
+                }
               : item
           );
         } else {
           // 아이템이 없으면 새로 추가
           const menu = menus.find(m => m.id === menuId);
           if (menu) {
-            return [...prev, { menu, quantity, total_price: quantity * menu.price }];
+            return [...prev, { menu, quantity, total_price: quantity * menu.price, options: normalizeItemOptions(undefined, quantity) }];
           }
         }
         return prev;
@@ -371,6 +391,35 @@ export default function NewOrder() {
 
   const removeFromCart = (menuId: string) => {
     setCart(prev => prev.filter(item => item.menu.id !== menuId));
+  };
+
+  const updateItemOptions = (menuId: string, index: number, options: ItemOptions) => {
+    setCart(prev => prev.map(item =>
+      item.menu.id !== menuId
+        ? item
+        : {
+            ...item,
+            options: normalizeItemOptions(item.options, item.quantity).map((currentOptions, currentIndex) =>
+              currentIndex === index ? options : currentOptions
+            ),
+          }
+    ));
+  };
+
+  const openReview = () => {
+    if (cart.length === 0) {
+      alert('주문 항목을 추가해주세요.');
+      return;
+    }
+    if (!customerName.trim()) {
+      alert('고객명을 입력해주세요.');
+      return;
+    }
+    if (!churchGroup.trim()) {
+      alert('소속 목장을 입력해주세요.');
+      return;
+    }
+    setShowReview(true);
   };
 
   const totalAmount = cart.reduce((sum, item) => sum + item.total_price, 0);
@@ -403,22 +452,27 @@ export default function NewOrder() {
     formData.append('intent', 'createOrder');
     formData.append('customerName', customerName);
     formData.append('churchGroup', churchGroup);
-    formData.append('paymentMethod', paymentMethod);
+    formData.append('paymentMethod', 'transfer');
     formData.append('notes', notes);
     formData.append('accessToken', accessToken);
-    formData.append('items', JSON.stringify(cart.map(item => ({
-      menu_id: item.menu.id,
-      quantity: item.quantity,
-      unit_price: item.menu.price,
-      total_price: item.total_price,
-    }))));
+    const orderItems = cart.flatMap(item =>
+      normalizeItemOptions(item.options, item.quantity).map((options) => ({
+        menu_id: item.menu.id,
+        quantity: 1,
+        unit_price: item.menu.price,
+        total_price: item.menu.price,
+        notes: buildItemNotes(options),
+      }))
+    );
+
+    formData.append('items', JSON.stringify(orderItems));
 
     fetcher.submit(formData, { method: 'post' });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    submitOrder();
+    openReview();
   };
 
   // Safari 호환성을 위한 안전한 네비게이션 상태 체크
@@ -512,124 +566,105 @@ export default function NewOrder() {
             <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h2 className="text-2xl font-black text-ink sm:text-3xl">메뉴 선택</h2>
-                <p className="mt-1 text-sm font-medium text-mute">{selectedCategoryInfo.name} 메뉴 {filteredMenus.length}개</p>
+                <p className="mt-1 text-sm font-medium text-mute">전체 메뉴를 카테고리별로 한 번에 확인하세요</p>
               </div>
               <div className="rounded-full bg-surface-card px-3 py-2 text-xs font-bold text-mute">
-                사진 · 메뉴명 · 가격 순서로 확인
+                메뉴명 · 가격 · 담기
               </div>
             </div>
 
-            <div className="mb-5 grid grid-cols-2 gap-2 sm:mb-6 sm:grid-cols-4">
+            <div className="mb-5 flex gap-2 overflow-x-auto pb-1 sm:mb-6">
               {categories.map((category) => {
                 const categoryCount = menus.filter(menu => menu.category === category.id).length;
                 return (
-                  <button
+                  <a
                     key={category.id}
-                    type="button"
-                    onClick={() => setSelectedCategory(category.id)}
-                    className={`rounded-2xl border px-4 py-3 text-left transition-colors ${
-                      selectedCategory === category.id
-                        ? 'border-ink bg-ink text-white'
-                        : 'border-hairline-soft bg-surface-card text-body hover:border-ash'
-                    }`}
+                    href={`#menu-section-${category.id.replace(/\s+/g, '-')}`}
+                    className="shrink-0 rounded-2xl border border-hairline-soft bg-surface-card px-4 py-3 text-left text-body transition-colors hover:border-ash"
                   >
                     <span className="block text-sm font-black">{category.name}</span>
-                    <span className={`mt-1 block text-xs font-bold ${
-                      selectedCategory === category.id ? 'text-white/75' : 'text-mute'
-                    }`}>
+                    <span className="mt-1 block text-xs font-bold text-mute">
                       {categoryCount}개 메뉴
                     </span>
-                  </button>
+                  </a>
                 );
               })}
             </div>
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-              {filteredMenus.length === 0 ? (
-                <div className="col-span-full rounded-2xl bg-surface-card px-4 py-12 text-center">
-                  <p className="text-base font-bold text-ash">선택한 카테고리에 메뉴가 없습니다.</p>
-                </div>
-              ) : (
-                filteredMenus.map((menu) => {
-                  const cartItem = getCartItem(menu.id);
-                  return (
-                    <article
-                      key={menu.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => addToCart(menu)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          addToCart(menu);
-                        }
-                      }}
-                      className={`group overflow-hidden rounded-2xl border bg-canvas transition-colors focus:outline-none focus:ring-2 focus:ring-focus-outer ${
-                        cartItem ? 'border-primary' : 'border-hairline-soft hover:border-ash'
-                      }`}
-                    >
-                      <div className="relative aspect-[4/5] overflow-hidden bg-surface-card">
-                        {menu.image_url ? (
-                          <img
-                            src={menu.image_url}
-                            alt={menu.name}
-                            className="h-full w-full object-cover"
-                            loading="lazy"
-                            key={`order-image-${menu.id}-${menu.image_url}`}
-                          />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center text-sm font-bold text-stone">
-                            이미지 준비중
+            <div className="space-y-6">
+              {categoriesWithMenus.map((category, categoryIndex) => (
+                <section
+                  key={category.id}
+                  id={`menu-section-${category.id.replace(/\s+/g, '-')}`}
+                  className="scroll-mt-4"
+                >
+                  <div className="mb-3 flex items-center justify-between border-b border-hairline-soft pb-2">
+                    <h3 className="text-lg font-black text-ink">{category.name}</h3>
+                    <span className="rounded-full bg-surface-card px-3 py-1 text-xs font-bold text-mute">
+                      {category.items.length}개
+                    </span>
+                  </div>
+                  <div className={`overflow-hidden rounded-2xl border border-hairline-soft ${categoryIndex % 2 === 1 ? 'bg-surface-soft' : 'bg-canvas'}`}>
+                    {category.items.map((menu, index) => {
+                      const cartItem = getCartItem(menu.id);
+                      return (
+                        <article
+                          key={menu.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => addToCart(menu)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              addToCart(menu);
+                            }
+                          }}
+                          className={`flex items-center gap-3 p-3 transition-colors focus:outline-none focus:ring-2 focus:ring-focus-outer sm:p-4 ${
+                            index > 0 ? 'border-t border-hairline-soft' : ''
+                          } ${cartItem ? 'bg-primary/5' : 'hover:bg-surface-card'}`}
+                        >
+                          <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-surface-card sm:h-16 sm:w-16">
+                            {menu.image_url ? (
+                              <img
+                                src={menu.image_url}
+                                alt={menu.name}
+                                className="h-full w-full object-cover"
+                                loading="lazy"
+                                key={`order-image-${menu.id}-${menu.image_url}`}
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-[10px] font-bold text-stone">
+                                준비중
+                              </div>
+                            )}
                           </div>
-                        )}
-                        <span className="absolute left-2 top-2 rounded-full bg-canvas/95 px-2.5 py-1 text-[11px] font-black text-ink">
-                          {getMenuCategoryLabel(menu.category)}
-                        </span>
-                        {cartItem && (
-                          <span className="absolute right-2 top-2 flex h-8 min-w-8 items-center justify-center rounded-full bg-primary px-2 text-xs font-black text-white">
-                            x{cartItem.quantity}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="p-3">
-                        <h3 className="min-h-[40px] text-sm font-black leading-tight text-ink">{menu.name}</h3>
-                        {menu.description && (
-                          <p className="mt-1 h-9 overflow-hidden text-xs leading-[1.45] text-mute">{menu.description}</p>
-                        )}
-                        <div className="mt-3 flex min-h-[36px] items-center justify-between gap-2">
-                          <span className="text-sm font-black text-ink">₩{menu.price.toLocaleString()}</span>
+                          <div className="min-w-0 flex-1">
+                            <div className="mb-1 flex items-center gap-2">
+                              <span className="rounded-full bg-surface-card px-2 py-0.5 text-[10px] font-black text-mute">
+                                {getMenuCategoryLabel(menu.category)}
+                              </span>
+                            </div>
+                            <h4 className="line-clamp-2 text-sm font-black leading-tight text-ink sm:text-base">{menu.name}</h4>
+                            <p className="mt-1 text-sm font-black text-ink">₩{menu.price.toLocaleString()}</p>
+                          </div>
                           {cartItem ? (
                             <div
-                              className="flex items-center gap-1 rounded-full bg-surface-card p-1"
+                              className="flex shrink-0 items-center gap-1 rounded-full bg-surface-card p-1"
                               onClick={(event) => event.stopPropagation()}
                             >
                               <button
                                 type="button"
                                 onClick={() => updateQuantity(menu.id, cartItem.quantity - 1)}
-                                className="flex h-7 w-7 items-center justify-center rounded-full bg-canvas text-sm font-black text-body transition-colors hover:bg-secondary-bg"
+                                className="flex h-8 w-8 items-center justify-center rounded-full bg-canvas text-sm font-black text-body transition-colors hover:bg-secondary-bg"
                                 aria-label={`${menu.name} 수량 줄이기`}
                               >
                                 -
                               </button>
-                              <input
-                                type="number"
-                                min="0"
-                                max="99"
-                                value={cartItem.quantity}
-                                onChange={(event) => {
-                                  const value = parseInt(event.target.value) || 0;
-                                  const clampedValue = Math.min(Math.max(value, 0), 99);
-                                  updateQuantity(menu.id, clampedValue);
-                                }}
-                                className="h-7 w-8 rounded-full border-0 bg-transparent text-center text-xs font-black text-ink focus:outline-none focus:ring-2 focus:ring-focus-outer"
-                                style={{ WebkitAppearance: 'none', MozAppearance: 'textfield' }}
-                                aria-label={`${menu.name} 수량`}
-                              />
+                              <span className="w-7 text-center text-sm font-black text-ink">{cartItem.quantity}</span>
                               <button
                                 type="button"
                                 onClick={() => updateQuantity(menu.id, cartItem.quantity + 1)}
-                                className="flex h-7 w-7 items-center justify-center rounded-full bg-canvas text-sm font-black text-body transition-colors hover:bg-secondary-bg"
+                                className="flex h-8 w-8 items-center justify-center rounded-full bg-canvas text-sm font-black text-body transition-colors hover:bg-secondary-bg"
                                 aria-label={`${menu.name} 수량 늘리기`}
                               >
                                 +
@@ -642,17 +677,17 @@ export default function NewOrder() {
                                 event.stopPropagation();
                                 addToCart(menu);
                               }}
-                              className="rounded-full bg-surface-card px-3 py-2 text-xs font-black text-ink transition-colors hover:bg-secondary-bg"
+                              className="h-10 shrink-0 rounded-2xl bg-surface-card px-4 text-sm font-black text-ink transition-colors hover:bg-secondary-bg"
                             >
                               담기
                             </button>
                           )}
-                        </div>
-                      </div>
-                    </article>
-                  );
-                })
-              )}
+                        </article>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
             </div>
           </section>
 
@@ -662,7 +697,7 @@ export default function NewOrder() {
               <div className="mb-5 flex items-center justify-between gap-3">
                 <div>
                   <h2 className="text-2xl font-black text-ink">주문 정보</h2>
-                  <p className="mt-1 text-sm font-medium text-mute">확인 후 주문 완료를 눌러주세요</p>
+                  <p className="mt-1 text-sm font-medium text-mute">주문보기에서 옵션까지 확인하세요</p>
                 </div>
                 <div className="rounded-full bg-surface-card px-3 py-2 text-sm font-black text-ink">{cartCount}개</div>
               </div>
@@ -703,34 +738,6 @@ export default function NewOrder() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-black text-body">결제 방법</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('transfer')}
-                      className={`h-11 rounded-2xl border text-sm font-black transition-colors ${
-                        paymentMethod === 'transfer'
-                          ? 'border-ink bg-ink text-white'
-                          : 'border-hairline-soft bg-surface-card text-body hover:border-ash'
-                      }`}
-                    >
-                      계좌이체
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('cash')}
-                      className={`h-11 rounded-2xl border text-sm font-black transition-colors ${
-                        paymentMethod === 'cash'
-                          ? 'border-ink bg-ink text-white'
-                          : 'border-hairline-soft bg-surface-card text-body hover:border-ash'
-                      }`}
-                    >
-                      현금
-                    </button>
-                  </div>
-                </div>
-
-                <div>
                   <label className="mb-1.5 block text-sm font-black text-body">요청사항</label>
                   <textarea
                     value={notes}
@@ -747,11 +754,12 @@ export default function NewOrder() {
                 </div>
 
                 <button
-                  type="submit"
-                  disabled={cart.length === 0 || !customerName.trim() || isSubmitting}
+                  type="button"
+                  onClick={openReview}
+                  disabled={cart.length === 0 || !customerName.trim() || !churchGroup.trim() || isSubmitting}
                   className="h-14 w-full rounded-2xl bg-primary px-6 text-base font-black text-white transition-colors hover:bg-primary-pressed disabled:cursor-not-allowed disabled:bg-surface-card disabled:text-ash"
                 >
-                  {isSubmitting ? '주문 처리 중...' : `₩${totalAmount.toLocaleString()} 주문 완료`}
+                  {isSubmitting ? '주문 처리 중...' : `₩${totalAmount.toLocaleString()} 주문보기`}
                 </button>
               </fetcher.Form>
             </div>
@@ -794,33 +802,7 @@ export default function NewOrder() {
             </div>
           )}
 
-          {/* 결제 방법 */}
-          <div className="mb-3 grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setPaymentMethod('transfer')}
-              className={`h-10 rounded-2xl border text-sm font-black transition-colors ${
-                paymentMethod === 'transfer'
-                  ? 'border-ink bg-ink text-white'
-                  : 'border-hairline-soft bg-surface-card text-body'
-              }`}
-            >
-              계좌이체
-            </button>
-            <button
-              type="button"
-              onClick={() => setPaymentMethod('cash')}
-              className={`h-10 rounded-2xl border text-sm font-black transition-colors ${
-                paymentMethod === 'cash'
-                  ? 'border-ink bg-ink text-white'
-                  : 'border-hairline-soft bg-surface-card text-body'
-              }`}
-            >
-              현금
-            </button>
-          </div>
-
-          {/* 총금액 + 주문 완료 */}
+          {/* 총금액 + 주문보기 */}
           <div className="flex items-center gap-3">
             <div className="shrink-0">
               <p className="text-xs font-bold text-mute">{cartCount}개 선택</p>
@@ -828,15 +810,28 @@ export default function NewOrder() {
             </div>
             <button
               type="button"
-              onClick={submitOrder}
-              disabled={cart.length === 0 || !customerName.trim() || isSubmitting}
+              onClick={openReview}
+              disabled={cart.length === 0 || !customerName.trim() || !churchGroup.trim() || isSubmitting}
               className="h-12 flex-1 rounded-2xl bg-primary text-sm font-black text-white transition-colors active:bg-primary-pressed disabled:cursor-not-allowed disabled:bg-surface-card disabled:text-ash"
             >
-              {isSubmitting ? '처리 중...' : '주문 완료'}
+              {isSubmitting ? '처리 중...' : '주문보기'}
             </button>
           </div>
         </div>
       </div>
+      <OrderReviewSheet
+        cart={cart}
+        isOpen={showReview}
+        isSubmitting={isSubmitting}
+        notes={notes}
+        customerName={customerName}
+        churchGroup={churchGroup}
+        onClose={() => setShowReview(false)}
+        onUpdateQuantity={updateQuantity}
+        onUpdateOptions={updateItemOptions}
+        onNotesChange={setNotes}
+        onSubmit={submitOrder}
+      />
     </div>
   );
 } 
