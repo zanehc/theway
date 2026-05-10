@@ -21,6 +21,26 @@ function getOrderNotes(order: any) {
   return typeof order.notes === 'string' ? order.notes.trim() : '';
 }
 
+function OrderItemBadges({ items }: { items?: any[] }) {
+  if (!items || items.length === 0) {
+    return <span className="text-sm font-bold text-mute">메뉴 없음</span>;
+  }
+
+  return (
+    <div className="flex flex-wrap justify-start gap-2 sm:justify-center">
+      {items.map((item: any, index: number) => (
+        <span
+          key={item.id || `${item.menu?.name || 'menu'}-${index}`}
+          className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-sm font-black leading-tight text-ink shadow-sm sm:text-[15px]"
+        >
+          <span className="truncate">{item.menu?.name || '메뉴명 없음'}</span>
+          <span className="shrink-0 text-primary">× {item.quantity}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const error = url.searchParams.get('error');
@@ -463,20 +483,14 @@ export default function OrdersHistoryPage() {
                       </div>
                       {/* 1행: 주문메뉴 */}
                       <div className="bg-surface-soft rounded-xl px-3 py-2 mb-2">
-                        <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-                          {order.order_items?.map((item: any) => (
-                            <span key={item.id} className="text-xs text-body">
-                              {item.menu?.name} × {item.quantity}
-                            </span>
-                          ))}
-                        </div>
+                        <OrderItemBadges items={order.order_items} />
                         {getOrderNotes(order) && (
                           <div className="mt-2 rounded-lg border border-hairline bg-canvas px-2 py-1.5">
                             <span className="text-[11px] font-bold text-body">요청사항: </span>
                             <span className="text-[11px] text-body">{getOrderNotes(order)}</span>
                           </div>
                         )}
-                        <span className="text-xs font-bold text-ink mt-1 block">₩{order.total_amount?.toLocaleString()}</span>
+                        <span className="mt-2 block text-sm font-black text-ink">₩{order.total_amount?.toLocaleString()}</span>
                       </div>
                       {/* 2행: 주문상태 + 액션 */}
                       <div className="space-y-2">
@@ -567,13 +581,9 @@ export default function OrdersHistoryPage() {
                           {/* 주문메뉴 (1행) / 주문상태 (2행) */}
                           <td className="px-3 py-2 align-middle">
                             {/* 1행: 메뉴 */}
-                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 justify-center mb-1.5">
-                              {order.order_items?.map((item: any) => (
-                                <span key={item.id} className="text-xs text-body">
-                                  {item.menu?.name} × {item.quantity}
-                                </span>
-                              ))}
-                              <span className="text-xs font-bold text-ink">₩{order.total_amount?.toLocaleString()}</span>
+                            <div className="mb-2">
+                              <OrderItemBadges items={order.order_items} />
+                              <span className="mt-2 block text-center text-sm font-black text-ink">₩{order.total_amount?.toLocaleString()}</span>
                             </div>
                             {getOrderNotes(order) && (
                               <div className="mx-auto mb-1.5 max-w-md rounded-lg border border-hairline bg-surface-soft px-2 py-1 text-left">
