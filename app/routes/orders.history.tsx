@@ -31,10 +31,17 @@ function OrderItemBadges({ items }: { items?: any[] }) {
       {items.map((item: any, index: number) => (
         <span
           key={item.id || `${item.menu?.name || 'menu'}-${index}`}
-          className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-sm font-black leading-tight text-ink shadow-sm sm:text-[15px]"
+          className="inline-flex max-w-full flex-col rounded-2xl border border-primary/20 bg-primary/10 px-3 py-1.5 text-sm font-black leading-tight text-ink shadow-sm sm:text-[15px]"
         >
-          <span className="truncate">{item.menu?.name || '메뉴명 없음'}</span>
-          <span className="shrink-0 text-primary">× {item.quantity}</span>
+          <span className="inline-flex max-w-full items-center gap-1.5">
+            <span className="truncate">{item.menu?.name || '메뉴명 없음'}</span>
+            <span className="shrink-0 text-primary">× {item.quantity}</span>
+          </span>
+          {item.notes && (
+            <span className="mt-0.5 max-w-full truncate text-[11px] font-bold text-mute">
+              {item.notes}
+            </span>
+          )}
         </span>
       ))}
     </div>
@@ -467,13 +474,16 @@ export default function OrdersHistoryPage() {
                 {orders
                   .slice((currentPage - 1) * ORDERS_PER_PAGE, currentPage * ORDERS_PER_PAGE)
                   .map((order) => (
-                    <div key={order.id} className="bg-canvas rounded-2xl border border-hairline p-3">
+                    <div key={order.id} className={`rounded-2xl border p-3 ${order.status === 'cancelled' ? 'bg-red-50 border-red-200 opacity-80' : 'bg-canvas border-hairline'}`}>
                       {/* 헤더: 번호 + 주문인 + 시간 */}
                       <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-xs text-ash">#{getOrderNumber(order)}</span>
                           <span className="text-sm font-bold text-ink">{order.customer_name}</span>
                           {order.church_group && <span className="text-xs text-mute">{order.church_group}</span>}
+                          {order.status === 'cancelled' && (
+                            <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-black text-red-700">취소됨</span>
+                          )}
                         </div>
                         <span className="text-xs text-mute shrink-0">
                           {new Date(order.created_at).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}
@@ -561,25 +571,28 @@ export default function OrdersHistoryPage() {
                     {orders
                       .slice((currentPage - 1) * ORDERS_PER_PAGE, currentPage * ORDERS_PER_PAGE)
                       .map((order) => (
-                        <tr key={order.id} className="bg-canvas">
+                        <tr key={order.id} className={order.status === 'cancelled' ? 'opacity-70' : ''}>
                           {/* 번호 */}
-                          <td className="px-3 py-3 text-center align-middle rounded-l-xl">
+                          <td className={`px-3 py-3 text-center align-middle rounded-l-xl ${order.status === 'cancelled' ? 'bg-red-50' : 'bg-canvas'}`}>
                             <span className="font-bold text-body text-xs">
                               #{getOrderNumber(order)}
                             </span>
                           </td>
                           {/* 주문인 */}
-                          <td className="px-3 py-3 text-center align-middle">
+                          <td className={`px-3 py-3 text-center align-middle ${order.status === 'cancelled' ? 'bg-red-50' : 'bg-canvas'}`}>
                             <div className="font-bold text-ink text-sm">{order.customer_name}</div>
                             <div className="text-body text-xs mt-0.5">{order.church_group}</div>
+                            {order.status === 'cancelled' && (
+                              <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-black text-red-700 mt-1">취소됨</span>
+                            )}
                           </td>
                           {/* 시간 */}
-                          <td className="px-3 py-3 text-center align-middle">
+                          <td className={`px-3 py-3 text-center align-middle ${order.status === 'cancelled' ? 'bg-red-50' : 'bg-canvas'}`}>
                             <div className="text-body text-xs">{new Date(order.created_at).toLocaleDateString('ko-KR')}</div>
                             <div className="text-body text-xs mt-0.5">{new Date(order.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</div>
                           </td>
                           {/* 주문메뉴 (1행) / 주문상태 (2행) */}
-                          <td className="px-3 py-2 align-middle">
+                          <td className={`px-3 py-2 align-middle ${order.status === 'cancelled' ? 'bg-red-50' : 'bg-canvas'}`}>
                             {/* 1행: 메뉴 */}
                             <div className="mb-2">
                               <OrderItemBadges items={order.order_items} />
@@ -599,7 +612,7 @@ export default function OrdersHistoryPage() {
                             </div>
                           </td>
                           {/* 액션 */}
-                          <td className="px-3 py-3 text-center align-middle rounded-r-xl">
+                          <td className={`px-3 py-3 text-center align-middle rounded-r-xl ${order.status === 'cancelled' ? 'bg-red-50' : 'bg-canvas'}`}>
                             {isAdmin ? (
                               <AdminActions order={order} />
                             ) : (

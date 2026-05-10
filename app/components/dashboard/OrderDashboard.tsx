@@ -307,7 +307,7 @@ export default function OrderDashboard({
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-lg font-black text-ink">매출 대시보드</h2>
-            <p className="mt-1 text-sm font-medium text-mute">결제완료 주문 기준으로 집계됩니다.</p>
+            <p className="mt-1 text-sm font-medium text-mute">취소 제외 전체 주문 기준으로 집계됩니다.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
           {PERIODS.map((item) => (
@@ -353,7 +353,7 @@ export default function OrderDashboard({
             <SummaryCard
               label="총 주문"
               value={`${data.summary.totalOrders.toLocaleString()}건`}
-              detail="취소 주문 제외"
+              detail="취소된 주문 제외"
               tone="orders"
             />
             <SummaryCard

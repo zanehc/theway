@@ -176,7 +176,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
         menu:menus (id, name)
       )
     `)
-    .eq("payment_status", "confirmed")
     .neq("status", "cancelled")
     .order("created_at", { ascending: true });
 

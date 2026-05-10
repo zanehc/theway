@@ -1,6 +1,19 @@
 import { orderSteps } from './orderUtils';
 
 export default function OrderStatusProgress({ status, paymentStatus }: { status: string; paymentStatus?: string }) {
+  if (status === 'cancelled') {
+    return (
+      <div className="w-full flex items-center justify-center mb-2">
+        <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-3 py-1 text-xs font-black text-red-700">
+          <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+          취소됨
+        </span>
+      </div>
+    );
+  }
+
   const orderStep = orderSteps.findIndex(s => s.key === status);
   const isPaymentConfirmed = paymentStatus === 'confirmed';
 
