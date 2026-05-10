@@ -33,7 +33,7 @@ function getToastTypeForNotification(notificationType: string): ToastNotificatio
 
 interface NotificationContextType {
   toasts: ToastNotification[];
-  addToast: (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
+  addToast: (message: string, type?: 'info' | 'success' | 'warning' | 'error', options?: { speak?: boolean }) => void;
   showNotification: (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
   removeToast: (id: string) => void;
   clearAllToasts: () => void;
@@ -48,11 +48,103 @@ interface NotificationProviderProps {
   userRole?: string | null;
 }
 
+function getKoreanVoice() {
+  const voices = window.speechSynthesis.getVoices();
+  return voices.find(voice => voice.lang.includes('ko') || voice.lang.includes('KR'));
+}
+
+function speakText(text: string, options?: { rate?: number; pitch?: number; volume?: number }) {
+  if (!('speechSynthesis' in window)) return;
+
+  try {
+    window.speechSynthesis.cancel();
+
+    const utterance = new window.SpeechSynthesisUtterance(text);
+    utterance.lang = 'ko-KR';
+    utterance.rate = options?.rate ?? 0.85;
+    utterance.pitch = options?.pitch ?? 1.05;
+    utterance.volume = options?.volume ?? 1;
+
+    const koreanVoice = getKoreanVoice();
+    if (koreanVoice) {
+      utterance.voice = koreanVoice;
+      console.log('🎵 TTS - 한국어 음성 사용:', koreanVoice.name);
+    }
+
+    utterance.onerror = (event) => {
+      console.error('TTS 오류:', event.error);
+    };
+
+    utterance.onstart = () => {
+      console.log('🎵 TTS 시작:', text);
+    };
+
+    utterance.onend = () => {
+      console.log('🎵 TTS 완료');
+    };
+
+    setTimeout(() => {
+      window.speechSynthesis.speak(utterance);
+    }, 100);
+  } catch (error) {
+    console.warn('TTS speakText 실패:', error);
+  }
+}
+
+function playOrderChime() {
+  const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+  if (!AudioContextClass) return;
+
+  try {
+    const audioContext = new AudioContextClass();
+    const masterGain = audioContext.createGain();
+    masterGain.connect(audioContext.destination);
+    masterGain.gain.setValueAtTime(0.0001, audioContext.currentTime);
+    masterGain.gain.exponentialRampToValueAtTime(0.32, audioContext.currentTime + 0.02);
+    masterGain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 1.05);
+
+    [523.25, 659.25, 783.99].forEach((frequency, index) => {
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      const start = audioContext.currentTime + index * 0.16;
+      const end = start + 0.34;
+
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(frequency, start);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.36, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, end);
+
+      oscillator.connect(gain);
+      gain.connect(masterGain);
+      oscillator.start(start);
+      oscillator.stop(end);
+    });
+  } catch (error) {
+    console.warn('주문 알림음 재생 실패:', error);
+  }
+}
+
+function playNewOrderAlert() {
+  playOrderChime();
+
+  const speakOrderMessage = () => {
+    speakText('이음카페 주문!', { rate: 0.82, pitch: 1.12, volume: 1 });
+  };
+
+  if ('speechSynthesis' in window && window.speechSynthesis.getVoices().length === 0) {
+    window.speechSynthesis.addEventListener('voiceschanged', speakOrderMessage, { once: true });
+    return;
+  }
+
+  speakOrderMessage();
+}
+
 export function NotificationProvider({ children, userId, userRole }: NotificationProviderProps) {
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
   const [ttsInitialized, setTtsInitialized] = useState(false);
 
-  const addToast = useCallback((message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
+  const addToast = useCallback((message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info', options?: { speak?: boolean }) => {
     console.log('🔔 NotificationContext - 새 알림 추가:', { message, type, userId, userRole });
     const id = Math.random().toString(36).substr(2, 9);
     const newToast: ToastNotification = {
@@ -68,65 +160,23 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
       return newToasts;
     });
 
+    if (options?.speak === false) {
+      return;
+    }
+
     // TTS 음성 알림 (iOS Safari 호환성 개선)
     if ('speechSynthesis' in window) {
       try {
         // iOS에서 speechSynthesis 초기화
         if (window.speechSynthesis.getVoices().length === 0) {
           window.speechSynthesis.addEventListener('voiceschanged', () => {
-            speakMessage(message);
+            speakText(message);
           });
         } else {
-          speakMessage(message);
+          speakText(message);
         }
       } catch (error) {
         console.warn('TTS 재생 실패:', error);
-      }
-    }
-
-    function speakMessage(text: string) {
-      try {
-        // 기존 음성 정지
-        window.speechSynthesis.cancel();
-
-        const utterance = new window.SpeechSynthesisUtterance(text);
-
-        // iOS Safari 최적화 설정
-        utterance.lang = 'ko-KR';
-        utterance.rate = 0.8; // iOS에서 좀 더 느리게
-        utterance.pitch = 1.0;
-        utterance.volume = 1.0;
-
-        // iOS에서 한국어 음성 찾기
-        const voices = window.speechSynthesis.getVoices();
-        const koreanVoice = voices.find(voice =>
-          voice.lang.includes('ko') || voice.lang.includes('KR')
-        );
-        if (koreanVoice) {
-          utterance.voice = koreanVoice;
-          console.log('🎵 TTS - 한국어 음성 사용:', koreanVoice.name);
-        }
-
-        // 에러 핸들링
-        utterance.onerror = (event) => {
-          console.error('TTS 오류:', event.error);
-        };
-
-        utterance.onstart = () => {
-          console.log('🎵 TTS 시작:', text);
-        };
-
-        utterance.onend = () => {
-          console.log('🎵 TTS 완료');
-        };
-
-        // iOS에서 약간의 지연 후 재생
-        setTimeout(() => {
-          window.speechSynthesis.speak(utterance);
-        }, 100);
-
-      } catch (error) {
-        console.warn('TTS speakMessage 실패:', error);
       }
     }
   }, [userId, userRole]);
@@ -161,6 +211,22 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
   }, [ttsInitialized]);
 
   useEffect(() => {
+    if (userRole !== 'admin' && userRole !== 'staff') return;
+
+    const unlockAudio = () => {
+      initializeTTS();
+    };
+
+    window.addEventListener('pointerdown', unlockAudio, { once: true });
+    window.addEventListener('keydown', unlockAudio, { once: true });
+
+    return () => {
+      window.removeEventListener('pointerdown', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
+    };
+  }, [userRole, initializeTTS]);
+
+  useEffect(() => {
     console.log('🔔 NotificationContext - useEffect 실행:', { userId, userRole });
     if (!userId) {
       console.log('🔔 NotificationContext - userId 없음, 구독 건너뜀');
@@ -183,7 +249,12 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
           console.log('🔔 NotificationContext - 알림 이벤트 수신:', notification);
           window.dispatchEvent(new CustomEvent('theway:order-notification', { detail: notification }));
           if (userRole === 'admin' || userRole === 'staff') {
-            addToast(notification.message, getToastTypeForNotification(notification.type));
+            if (notification.type === 'new_order') {
+              playNewOrderAlert();
+              addToast(notification.message, getToastTypeForNotification(notification.type), { speak: false });
+            } else {
+              addToast(notification.message, getToastTypeForNotification(notification.type));
+            }
           }
         }
       )
