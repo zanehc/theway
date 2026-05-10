@@ -127,9 +127,16 @@ export default function OrderReviewSheet({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6">
-          <div className="mb-4 flex items-center justify-between rounded-2xl bg-surface-soft p-4">
-            <span className="text-sm font-black text-body">총 결제금액</span>
-            <span className="text-lg font-black text-ink">₩{totalAmount.toLocaleString()}</span>
+          <div className="mb-4 rounded-2xl bg-surface-soft p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-black text-body">총 결제금액</span>
+              <span className="text-lg font-black text-ink">₩{totalAmount.toLocaleString()}</span>
+            </div>
+            <div className="mt-3 rounded-2xl border border-primary/20 bg-canvas px-4 py-3">
+              <div className="text-xs font-black text-primary">입금 계좌</div>
+              <div className="mt-1 text-sm font-black text-ink">카카오뱅크 3333-29-6621229</div>
+              <div className="mt-0.5 text-xs font-bold text-mute">예금주: Cafe 이음 (편도영)</div>
+            </div>
           </div>
 
           <div className="space-y-3">
