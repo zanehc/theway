@@ -110,11 +110,19 @@ export default function Index() {
     }
   };
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [copiedCafe, setCopiedCafe] = useState(false);
 
   const copyAccount = (number: string, idx: number) => {
     navigator.clipboard.writeText(number).then(() => {
       setCopiedIdx(idx);
       setTimeout(() => setCopiedIdx(null), 1500);
+    }).catch(() => {});
+  };
+
+  const copyCafeAccount = () => {
+    navigator.clipboard.writeText('3333-29-6621229').then(() => {
+      setCopiedCafe(true);
+      setTimeout(() => setCopiedCafe(false), 1500);
     }).catch(() => {});
   };
 
@@ -237,6 +245,49 @@ export default function Index() {
                   로그인
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+
+        {/* Cafe 이음 계좌 패널 */}
+        <div className="mb-3 sm:mb-4">
+          <div className="bg-canvas border-2 border-hairline-soft rounded-2xl overflow-hidden">
+            <div className="relative bg-yellow-400 px-4 py-3 overflow-hidden">
+              <div className="absolute -top-4 -right-4 w-20 h-20 rounded-full bg-yellow-300 opacity-40 pointer-events-none" />
+              <div className="relative flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg font-black text-yellow-900">☕</span>
+                  <div>
+                    <p className="text-yellow-900 text-[10px] font-bold tracking-wider uppercase leading-none">이음카페</p>
+                    <h2 className="text-base font-black text-yellow-900 leading-tight">Cafe 이음 계좌</h2>
+                  </div>
+                </div>
+                <button
+                  onClick={copyCafeAccount}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors bg-yellow-900/10 hover:bg-yellow-900/20 text-yellow-900"
+                >
+                  {copiedCafe ? (
+                    <>
+                      <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                      </svg>
+                      복사됨
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                      계좌번호 복사
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+            <div className="px-4 py-3 flex items-center gap-3">
+              <span className="bg-yellow-400 text-yellow-900 text-xs font-black px-2.5 py-1 rounded-lg shrink-0">카카오뱅크</span>
+              <span className="text-sm font-mono font-bold text-ink tracking-wide">3333-29-6621229</span>
+              <span className="text-xs text-mute ml-auto shrink-0">편도영</span>
             </div>
           </div>
         </div>
