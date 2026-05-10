@@ -14,6 +14,26 @@ function getOrderNumber(order: any) {
   return order.order_number || order.id?.slice(-8) || '';
 }
 
+function OrderItemBadges({ items }: { items?: any[] }) {
+  if (!items || items.length === 0) {
+    return <span className="text-sm font-bold text-mute">메뉴 없음</span>;
+  }
+
+  return (
+    <div className="flex flex-wrap justify-start gap-2 sm:justify-center">
+      {items.map((item: any, index: number) => (
+        <span
+          key={item.id || `${item.menu?.name || 'menu'}-${index}`}
+          className="inline-flex max-w-full items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-sm font-black leading-tight text-ink sm:text-[15px]"
+        >
+          <span className="truncate">{item.menu?.name || '메뉴명 없음'}</span>
+          <span className="shrink-0 text-primary">x {item.quantity}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const error = url.searchParams.get('error');
@@ -449,12 +469,8 @@ export default function AdminOrdersPage() {
                     <div className="text-sm text-body mb-2">
                       {new Date(order.created_at).toLocaleString('ko-KR')}
                     </div>
-                    <div className="space-y-1 mb-3">
-                      {order.order_items?.map((item: any) => (
-                        <div key={item.id} className="text-sm text-body">
-                          {item.menu?.name} x {item.quantity}
-                        </div>
-                      ))}
+                    <div className="mb-3">
+                      <OrderItemBadges items={order.order_items} />
                     </div>
                     <div className="font-bold text-ink mb-3">₩{order.total_amount?.toLocaleString()}</div>
 
@@ -555,13 +571,7 @@ export default function AdminOrdersPage() {
                         </td>
                         <td className="align-middle">
                           <div className="flex flex-col items-center">
-                            <div className="flex flex-col gap-1 items-center">
-                              {order.order_items?.map((item: any) => (
-                                <div key={item.id} className="text-xs text-body">
-                                  {item.menu?.name} x {item.quantity}
-                                </div>
-                              ))}
-                            </div>
+                            <OrderItemBadges items={order.order_items} />
                             <span className="font-bold text-ink mt-1">₩{order.total_amount?.toLocaleString()}</span>
                           </div>
                         </td>

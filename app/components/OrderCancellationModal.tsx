@@ -60,15 +60,16 @@ export default function OrderCancellationModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="bg-white rounded-2xl p-6 w-full max-w-md mx-4 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+      <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
         {/* 헤더 */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex shrink-0 items-center justify-between border-b border-hairline px-5 py-4 sm:px-6">
           <h2 className="text-xl font-bold text-ink">주문 취소</h2>
           <button
             onClick={handleClose}
-            className="text-ash hover:text-mute transition-colors"
+            className="rounded-full p-1 text-ash transition-colors hover:bg-surface-soft hover:text-mute"
             disabled={isSubmitting}
+            aria-label="닫기"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -76,59 +77,68 @@ export default function OrderCancellationModal({
           </button>
         </div>
 
-        {/* 주문 정보 */}
-        <div className="bg-canvas rounded-2xl p-4 mb-6">
-          <div className="text-sm text-mute mb-1">고객명</div>
-          <div className="font-bold text-ink mb-3">{orderInfo.customerName}</div>
-          <div className="text-sm text-mute mb-1">주문 내용</div>
-          <div className="text-body">{orderInfo.orderItems}</div>
-        </div>
-
-        {/* 취소 사유 선택 */}
-        <div className="mb-6">
-          <label className="block text-sm font-bold text-body mb-3">
-            취소 사유를 선택해주세요
-          </label>
-          <div className="space-y-2">
-            {predefinedReasons.map((reasonOption) => (
-              <label 
-                key={reasonOption} 
-                className="flex items-center p-3 rounded-2xl border border-hairline hover:bg-surface-soft cursor-pointer transition-colors"
-              >
-                <input
-                  type="radio"
-                  name="cancellation-reason"
-                  value={reasonOption}
-                  checked={reason === reasonOption}
-                  onChange={(e) => setReason(e.target.value)}
-                  className="w-4 h-4 text-mute border-stone focus:ring-focus-outer"
-                  disabled={isSubmitting}
-                />
-                <span className="ml-3 text-body font-medium">{reasonOption}</span>
-              </label>
-            ))}
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+          {/* 주문 정보 */}
+          <div className="mb-5 rounded-2xl bg-canvas p-4">
+            <div className="text-sm text-mute mb-1">고객명</div>
+            <div className="font-bold text-ink mb-3">{orderInfo.customerName}</div>
+            <div className="text-sm text-mute mb-1">주문 내용</div>
+            <div className="text-body">{orderInfo.orderItems}</div>
           </div>
-        </div>
 
-        {/* 기타 사유 입력 */}
-        {reason === '기타' && (
-          <div className="mb-6">
-            <label className="block text-sm font-bold text-body mb-2">
-              상세 취소 사유
+          {/* 취소 사유 선택 */}
+          <div className="mb-5">
+            <label className="block text-sm font-bold text-body mb-3">
+              취소 사유를 선택해주세요
             </label>
-            <textarea
-              value={customReason}
-              onChange={(e) => setCustomReason(e.target.value)}
-              placeholder="취소 사유를 상세히 입력해주세요..."
-              className="w-full px-4 py-3 border border-stone rounded-2xl focus:ring-2 focus:ring-focus-outer focus:border-primary resize-none"
-              rows={3}
-              disabled={isSubmitting}
-            />
+            <div className="space-y-2">
+              {predefinedReasons.map((reasonOption) => (
+                <label
+                  key={reasonOption}
+                  className="flex cursor-pointer items-center rounded-2xl border border-hairline p-3 transition-colors hover:bg-surface-soft"
+                >
+                  <input
+                    type="radio"
+                    name="cancellation-reason"
+                    value={reasonOption}
+                    checked={reason === reasonOption}
+                    onChange={(e) => setReason(e.target.value)}
+                    className="w-4 h-4 text-mute border-stone focus:ring-focus-outer"
+                    disabled={isSubmitting}
+                  />
+                  <span className="ml-3 text-body font-medium">{reasonOption}</span>
+                </label>
+              ))}
+            </div>
           </div>
-        )}
+
+          {/* 기타 사유 입력 */}
+          {reason === '기타' && (
+            <div className="mb-5">
+              <label className="block text-sm font-bold text-body mb-2">
+                상세 취소 사유
+              </label>
+              <textarea
+                value={customReason}
+                onChange={(e) => setCustomReason(e.target.value)}
+                placeholder="취소 사유를 상세히 입력해주세요..."
+                className="w-full resize-none rounded-2xl border border-stone px-4 py-3 focus:border-primary focus:ring-2 focus:ring-focus-outer"
+                rows={3}
+                disabled={isSubmitting}
+              />
+            </div>
+          )}
+
+          {/* 안내 메시지 */}
+          <div className="rounded-2xl bg-yellow-50 p-3">
+            <p className="text-xs text-yellow-700">
+              <strong>주의:</strong> 주문을 취소하면 고객에게 취소 사유와 함께 알림이 전송됩니다.
+            </p>
+          </div>
+        </div>
 
         {/* 버튼 */}
-        <div className="flex gap-3">
+        <div className="flex shrink-0 gap-3 border-t border-hairline bg-white px-5 py-4 sm:px-6">
           <button
             onClick={handleClose}
             className="flex-1 px-4 py-3 bg-secondary-bg text-body rounded-2xl font-bold hover:bg-secondary-bg transition-colors"
@@ -150,13 +160,6 @@ export default function OrderCancellationModal({
               '주문 취소'
             )}
           </button>
-        </div>
-
-        {/* 안내 메시지 */}
-        <div className="mt-4 p-3 bg-yellow-50 rounded-2xl">
-          <p className="text-xs text-yellow-700">
-            <strong>주의:</strong> 주문을 취소하면 고객에게 취소 사유와 함께 알림이 전송됩니다.
-          </p>
         </div>
       </div>
     </div>
