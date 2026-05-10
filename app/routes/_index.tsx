@@ -24,6 +24,7 @@ const DEFAULT_NEWS = {
     { bank: "국민", number: "359301-04-070463", owner: "길을여는교회" },
     { bank: "국민", number: "897001-00-044203", owner: "구제 / 선교" },
     { bank: "국민", number: "897001-00-014048", owner: "건축" },
+    { bank: "카카오뱅크", number: "3333-29-6621229", owner: "Cafe 이음 (편도영)" },
   ],
   etc: "초등부(아미/예스키즈) 목자 모집 (문의: 차지영 집사)\n매일성경 5-6월호: 로비에 비치되어 있습니다",
 };
@@ -108,6 +109,15 @@ export default function Index() {
       setNewsSaving(false);
     }
   };
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+
+  const copyAccount = (number: string, idx: number) => {
+    navigator.clipboard.writeText(number).then(() => {
+      setCopiedIdx(idx);
+      setTimeout(() => setCopiedIdx(null), 1500);
+    }).catch(() => {});
+  };
+
   const [showLogin, setShowLogin] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
   const [loginSuccess, setLoginSuccess] = useState(false);
@@ -344,7 +354,29 @@ export default function Index() {
                         <div className="space-y-1.5">
                           {newsData.offeringAccounts.map((acc: any, idx: number) => (
                             <div key={idx} className="bg-canvas border border-hairline rounded-xl px-2.5 py-2">
-                              <span className="bg-charcoal text-white text-xs font-black px-2 py-0.5 rounded-md">{acc.bank}</span>
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="bg-charcoal text-white text-xs font-black px-2 py-0.5 rounded-md">{acc.bank}</span>
+                                <button
+                                  onClick={() => copyAccount(acc.number, idx)}
+                                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-colors bg-surface-soft hover:bg-surface-card text-body"
+                                >
+                                  {copiedIdx === idx ? (
+                                    <>
+                                      <svg className="h-3 w-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                                      </svg>
+                                      <span className="text-green-600">복사됨</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                      </svg>
+                                      복사
+                                    </>
+                                  )}
+                                </button>
+                              </div>
                               <p className="text-ink-soft text-xs font-mono mt-1 leading-none">{acc.number}</p>
                               {acc.owner && <p className="text-mute text-xs mt-0.5 leading-tight">{acc.owner}</p>}
                             </div>
