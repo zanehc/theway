@@ -116,12 +116,6 @@ export default function Header({ user, userRole, userProfile }: HeaderProps) {
               width={455}
               height={116}
             />
-            <div className="flex shrink-0 items-center gap-2 text-lg font-black leading-tight tracking-tight sm:text-2xl">
-              <span className="text-mute">이음카페</span>
-              <span className="rounded-full bg-secondary-bg px-2 py-1 text-xs font-bold text-ink">
-                Beta
-              </span>
-            </div>
           </Link>
 
           {/* 중앙 공간 */}
