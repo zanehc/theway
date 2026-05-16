@@ -186,15 +186,15 @@ export default function Index() {
         {/* 브랜드 및 사용자 정보 헤더 - 여백 최소화 */}
         <div className="mb-3 sm:mb-4">
           <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-3">
+            <div className="flex min-w-0 items-center gap-4">
               <img
                 src="/church-logo-gil.png"
                 alt="길을여는교회 로고"
-                className="h-10 w-auto object-contain sm:h-12"
-                width={550}
-                height={164}
+                className="h-12 max-w-[48vw] shrink-0 object-contain sm:h-14 sm:max-w-[270px]"
+                width={455}
+                height={116}
               />
-              <div>
+              <div className="shrink-0">
                 <h1 className="text-sm sm:text-base font-black text-ink leading-tight whitespace-nowrap">
                   이음카페
                 </h1>

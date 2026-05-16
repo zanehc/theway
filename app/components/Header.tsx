@@ -108,15 +108,15 @@ export default function Header({ user, userRole, userProfile }: HeaderProps) {
       <div className="max-w-7xl mx-auto px-3 sm:px-8 lg:px-12">
         <div className="flex justify-between items-center py-4 sm:py-6">
           {/* 로고 & 타이틀 - 항상 표시 */}
-          <Link to="/" className="flex items-center space-x-2 sm:space-x-4 group animate-fade-in">
+          <Link to="/" className="group flex min-w-0 items-center gap-3 animate-fade-in sm:gap-4">
             <img
               src="/church-logo-gil.png"
               alt="길을여는교회 로고"
-              className="h-9 w-auto object-contain transition-transform duration-300 group-hover:scale-105 sm:h-12"
-              width={550}
-              height={164}
+              className="h-10 max-w-[44vw] shrink-0 object-contain transition-transform duration-300 group-hover:scale-105 sm:h-12 sm:max-w-[260px]"
+              width={455}
+              height={116}
             />
-            <div className="flex items-center gap-2 text-lg font-black leading-tight tracking-tight sm:text-2xl">
+            <div className="flex shrink-0 items-center gap-2 text-lg font-black leading-tight tracking-tight sm:text-2xl">
               <span className="text-mute">이음카페</span>
               <span className="rounded-full bg-secondary-bg px-2 py-1 text-xs font-bold text-ink">
                 Beta
