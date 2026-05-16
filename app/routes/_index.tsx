@@ -31,6 +31,132 @@ const DEFAULT_NEWS = {
   etc: "",
 };
 
+type CalendarEvent = {
+  title?: string;
+  date?: string;
+  desc?: string;
+};
+
+type CalendarDateRange = {
+  start: Date;
+  end: Date;
+  allDay: boolean;
+};
+
+const padCalendarNumber = (value: number) => String(value).padStart(2, '0');
+
+const formatGoogleDate = (date: Date, allDay: boolean) => {
+  const year = date.getFullYear();
+  const month = padCalendarNumber(date.getMonth() + 1);
+  const day = padCalendarNumber(date.getDate());
+  if (allDay) return `${year}${month}${day}`;
+  return `${year}${month}${day}T${padCalendarNumber(date.getHours())}${padCalendarNumber(date.getMinutes())}00`;
+};
+
+const formatIcsDate = (date: Date, allDay: boolean) => {
+  if (allDay) return formatGoogleDate(date, true);
+  return `${formatGoogleDate(date, false)}`;
+};
+
+const escapeIcsText = (value: string) =>
+  value
+    .replace(/\\/g, '\\\\')
+    .replace(/\n/g, '\\n')
+    .replace(/,/g, '\\,')
+    .replace(/;/g, '\\;');
+
+const parseKoreanEventDate = (dateText?: string): CalendarDateRange | null => {
+  if (!dateText) return null;
+
+  const firstDateMatch = dateText.match(/(\d{1,2})\s*\/\s*(\d{1,2})/);
+  if (!firstDateMatch) return null;
+
+  const now = new Date();
+  const year = now.getFullYear();
+  const startMonth = Number(firstDateMatch[1]);
+  const startDay = Number(firstDateMatch[2]);
+  const timeMatch = dateText.match(/(오전|오후)?\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분)?/);
+  const allDay = !timeMatch;
+  let startHour = 9;
+  let startMinute = 0;
+
+  if (timeMatch) {
+    startHour = Number(timeMatch[2]);
+    startMinute = Number(timeMatch[3] || 0);
+    if (timeMatch[1] === '오후' && startHour < 12) startHour += 12;
+    if (timeMatch[1] === '오전' && startHour === 12) startHour = 0;
+  }
+
+  const start = new Date(year, startMonth - 1, startDay, startHour, startMinute, 0, 0);
+  const endDateMatch = dateText
+    .slice(firstDateMatch.index! + firstDateMatch[0].length)
+    .match(/[-~]\s*(?:(\d{1,2})\s*\/)?\s*(\d{1,2})/);
+
+  let end: Date;
+  if (endDateMatch) {
+    const endMonth = Number(endDateMatch[1] || startMonth);
+    const endDay = Number(endDateMatch[2]);
+    end = new Date(year, endMonth - 1, endDay, startHour, startMinute, 0, 0);
+    if (end < start) end.setFullYear(year + 1);
+    if (allDay) end.setDate(end.getDate() + 1);
+    else end.setHours(end.getHours() + 1);
+  } else {
+    end = new Date(start);
+    if (allDay) end.setDate(end.getDate() + 1);
+    else end.setHours(end.getHours() + 1);
+  }
+
+  return { start, end, allDay };
+};
+
+const buildGoogleCalendarUrl = (event: CalendarEvent) => {
+  const range = parseKoreanEventDate(event.date);
+  if (!range) return null;
+
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: event.title || '길을여는교회 행사',
+    dates: `${formatGoogleDate(range.start, range.allDay)}/${formatGoogleDate(range.end, range.allDay)}`,
+    details: [event.date, event.desc].filter(Boolean).join('\n'),
+  });
+
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+};
+
+const downloadAppleCalendarEvent = (event: CalendarEvent) => {
+  const range = parseKoreanEventDate(event.date);
+  if (!range) return;
+
+  const title = event.title || '길을여는교회 행사';
+  const description = [event.date, event.desc].filter(Boolean).join('\n');
+  const dateField = range.allDay ? ';VALUE=DATE' : '';
+  const ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//TheWay//Ieum Cafe//KO',
+    'CALSCALE:GREGORIAN',
+    'BEGIN:VEVENT',
+    `UID:${Date.now()}-${Math.random().toString(36).slice(2)}@theway`,
+    `DTSTAMP:${formatGoogleDate(new Date(), false)}Z`,
+    `DTSTART${dateField}:${formatIcsDate(range.start, range.allDay)}`,
+    `DTEND${dateField}:${formatIcsDate(range.end, range.allDay)}`,
+    `SUMMARY:${escapeIcsText(title)}`,
+    `DESCRIPTION:${escapeIcsText(description)}`,
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n');
+
+  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${title.replace(/[\\/:*?"<>|]/g, '').trim() || 'church-event'}.ics`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+};
+
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
@@ -389,6 +515,25 @@ export default function Index() {
                             </div>
                             {ev.date && <p className="text-wine-600 text-xs font-semibold pl-5">{ev.date}</p>}
                             {ev.desc && <p className="text-mute text-xs leading-relaxed pl-5 mt-0.5">{ev.desc}</p>}
+                            {buildGoogleCalendarUrl(ev) && (
+                              <div className="mt-2 flex items-center gap-1.5 pl-5">
+                                <a
+                                  href={buildGoogleCalendarUrl(ev) || undefined}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="rounded-md border border-hairline bg-surface-soft px-2 py-1 text-[11px] font-bold leading-none text-body transition-colors hover:border-wine-600 hover:text-wine-600"
+                                >
+                                  Google
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => downloadAppleCalendarEvent(ev)}
+                                  className="rounded-md border border-hairline bg-surface-soft px-2 py-1 text-[11px] font-bold leading-none text-body transition-colors hover:border-wine-600 hover:text-wine-600"
+                                >
+                                  Apple
+                                </button>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
