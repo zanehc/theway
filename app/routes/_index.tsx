@@ -188,15 +188,15 @@ export default function Index() {
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-3">
               <img
-                src="/church-logo-128-transparent.png"
+                src="/church-logo-gil.png"
                 alt="길을여는교회 로고"
-                className="h-10 w-10 object-contain"
-                width={40}
-                height={40}
+                className="h-10 w-auto object-contain sm:h-12"
+                width={550}
+                height={164}
               />
               <div>
                 <h1 className="text-sm sm:text-base font-black text-ink leading-tight whitespace-nowrap">
-                  길을여는교회 이음카페
+                  이음카페
                 </h1>
                 <div className="flex items-center gap-2">
                   <span className="bg-primary text-white text-xs px-1.5 py-0.5 rounded-full font-bold border border-primary-pressed">
