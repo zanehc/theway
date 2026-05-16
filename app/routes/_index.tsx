@@ -157,6 +157,27 @@ const downloadAppleCalendarEvent = (event: CalendarEvent) => {
   URL.revokeObjectURL(url);
 };
 
+const GoogleCalendarIcon = () => (
+  <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4">
+    <rect x="3" y="4" width="18" height="17" rx="3" fill="#fff" />
+    <path d="M6 2h2v4H6V2Zm10 0h2v4h-2V2Z" fill="#5F6368" />
+    <path d="M3 8h18V6a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v2Z" fill="#4285F4" />
+    <path d="M3 8h4v13H6a3 3 0 0 1-3-3V8Z" fill="#34A853" />
+    <path d="M17 8h4v10a3 3 0 0 1-3 3h-1V8Z" fill="#FBBC04" />
+    <path d="M7 18h10v3H7v-3Z" fill="#EA4335" />
+    <path d="M9.7 16.1c.5.4 1.1.6 1.9.6 1 0 1.7-.5 1.7-1.3 0-.7-.6-1.2-1.6-1.2H11v-1.3h.7c.8 0 1.4-.4 1.4-1.1 0-.7-.5-1.1-1.4-1.1-.7 0-1.3.2-1.8.7l-.8-1.1c.7-.7 1.6-1 2.8-1 1.7 0 2.8.8 2.8 2.1 0 .9-.6 1.6-1.5 1.8v.1c1 .2 1.8.9 1.8 2 0 1.5-1.3 2.5-3.2 2.5-1.3 0-2.3-.4-3-1.1l.9-1.1Z" fill="#3C4043" />
+  </svg>
+);
+
+const AppleCalendarIcon = () => (
+  <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4">
+    <rect x="3" y="3" width="18" height="18" rx="5" fill="#fff" />
+    <path d="M6 3h12a3 3 0 0 1 3 3v3H3V6a3 3 0 0 1 3-3Z" fill="#ff3b30" />
+    <path d="M6 3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3Z" fill="none" stroke="#DADAD3" strokeWidth="1" />
+    <path d="M8.7 16.2c.4.3.9.5 1.5.5.8 0 1.3-.4 1.3-1 0-.6-.5-.9-1.3-.9h-.6v-1.2h.6c.7 0 1.1-.3 1.1-.9s-.4-.9-1.1-.9c-.6 0-1 .2-1.4.5l-.6-1c.6-.5 1.3-.8 2.2-.8 1.4 0 2.4.7 2.4 1.8 0 .8-.5 1.3-1.2 1.6.9.2 1.5.8 1.5 1.8 0 1.3-1.1 2.2-2.8 2.2-1 0-1.8-.3-2.4-.8l.8-1.1Zm6.3-4.2-1.3.9-.6-1.1 2.1-1.3h1.3v7.2H15V12Z" fill="#111" />
+  </svg>
+);
+
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
@@ -521,16 +542,20 @@ export default function Index() {
                                   href={buildGoogleCalendarUrl(ev) || undefined}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="rounded-md border border-hairline bg-surface-soft px-2 py-1 text-[11px] font-bold leading-none text-body transition-colors hover:border-wine-600 hover:text-wine-600"
+                                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-hairline bg-surface-soft transition-colors hover:border-wine-600"
+                                  aria-label={`${ev.title || '행사'} Google 캘린더에 추가`}
+                                  title="Google 캘린더에 추가"
                                 >
-                                  Google
+                                  <GoogleCalendarIcon />
                                 </a>
                                 <button
                                   type="button"
                                   onClick={() => downloadAppleCalendarEvent(ev)}
-                                  className="rounded-md border border-hairline bg-surface-soft px-2 py-1 text-[11px] font-bold leading-none text-body transition-colors hover:border-wine-600 hover:text-wine-600"
+                                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-hairline bg-surface-soft transition-colors hover:border-wine-600"
+                                  aria-label={`${ev.title || '행사'} Apple 캘린더에 추가`}
+                                  title="Apple 캘린더에 추가"
                                 >
-                                  Apple
+                                  <AppleCalendarIcon />
                                 </button>
                               </div>
                             )}
