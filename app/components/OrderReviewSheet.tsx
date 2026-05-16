@@ -61,15 +61,11 @@ function LightToggle({ checked, onChange }: { checked: boolean; onChange: () => 
       role="switch"
       aria-checked={checked}
       onClick={onChange}
-      className={`relative h-8 w-14 rounded-full transition-colors ${
-        checked ? "bg-blue-500" : "bg-stone"
+      className={`flex h-8 w-14 shrink-0 items-center rounded-full p-1 transition-colors ${
+        checked ? "justify-end bg-blue-500" : "justify-start bg-stone"
       }`}
     >
-      <span
-        className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow transition-transform ${
-          checked ? "translate-x-7" : "translate-x-1"
-        }`}
-      />
+      <span className="h-6 w-6 rounded-full bg-white shadow" />
     </button>
   );
 }
