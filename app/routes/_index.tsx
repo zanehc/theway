@@ -10,13 +10,15 @@ import { SignupForm } from "~/components/SignupForm";
 import ModalPortal from "~/components/ModalPortal";
 import { HomeSkeleton } from "~/components/LoadingSkeleton";
 
-// 교회소식 기본값 (2026.05.03 주보 기준)
+// 교회소식 기본값 (2026.05.17 주보 기준)
 const DEFAULT_NEWS = {
   registerNotice: "",
   events: [
-    { title: "5/03 주일예배 — 온세대통합예배", date: "5/03(주일) 오전 11시", desc: "" },
-    { title: "5/05(화) 새벽예배 없음", date: "5/05(화)", desc: "" },
-    { title: "예비목자교육", date: "5/10(주일) 오후 2:30 개강 ~ 6/07(주일) 종강", desc: "5회" },
+    { title: "예비목자교육", date: "5/10 - 6/07 / 매 주일 오후 2시 30분", desc: "" },
+    { title: "청장년목자모임", date: "5/30(토) 오전 10시", desc: "" },
+    { title: "중보기도팀 모임", date: "6/07(주일) 오후 3시", desc: "" },
+    { title: "새 생명의 길", date: "6/14(주일) 오후 2시 40분", desc: "" },
+    { title: "유초등부 여름성경학교", date: "7/24(금)-25(토)", desc: "길을여는교회" },
     { title: "전교인 수련회", date: "8/28(금) ~ 8/30(주일)", desc: "국립나주숲체원" },
   ],
   birthdays: [],
@@ -26,7 +28,7 @@ const DEFAULT_NEWS = {
     { bank: "국민", number: "897001-00-014048", owner: "건축" },
     { bank: "카카오뱅크", number: "3333-29-6621229", owner: "Cafe 이음 (편도영)" },
   ],
-  etc: "초등부(아미/예스키즈) 목자 모집 (문의: 차지영 집사)\n매일성경 5-6월호: 로비에 비치되어 있습니다",
+  etc: "",
 };
 
 
