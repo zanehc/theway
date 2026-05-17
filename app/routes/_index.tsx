@@ -605,28 +605,30 @@ export default function Index() {
                         {newsData.events.map((ev: any, idx: number) => {
                           const { infoLabel, badges } = expandEventDates(ev.date || '');
                           return (
-                            <div key={idx} className="bg-canvas rounded-xl px-2.5 py-2 border border-hairline">
-                              {/* 첫째 줄: 번호 + 제목 / 시간정보 */}
-                              <div className="flex items-center gap-1.5 mb-1">
-                                <span className="w-4 h-4 rounded-full bg-wine-600 text-white text-xs font-black flex items-center justify-center flex-shrink-0 leading-none">{idx + 1}</span>
-                                <p className="font-bold text-ink text-xs leading-tight">
-                                  {ev.title}
-                                  {infoLabel && <span className="font-normal text-wine-600"> / {infoLabel}</span>}
-                                </p>
-                              </div>
-                              {/* 둘째 줄: 날짜 뱃지 */}
-                              {badges.length > 0 && (
-                                <div className="flex flex-wrap gap-1 pl-5">
-                                  {badges.map((b, bi) => (
-                                    <span key={bi} className="inline-block bg-wine-50 border border-wine-200 text-wine-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-md leading-none">
-                                      {b}
-                                    </span>
-                                  ))}
+                            <div key={idx} className="bg-canvas rounded-xl px-2.5 py-2 border border-hairline flex items-center gap-2">
+                              {/* 왼쪽: 제목 + 뱃지 */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 mb-1">
+                                  <span className="w-4 h-4 rounded-full bg-wine-600 text-white text-xs font-black flex items-center justify-center flex-shrink-0 leading-none">{idx + 1}</span>
+                                  <p className="font-bold text-ink text-xs leading-tight">
+                                    {ev.title}
+                                    {infoLabel && <span className="font-normal text-wine-600"> / {infoLabel}</span>}
+                                  </p>
                                 </div>
-                              )}
-                              {ev.desc && <p className="text-mute text-xs leading-relaxed pl-5 mt-1">{ev.desc}</p>}
+                                {badges.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 pl-5">
+                                    {badges.map((b, bi) => (
+                                      <span key={bi} className="inline-block bg-wine-50 border border-wine-200 text-wine-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-md leading-none">
+                                        {b}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                                {ev.desc && <p className="text-mute text-xs leading-relaxed pl-5 mt-1">{ev.desc}</p>}
+                              </div>
+                              {/* 오른쪽: 캘린더 버튼 (가로, 1-2행 걸침) */}
                               {buildGoogleCalendarUrl(ev) && (
-                                <div className="mt-2 flex items-center gap-1.5 pl-5">
+                                <div className="flex-shrink-0 flex items-center gap-1">
                                   <a
                                     href={buildGoogleCalendarUrl(ev) || undefined}
                                     target="_blank"
