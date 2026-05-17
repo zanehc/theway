@@ -341,16 +341,6 @@ export default function Index() {
                 width={455}
                 height={116}
               />
-              <div className="shrink-0">
-                <h1 className="text-sm sm:text-base font-black text-ink leading-tight whitespace-nowrap">
-                  이음카페
-                </h1>
-                <div className="flex items-center gap-2">
-                  <span className="bg-primary text-white text-xs px-1.5 py-0.5 rounded-full font-bold border border-primary-pressed">
-                    Beta
-                  </span>
-                </div>
-              </div>
             </div>
 
             {/* 사용자 정보 및 로그인 버튼 */}
