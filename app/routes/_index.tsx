@@ -179,6 +179,66 @@ const AppleCalendarIcon = () => (
 );
 
 
+const WEEKDAY_SHORT = ['일', '월', '화', '수', '목', '금', '토'];
+
+function expandEventDates(dateStr: string): { infoLabel: string; badges: string[] } {
+  if (!dateStr) return { infoLabel: '', badges: [] };
+  const year = new Date().getFullYear();
+
+  // "M/D - M/D / 매 주일 오후 N시 N분" — range + slash + recurrence/time
+  const slashIdx = dateStr.indexOf(' / ');
+  if (slashIdx >= 0) {
+    const rangePart = dateStr.slice(0, slashIdx);
+    const infoLabel = dateStr.slice(slashIdx + 3);
+    const isWeekly = infoLabel.includes('매 주일') || infoLabel.includes('매주');
+    const rangeMatch = rangePart.match(/^(\d{1,2})\/(\d{1,2})\s*[-~]\s*(?:(\d{1,2})\/)?(\d{1,2})/);
+    if (rangeMatch) {
+      const sm = Number(rangeMatch[1]), sd = Number(rangeMatch[2]);
+      const em = Number(rangeMatch[3] || rangeMatch[1]), ed = Number(rangeMatch[4]);
+      const start = new Date(year, sm - 1, sd);
+      const end = new Date(year, em - 1, ed);
+      const badges: string[] = [];
+      const cur = new Date(start);
+      while (cur <= end) {
+        badges.push(`${cur.getMonth() + 1}/${cur.getDate()}`);
+        cur.setDate(cur.getDate() + (isWeekly ? 7 : 1));
+      }
+      return { infoLabel, badges };
+    }
+  }
+
+  // Extract time for single/consecutive date patterns
+  const timeMatch = dateStr.match(/(오전|오후)\s*\d{1,2}\s*시(?:\s*\d{1,2}\s*분)?/);
+  const infoLabel = timeMatch ? timeMatch[0] : '';
+  const datePart = dateStr.replace(infoLabel, '').trim();
+
+  // "M/D(x) - D(y)" or "M/D ~ M/D(y)" — consecutive range
+  const rangeMatch = datePart.match(/(\d{1,2})\/(\d{1,2})(?:\([^\)]*\))?\s*[-~]\s*(?:(\d{1,2})\/)?(\d{1,2})(?:\([^\)]*\))?/);
+  if (rangeMatch) {
+    const sm = Number(rangeMatch[1]), sd = Number(rangeMatch[2]);
+    const em = Number(rangeMatch[3] || rangeMatch[1]), ed = Number(rangeMatch[4]);
+    const start = new Date(year, sm - 1, sd);
+    const end = new Date(year, em - 1, ed);
+    const badges: string[] = [];
+    const cur = new Date(start);
+    while (cur <= end) {
+      badges.push(`${cur.getMonth() + 1}/${cur.getDate()}(${WEEKDAY_SHORT[cur.getDay()]})`);
+      cur.setDate(cur.getDate() + 1);
+    }
+    return { infoLabel, badges };
+  }
+
+  // Single date: "M/D(요일)"
+  const singleMatch = datePart.match(/(\d{1,2})\/(\d{1,2})(?:\(([^\)]+)\))?/);
+  if (singleMatch) {
+    const m = Number(singleMatch[1]), d = Number(singleMatch[2]);
+    const w = singleMatch[3] || WEEKDAY_SHORT[new Date(year, m - 1, d).getDay()];
+    return { infoLabel, badges: [`${m}/${d}(${w})`] };
+  }
+
+  return { infoLabel: dateStr, badges: [] };
+}
+
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const error = url.searchParams.get('error');
@@ -542,39 +602,55 @@ export default function Index() {
                         <span className="ml-auto bg-wine-600 text-white text-xs font-bold px-1.5 py-0.5 rounded-full leading-none">{newsData.events.length}</span>
                       </div>
                       <div className="space-y-2">
-                        {newsData.events.map((ev: any, idx: number) => (
-                          <div key={idx} className="bg-canvas rounded-xl px-2.5 py-2 border border-hairline">
-                            <div className="flex items-center gap-1.5 mb-0.5">
-                              <span className="w-4 h-4 rounded-full bg-wine-600 text-white text-xs font-black flex items-center justify-center flex-shrink-0 leading-none">{idx + 1}</span>
-                              <p className="font-bold text-ink-soft text-xs leading-tight">{ev.title}</p>
-                            </div>
-                            {ev.date && <p className="text-wine-600 text-xs font-semibold pl-5">{ev.date}</p>}
-                            {ev.desc && <p className="text-mute text-xs leading-relaxed pl-5 mt-0.5">{ev.desc}</p>}
-                            {buildGoogleCalendarUrl(ev) && (
-                              <div className="mt-2 flex items-center gap-1.5 pl-5">
-                                <a
-                                  href={buildGoogleCalendarUrl(ev) || undefined}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-hairline bg-surface-soft transition-colors hover:border-wine-600"
-                                  aria-label={`${ev.title || '행사'} Google 캘린더에 추가`}
-                                  title="Google 캘린더에 추가"
-                                >
-                                  <GoogleCalendarIcon />
-                                </a>
-                                <button
-                                  type="button"
-                                  onClick={() => downloadAppleCalendarEvent(ev)}
-                                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-hairline bg-surface-soft transition-colors hover:border-wine-600"
-                                  aria-label={`${ev.title || '행사'} Apple 캘린더에 추가`}
-                                  title="Apple 캘린더에 추가"
-                                >
-                                  <AppleCalendarIcon />
-                                </button>
+                        {newsData.events.map((ev: any, idx: number) => {
+                          const { infoLabel, badges } = expandEventDates(ev.date || '');
+                          return (
+                            <div key={idx} className="bg-canvas rounded-xl px-2.5 py-2 border border-hairline">
+                              {/* 첫째 줄: 번호 + 제목 / 시간정보 */}
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <span className="w-4 h-4 rounded-full bg-wine-600 text-white text-xs font-black flex items-center justify-center flex-shrink-0 leading-none">{idx + 1}</span>
+                                <p className="font-bold text-ink text-xs leading-tight">
+                                  {ev.title}
+                                  {infoLabel && <span className="font-normal text-wine-600"> / {infoLabel}</span>}
+                                </p>
                               </div>
-                            )}
-                          </div>
-                        ))}
+                              {/* 둘째 줄: 날짜 뱃지 */}
+                              {badges.length > 0 && (
+                                <div className="flex flex-wrap gap-1 pl-5">
+                                  {badges.map((b, bi) => (
+                                    <span key={bi} className="inline-block bg-wine-50 border border-wine-200 text-wine-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-md leading-none">
+                                      {b}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              {ev.desc && <p className="text-mute text-xs leading-relaxed pl-5 mt-1">{ev.desc}</p>}
+                              {buildGoogleCalendarUrl(ev) && (
+                                <div className="mt-2 flex items-center gap-1.5 pl-5">
+                                  <a
+                                    href={buildGoogleCalendarUrl(ev) || undefined}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-hairline bg-surface-soft transition-colors hover:border-wine-600"
+                                    aria-label={`${ev.title || '행사'} Google 캘린더에 추가`}
+                                    title="Google 캘린더에 추가"
+                                  >
+                                    <GoogleCalendarIcon />
+                                  </a>
+                                  <button
+                                    type="button"
+                                    onClick={() => downloadAppleCalendarEvent(ev)}
+                                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-hairline bg-surface-soft transition-colors hover:border-wine-600"
+                                    aria-label={`${ev.title || '행사'} Apple 캘린더에 추가`}
+                                    title="Apple 캘린더에 추가"
+                                  >
+                                    <AppleCalendarIcon />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
