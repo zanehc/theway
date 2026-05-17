@@ -170,11 +170,8 @@ const GoogleCalendarIcon = () => (
 );
 
 const AppleCalendarIcon = () => (
-  <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4">
-    <rect x="3" y="3" width="18" height="18" rx="5" fill="#fff" />
-    <path d="M6 3h12a3 3 0 0 1 3 3v3H3V6a3 3 0 0 1 3-3Z" fill="#ff3b30" />
-    <path d="M6 3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3Z" fill="none" stroke="#DADAD3" strokeWidth="1" />
-    <path d="M8.7 16.2c.4.3.9.5 1.5.5.8 0 1.3-.4 1.3-1 0-.6-.5-.9-1.3-.9h-.6v-1.2h.6c.7 0 1.1-.3 1.1-.9s-.4-.9-1.1-.9c-.6 0-1 .2-1.4.5l-.6-1c.6-.5 1.3-.8 2.2-.8 1.4 0 2.4.7 2.4 1.8 0 .8-.5 1.3-1.2 1.6.9.2 1.5.8 1.5 1.8 0 1.3-1.1 2.2-2.8 2.2-1 0-1.8-.3-2.4-.8l.8-1.1Zm6.3-4.2-1.3.9-.6-1.1 2.1-1.3h1.3v7.2H15V12Z" fill="#111" />
+  <svg aria-hidden="true" viewBox="0 0 814 1000" className="h-4 w-4" fill="currentColor">
+    <path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76 0-103.7 40.8-165.9 40.8s-105-57.8-155.5-127.4C46 790.7 0 663 0 541.8c0-207.8 135.4-317.9 269-317.9 70.6 0 129.5 46.4 170.8 46.4 39.5 0 107.2-49.1 185.2-49.1 29.6 0 108.2 2.6 168.6 75.5zm-174.3-57.4c-10.9 49.1-38.2 97.8-71.4 128.1-32.6 29.6-69.5 48.4-107.2 48.4-1.3 0-2.6 0-3.9-.2-.7-5.1-1-10.3-1-15.5 0-40.5 18.6-91.9 52-124.8 32.8-32.3 85.2-55.6 131.3-57.2 1.3 0 2.6-.1 3.9-.1.9 6.7 1.4 13.6 1.4 20.5-.6 0-3.7.3-5.1.8z"/>
   </svg>
 );
 
@@ -406,23 +403,21 @@ export default function Index() {
                   href="https://www.youtube.com/channel/UCIjrJ4vu_SWMNPM9FyISPOw"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-canvas border border-hairline hover:bg-red-50 hover:border-red-200 transition-colors group"
+                  className="flex items-center justify-center w-7 h-7 rounded-lg bg-canvas border border-hairline hover:bg-red-50 hover:border-red-200 transition-colors group"
                 >
                   <svg className="h-3.5 w-3.5 text-red-600" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
                   </svg>
-                  <span className="text-[10px] font-bold text-body group-hover:text-red-600 transition-colors">유튜브</span>
                 </a>
                 <a
                   href="https://www.instagram.com/gospel_in_life_love/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-canvas border border-hairline hover:bg-pink-50 hover:border-pink-200 transition-colors group"
+                  className="flex items-center justify-center w-7 h-7 rounded-lg bg-canvas border border-hairline hover:bg-pink-50 hover:border-pink-200 transition-colors group"
                 >
                   <svg className="h-3.5 w-3.5 text-pink-600" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/>
                   </svg>
-                  <span className="text-[10px] font-bold text-body group-hover:text-pink-600 transition-colors">인스타그램</span>
                 </a>
               </div>
             </div>
