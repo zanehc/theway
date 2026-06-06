@@ -242,7 +242,7 @@ export default function OtherPage() {
                     주문 관리
                   </button>
                   <button
-                    onClick={() => navigate("/menus")}
+                    onClick={() => navigate("/admin/menus")}
                     className="w-full bg-green-600 text-white py-3 px-4 rounded-2xl font-bold hover:bg-green-700 transition-colors"
                   >
                     메뉴 수정
