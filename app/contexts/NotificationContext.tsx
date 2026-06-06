@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { supabase } from '~/lib/supabase';
 
 interface ToastNotification {
@@ -16,6 +16,14 @@ interface DbNotification {
   message: string;
   status: string;
   created_at: string;
+}
+
+interface DbOrderInsert {
+  id: string;
+  order_number?: string | null;
+  customer_name?: string | null;
+  church_group?: string | null;
+  total_amount?: number | null;
 }
 
 function getToastTypeForNotification(notificationType: string): ToastNotification['type'] {
@@ -41,6 +49,7 @@ interface NotificationContextType {
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
+let sharedAudioContext: AudioContext | null = null;
 
 interface NotificationProviderProps {
   children: ReactNode;
@@ -91,12 +100,31 @@ function speakText(text: string, options?: { rate?: number; pitch?: number; volu
   }
 }
 
-function playOrderChime() {
+async function getUnlockedAudioContext() {
   const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-  if (!AudioContextClass) return;
+  if (!AudioContextClass) return null;
 
   try {
-    const audioContext = new AudioContextClass();
+    if (!sharedAudioContext) {
+      sharedAudioContext = new AudioContextClass();
+    }
+
+    if (sharedAudioContext.state === 'suspended') {
+      await sharedAudioContext.resume();
+    }
+
+    return sharedAudioContext;
+  } catch (error) {
+    console.warn('오디오 컨텍스트 준비 실패:', error);
+    return null;
+  }
+}
+
+async function playOrderChime() {
+  try {
+    const audioContext = await getUnlockedAudioContext();
+    if (!audioContext) return;
+
     const masterGain = audioContext.createGain();
     masterGain.connect(audioContext.destination);
     masterGain.gain.setValueAtTime(0.0001, audioContext.currentTime);
@@ -143,6 +171,21 @@ function playNewOrderAlert() {
 export function NotificationProvider({ children, userId, userRole }: NotificationProviderProps) {
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
   const [ttsInitialized, setTtsInitialized] = useState(false);
+  const announcedOrderIdsRef = useRef<Map<string, number>>(new Map());
+
+  const shouldAnnounceOrder = useCallback((orderId?: string | null) => {
+    if (!orderId) return true;
+
+    const now = Date.now();
+    const recentIds = announcedOrderIdsRef.current;
+    recentIds.forEach((timestamp, id) => {
+      if (now - timestamp > 60_000) recentIds.delete(id);
+    });
+
+    if (recentIds.has(orderId)) return false;
+    recentIds.set(orderId, now);
+    return true;
+  }, []);
 
   const addToast = useCallback((message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info', options?: { speak?: boolean }) => {
     console.log('🔔 NotificationContext - 새 알림 추가:', { message, type, userId, userRole });
@@ -196,11 +239,15 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
 
   // TTS 초기화 (사용자 제스처 필요 시)
   const initializeTTS = useCallback(() => {
-    if ('speechSynthesis' in window && !ttsInitialized) {
+    if (ttsInitialized) return;
+
+    getUnlockedAudioContext();
+
+    if ('speechSynthesis' in window) {
       try {
-        // 빈 텍스트로 TTS 테스트 (iOS에서 권한 요청)
-        const testUtterance = new window.SpeechSynthesisUtterance('');
+        const testUtterance = new window.SpeechSynthesisUtterance(' ');
         testUtterance.volume = 0;
+        testUtterance.lang = 'ko-KR';
         window.speechSynthesis.speak(testUtterance);
         setTtsInitialized(true);
         console.log('🎵 TTS 초기화 완료');
@@ -217,11 +264,15 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
       initializeTTS();
     };
 
+    window.addEventListener('click', unlockAudio, { once: true });
     window.addEventListener('pointerdown', unlockAudio, { once: true });
+    window.addEventListener('touchstart', unlockAudio, { once: true });
     window.addEventListener('keydown', unlockAudio, { once: true });
 
     return () => {
+      window.removeEventListener('click', unlockAudio);
       window.removeEventListener('pointerdown', unlockAudio);
+      window.removeEventListener('touchstart', unlockAudio);
       window.removeEventListener('keydown', unlockAudio);
     };
   }, [userRole, initializeTTS]);
@@ -250,8 +301,10 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
           window.dispatchEvent(new CustomEvent('theway:order-notification', { detail: notification }));
           if (userRole === 'admin' || userRole === 'staff') {
             if (notification.type === 'new_order') {
-              playNewOrderAlert();
-              addToast(notification.message, getToastTypeForNotification(notification.type), { speak: false });
+              if (shouldAnnounceOrder(notification.order_id)) {
+                playNewOrderAlert();
+                addToast(notification.message, getToastTypeForNotification(notification.type), { speak: false });
+              }
             } else {
               addToast(notification.message, getToastTypeForNotification(notification.type));
             }
@@ -260,10 +313,39 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
       )
       .subscribe();
 
+    const ordersChannel = (userRole === 'admin' || userRole === 'staff')
+      ? supabase
+          .channel(`orders-insert-audio-${userId}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'orders',
+            },
+            (payload) => {
+              const order = payload.new as DbOrderInsert;
+              if (!shouldAnnounceOrder(order.id)) return;
+
+              const group = order.church_group ? ` · ${order.church_group}` : '';
+              const orderNumber = order.order_number ? `#${order.order_number}` : order.id?.slice(-8) || '';
+              const amount = typeof order.total_amount === 'number'
+                ? `, 총 ${order.total_amount.toLocaleString()}원`
+                : '';
+              const message = `${order.customer_name || '고객'}${group}님이 새 주문을 넣었습니다.${orderNumber ? ` (주문번호: ${orderNumber}${amount})` : ''}`;
+
+              playNewOrderAlert();
+              addToast(message, 'info', { speak: false });
+            }
+          )
+          .subscribe()
+      : null;
+
     return () => {
       supabase.removeChannel(notificationsChannel);
+      if (ordersChannel) supabase.removeChannel(ordersChannel);
     };
-  }, [userId, userRole, addToast]);
+  }, [userId, userRole, addToast, shouldAnnounceOrder]);
 
   return (
     <NotificationContext.Provider value={{ toasts, addToast, showNotification, removeToast, clearAllToasts, initializeTTS }}>
