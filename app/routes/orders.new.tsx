@@ -1,7 +1,7 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher, useOutletContext, useNavigation } from "@remix-run/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getMenus, createOrder, OrderCreationError } from "~/lib/database";
 
 import type { Menu } from "~/types";
@@ -219,6 +219,124 @@ export async function action({ request }: ActionFunctionArgs) {
     }
   }
 
+  if (intent === 'updateOrder') {
+    try {
+      const orderId = formData.get('orderId') as string;
+      const submittedCustomerName = formData.get('customerName') as string;
+      const submittedChurchGroup = formData.get('churchGroup') as string;
+      const notes = formData.get('notes') as string;
+      const items = JSON.parse(formData.get('items') as string);
+      const accessToken = formData.get('accessToken') as string;
+
+      if (!orderId) {
+        return json({ error: '수정할 주문을 찾지 못했습니다.' }, { status: 400 });
+      }
+
+      if (!items || items.length === 0) {
+        return json({ error: '주문 항목을 입력해주세요.' }, { status: 400 });
+      }
+
+      const serverSupabase = createServerSupabaseClient();
+      const { data: authData, error: authError } = accessToken
+        ? await serverSupabase.auth.getUser(accessToken)
+        : { data: { user: null }, error: null };
+      const finalUserId = authData.user?.id;
+
+      if (authError || !finalUserId) {
+        return json({ error: '로그인 정보가 확인되지 않아 주문을 수정할 수 없습니다.' }, { status: 400 });
+      }
+
+      const { data: profile } = await serverSupabase
+        .from('users')
+        .select('name, church_group')
+        .eq('id', finalUserId)
+        .maybeSingle();
+
+      const customerName = typeof profile?.name === 'string' && profile.name.trim()
+        ? profile.name.trim()
+        : submittedCustomerName?.trim();
+      const churchGroup = typeof profile?.church_group === 'string' && profile.church_group.trim()
+        ? profile.church_group.trim()
+        : submittedChurchGroup?.trim();
+
+      const { data: existingOrder, error: orderError } = await serverSupabase
+        .from('orders')
+        .select('id, user_id, customer_name, church_group, status, order_number')
+        .eq('id', orderId)
+        .maybeSingle();
+
+      if (orderError || !existingOrder) {
+        return json({ error: '수정할 주문을 찾지 못했습니다.' }, { status: 404 });
+      }
+
+      if (existingOrder.status !== 'pending') {
+        return json({ error: '제조가 시작된 주문은 수정할 수 없습니다.' }, { status: 400 });
+      }
+
+      const matchesOwner = existingOrder.user_id === finalUserId;
+      const matchesProfile = Boolean(
+        customerName &&
+        churchGroup &&
+        existingOrder.customer_name === customerName &&
+        existingOrder.church_group === churchGroup
+      );
+
+      if (!matchesOwner && !matchesProfile) {
+        return json({ error: '본인 주문만 수정할 수 있습니다.' }, { status: 403 });
+      }
+
+      const totalAmount = items.reduce((sum: number, item: any) => sum + Number(item.total_price || 0), 0);
+      const orderItems = items.map((item: any) => ({
+        order_id: orderId,
+        menu_id: item.menu_id,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        total_price: item.total_price,
+        notes: item.notes || null,
+      }));
+
+      const { error: deleteItemsError } = await serverSupabase
+        .from('order_items')
+        .delete()
+        .eq('order_id', orderId);
+
+      if (deleteItemsError) {
+        console.error('Update order delete items error:', deleteItemsError);
+        return json({ error: '기존 주문 항목을 수정하지 못했습니다.' }, { status: 500 });
+      }
+
+      const { error: insertItemsError } = await serverSupabase
+        .from('order_items')
+        .insert(orderItems);
+
+      if (insertItemsError) {
+        console.error('Update order insert items error:', insertItemsError);
+        return json({ error: '새 주문 항목을 저장하지 못했습니다.' }, { status: 500 });
+      }
+
+      const { data: updatedOrder, error: updateOrderError } = await serverSupabase
+        .from('orders')
+        .update({
+          total_amount: totalAmount,
+          notes: notes || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', orderId)
+        .select('id')
+        .single();
+
+      if (updateOrderError || !updatedOrder) {
+        console.error('Update order error:', updateOrderError);
+        return json({ error: '주문 수정에 실패했습니다.' }, { status: 500 });
+      }
+
+      return json({ success: true, orderId, updated: true });
+    } catch (error) {
+      console.error('Update order action error:', error);
+      return json({ error: '주문 수정에 실패했습니다.' }, { status: 400 });
+    }
+  }
+
   return json({ error: '잘못된 요청입니다.' }, { status: 400 });
 }
 
@@ -239,6 +357,50 @@ function normalizeItemOptions(options: ItemOptions[] | undefined, quantity: numb
   return Array.from({ length: quantity }, (_, index) => options?.[index] || {});
 }
 
+function parseItemNotes(notes?: string | null): ItemOptions {
+  const options: ItemOptions = {};
+  if (!notes) return options;
+  const parts = notes.split(',').map(part => part.trim());
+  if (parts.includes('연하게')) options.strength = 'light';
+  if (parts.includes('물 많게')) options.water = 'more';
+  if (parts.includes('물 적게')) options.water = 'less';
+  if (parts.includes('얼음 많게')) options.ice = 'more';
+  if (parts.includes('얼음 적게')) options.ice = 'less';
+  return options;
+}
+
+function groupOrderItemsForCart(items: any[], menus: Menu[]): CartItem[] {
+  const grouped = new Map<string, CartItem>();
+
+  for (const item of items || []) {
+    const menu = menus.find((m: any) => m.id === item.menu_id);
+    if (!menu) continue;
+
+    const existing = grouped.get(menu.id);
+    const itemQuantity = Number(item.quantity || 1);
+    const itemOptions = Array.from({ length: itemQuantity }, () => parseItemNotes(item.notes));
+
+    if (existing) {
+      const nextQuantity = existing.quantity + itemQuantity;
+      grouped.set(menu.id, {
+        ...existing,
+        quantity: nextQuantity,
+        total_price: nextQuantity * menu.price,
+        options: [...normalizeItemOptions(existing.options, existing.quantity), ...itemOptions],
+      });
+    } else {
+      grouped.set(menu.id, {
+        menu,
+        quantity: itemQuantity,
+        total_price: itemQuantity * menu.price,
+        options: itemOptions,
+      });
+    }
+  }
+
+  return Array.from(grouped.values());
+}
+
 export default function NewOrder() {
   const { menus: loadedMenus } = useLoaderData<typeof loader>();
   const menus = loadedMenus as unknown as Menu[];
@@ -250,10 +412,25 @@ export default function NewOrder() {
   const [churchGroup, setChurchGroup] = useState('');
   const [notes, setNotes] = useState('');
   const [showReview, setShowReview] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<{ id: string; orderNumber?: string } | null>(null);
+  const editBroadcastRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // 주문 제출 상태 확인
   const isSubmitting = fetcher.state === 'submitting';
-  const actionData = fetcher.data as { error?: string; success?: boolean; orderId?: string } | undefined;
+  const actionData = fetcher.data as { error?: string; success?: boolean; orderId?: string; updated?: boolean } | undefined;
+
+  const broadcastEditState = (state: 'start' | 'end') => {
+    if (!editingOrder?.id) return;
+    editBroadcastRef.current?.send({
+      type: 'broadcast',
+      event: 'order-editing',
+      payload: {
+        orderId: editingOrder.id,
+        state,
+        at: Date.now(),
+      },
+    });
+  };
 
   // context에서 프로필 가져오기
   useEffect(() => {
@@ -311,7 +488,56 @@ export default function NewOrder() {
       } catch (e) { /* 무시 */ }
       localStorage.removeItem('quickOrderItems');
     }
+
+    const editOrderRaw = localStorage.getItem('editOrder');
+    if (editOrderRaw) {
+      try {
+        const editOrder = JSON.parse(editOrderRaw);
+        setEditingOrder({ id: editOrder.id, orderNumber: editOrder.orderNumber });
+        setCustomerName(editOrder.customerName || '');
+        setChurchGroup(editOrder.churchGroup || '');
+        setNotes(editOrder.notes || '');
+        if (Array.isArray(editOrder.items)) {
+          setCart(groupOrderItemsForCart(editOrder.items, menus));
+        }
+      } catch (e) { /* 무시 */ }
+      localStorage.removeItem('editOrder');
+    }
   }, [menus]);
+
+  useEffect(() => {
+    if (!editingOrder?.id) return;
+
+    const channel = supabase.channel('order-editing');
+    editBroadcastRef.current = channel;
+
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        broadcastEditState('start');
+      }
+    });
+
+    const endEditing = () => {
+      channel.send({
+        type: 'broadcast',
+        event: 'order-editing',
+        payload: {
+          orderId: editingOrder.id,
+          state: 'end',
+          at: Date.now(),
+        },
+      });
+    };
+
+    window.addEventListener('beforeunload', endEditing);
+
+    return () => {
+      window.removeEventListener('beforeunload', endEditing);
+      endEditing();
+      supabase.removeChannel(channel);
+      editBroadcastRef.current = null;
+    };
+  }, [editingOrder?.id]);
 
   // 주문 생성 결과 처리
   useEffect(() => {
@@ -319,6 +545,12 @@ export default function NewOrder() {
       alert(actionData.error);
     } else if (actionData?.success) {
       console.log('✅ Order created successfully, redirecting to home...');
+      if (actionData.updated) {
+        broadcastEditState('end');
+        alert('주문이 수정되었습니다!');
+        window.location.href = '/orders/history';
+        return;
+      }
       alert('주문이 성공적으로 생성되었습니다!');
       // 주문 완료 후 홈탭으로 이동
       window.location.href = '/';
@@ -449,7 +681,10 @@ export default function NewOrder() {
     }
 
     const formData = new FormData();
-    formData.append('intent', 'createOrder');
+    formData.append('intent', editingOrder ? 'updateOrder' : 'createOrder');
+    if (editingOrder) {
+      formData.append('orderId', editingOrder.id);
+    }
     formData.append('customerName', customerName);
     formData.append('churchGroup', churchGroup);
     formData.append('paymentMethod', 'transfer');
@@ -550,8 +785,12 @@ export default function NewOrder() {
         <div className="mb-6 animate-fade-in sm:mb-8">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h1 className="mb-2 text-3xl font-black tracking-tight text-ink sm:mb-3 sm:text-5xl">새 주문</h1>
-              <p className="text-sm font-medium text-mute sm:text-lg">메뉴 사진을 누르면 바로 장바구니에 담깁니다</p>
+              <h1 className="mb-2 text-3xl font-black tracking-tight text-ink sm:mb-3 sm:text-5xl">
+                {editingOrder ? '주문 수정' : '새 주문'}
+              </h1>
+              <p className="text-sm font-medium text-mute sm:text-lg">
+                {editingOrder ? '제조 시작 전 주문만 메뉴를 다시 조정할 수 있습니다' : '메뉴 사진을 누르면 바로 장바구니에 담깁니다'}
+              </p>
             </div>
             <div className="inline-flex w-fit items-center gap-2 rounded-full border border-hairline-soft bg-canvas px-4 py-2 text-sm font-bold text-body">
               <span className="h-2 w-2 rounded-full bg-primary" />
@@ -759,7 +998,7 @@ export default function NewOrder() {
                   disabled={cart.length === 0 || !customerName.trim() || !churchGroup.trim() || isSubmitting}
                   className="h-14 w-full rounded-2xl bg-primary px-6 text-base font-black text-white transition-colors hover:bg-primary-pressed disabled:cursor-not-allowed disabled:bg-surface-card disabled:text-ash"
                 >
-                  {isSubmitting ? '주문 처리 중...' : `₩${totalAmount.toLocaleString()} 주문보기`}
+                  {isSubmitting ? (editingOrder ? '수정 중...' : '주문 처리 중...') : `₩${totalAmount.toLocaleString()} ${editingOrder ? '수정 확인' : '주문보기'}`}
                 </button>
               </fetcher.Form>
             </div>
@@ -814,7 +1053,7 @@ export default function NewOrder() {
               disabled={cart.length === 0 || !customerName.trim() || !churchGroup.trim() || isSubmitting}
               className="h-12 flex-1 rounded-2xl bg-primary text-sm font-black text-white transition-colors active:bg-primary-pressed disabled:cursor-not-allowed disabled:bg-surface-card disabled:text-ash"
             >
-              {isSubmitting ? '처리 중...' : '주문보기'}
+              {isSubmitting ? (editingOrder ? '수정 중...' : '처리 중...') : (editingOrder ? '수정 확인' : '주문보기')}
             </button>
           </div>
         </div>
@@ -831,6 +1070,8 @@ export default function NewOrder() {
         onUpdateOptions={updateItemOptions}
         onNotesChange={setNotes}
         onSubmit={submitOrder}
+        submitLabel={`₩${totalAmount.toLocaleString()} ${editingOrder ? '수정 저장' : '주문하기'}`}
+        submittingLabel={editingOrder ? '수정 중...' : '주문 처리 중...'}
       />
     </div>
   );

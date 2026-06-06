@@ -26,6 +26,8 @@ type Props = {
   onUpdateOptions: (menuId: string, index: number, opts: ItemOptions) => void;
   onNotesChange: (notes: string) => void;
   onSubmit: () => void;
+  submitLabel?: string;
+  submittingLabel?: string;
 };
 
 const isCoffee = (category: string) => category === "ice coffee" || category === "hot coffee";
@@ -82,6 +84,8 @@ export default function OrderReviewSheet({
   onUpdateOptions,
   onNotesChange,
   onSubmit,
+  submitLabel,
+  submittingLabel,
 }: Props) {
   if (!isOpen) return null;
 
@@ -226,7 +230,7 @@ export default function OrderReviewSheet({
             disabled={cart.length === 0 || isSubmitting}
             className="h-14 w-full rounded-2xl bg-primary text-base font-black text-white transition-colors hover:bg-primary-pressed disabled:cursor-not-allowed disabled:bg-surface-card disabled:text-ash"
           >
-            {isSubmitting ? "주문 처리 중..." : `₩${totalAmount.toLocaleString()} 주문하기`}
+            {isSubmitting ? (submittingLabel || "주문 처리 중...") : (submitLabel || `₩${totalAmount.toLocaleString()} 주문하기`)}
           </button>
         </div>
       </div>

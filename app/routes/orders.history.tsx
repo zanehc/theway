@@ -82,6 +82,7 @@ export default function OrdersHistoryPage() {
   const [cancellationModal, setCancellationModal] = useState<{ isOpen: boolean; order: any | null }>({ isOpen: false, order: null });
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [editingOrderIds, setEditingOrderIds] = useState<Set<string>>(new Set());
   const { toasts, addToast } = useNotifications();
   const requestedTab = searchParams.get('tab');
   const activeTab = isAdmin && requestedTab === 'dashboard' ? 'dashboard' : 'list';
@@ -276,6 +277,31 @@ export default function OrdersHistoryPage() {
     return () => { supabase.removeChannel(channel); };
   }, [mounted, user, isAdmin, profileName, profileChurchGroup]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (!mounted || !isAdmin) return;
+
+    const channel = supabase
+      .channel('order-editing-admin-watch')
+      .on('broadcast', { event: 'order-editing' }, ({ payload }) => {
+        const orderId = typeof payload?.orderId === 'string' ? payload.orderId : '';
+        const state = payload?.state;
+        if (!orderId) return;
+
+        setEditingOrderIds(prev => {
+          const next = new Set(prev);
+          if (state === 'start') {
+            next.add(orderId);
+          } else if (state === 'end') {
+            next.delete(orderId);
+          }
+          return next;
+        });
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [mounted, isAdmin]);
+
   if (navigation.state === "loading" && navigation.location?.pathname && navigation.location.pathname !== "/orders/history") {
     return <OrderListSkeleton />;
   }
@@ -295,39 +321,86 @@ export default function OrdersHistoryPage() {
     }
   };
 
+  const handleEditOrder = (order: any) => {
+    if (order.status !== 'pending') {
+      addToast('제조가 시작된 주문은 수정할 수 없습니다.', 'warning');
+      return;
+    }
+
+    localStorage.setItem('editOrder', JSON.stringify({
+      id: order.id,
+      orderNumber: getOrderNumber(order),
+      customerName: order.customer_name,
+      churchGroup: order.church_group,
+      notes: getOrderNotes(order),
+      items: order.order_items || [],
+    }));
+    navigate('/orders/new');
+  };
+
   const AdminActions = ({ order }: { order: any }) => {
+    const isEditing = editingOrderIds.has(order.id);
     const isDone = (order.status === 'completed' || order.status === 'cancelled') && order.payment_status === 'confirmed';
-    if (isDone) return <span className="text-xs text-ash font-medium">처리완료</span>;
+    if (isDone) {
+      return (
+        <div className="grid grid-cols-5 gap-1.5">
+          <span className="col-span-5 rounded-xl bg-surface-card px-3 py-2 text-center text-xs font-bold text-ash">
+            처리완료
+          </span>
+        </div>
+      );
+    }
+
+    const actionButtonClass = "min-h-10 rounded-xl px-2 py-2 text-xs font-black transition-colors sm:text-[13px]";
+
     return (
-      <div className="flex flex-wrap gap-1 justify-center">
-        {order.status === 'pending' && (
-          <button onClick={() => handleStatusChange(order, 'preparing')}
-            className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-bold hover:bg-blue-200">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 sm:gap-1.5">
+        {order.status !== 'cancelled' && (
+          <button
+            onClick={() => setCancellationModal({ isOpen: true, order })}
+            className={`${actionButtonClass} bg-red-100 text-red-800 hover:bg-red-200 sm:col-start-1`}
+          >
+            취소
+          </button>
+        )}
+        {order.status === 'pending' && isEditing ? (
+          <button
+            type="button"
+            disabled
+            className={`${actionButtonClass} cursor-not-allowed bg-yellow-100 text-yellow-800 sm:col-start-2`}
+          >
+            수정중
+          </button>
+        ) : order.status === 'pending' && (
+          <button
+            onClick={() => handleStatusChange(order, 'preparing')}
+            className={`${actionButtonClass} bg-blue-100 text-blue-800 hover:bg-blue-200 sm:col-start-2`}
+          >
             제조시작
           </button>
         )}
         {order.status === 'preparing' && (
-          <button onClick={() => handleStatusChange(order, 'ready')}
-            className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-bold hover:bg-green-200">
+          <button
+            onClick={() => handleStatusChange(order, 'ready')}
+            className={`${actionButtonClass} bg-green-100 text-green-800 hover:bg-green-200 sm:col-start-3`}
+          >
             제조완료
           </button>
         )}
         {order.status === 'ready' && (
-          <button onClick={() => handleStatusChange(order, 'completed')}
-            className="px-2 py-1 bg-surface-card text-ink rounded text-xs font-bold hover:bg-secondary-bg">
+          <button
+            onClick={() => handleStatusChange(order, 'completed')}
+            className={`${actionButtonClass} bg-surface-card text-ink hover:bg-secondary-bg sm:col-start-4`}
+          >
             픽업완료
           </button>
         )}
         {order.payment_status !== 'confirmed' && (
-          <button onClick={() => handlePaymentConfirm(order)}
-            className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-bold hover:bg-purple-200">
+          <button
+            onClick={() => handlePaymentConfirm(order)}
+            className={`${actionButtonClass} bg-purple-100 text-purple-800 hover:bg-purple-200 sm:col-start-5`}
+          >
             결제확인
-          </button>
-        )}
-        {order.status !== 'cancelled' && (
-          <button onClick={() => setCancellationModal({ isOpen: true, order })}
-            className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-bold hover:bg-red-200">
-            취소
           </button>
         )}
       </div>
@@ -542,9 +615,17 @@ export default function OrdersHistoryPage() {
                                 </button>
                               )
                             )}
+                            {order.status === 'pending' && (
+                              <button
+                                onClick={() => handleEditOrder(order)}
+                                className="rounded-xl bg-blue-100 px-3 py-2 text-xs font-black text-blue-800 hover:bg-blue-200"
+                              >
+                                수정
+                              </button>
+                            )}
                             <button
                               onClick={() => handleQuickOrder(order)}
-                              className={`${order.status === 'pending' ? '' : 'col-span-2'} rounded-xl bg-red-100 px-3 py-2 text-xs font-bold text-red-800 hover:bg-red-200`}
+                              className="col-span-2 rounded-xl bg-red-100 px-3 py-2 text-xs font-bold text-red-800 hover:bg-red-200"
                             >
                               빠른주문
                             </button>
@@ -563,8 +644,10 @@ export default function OrdersHistoryPage() {
                       <th className="px-3 py-2 text-center rounded-l-xl">번호</th>
                       <th className="px-3 py-2 text-center">주문인</th>
                       <th className="px-3 py-2 text-center">주문시간</th>
-                      <th className="px-3 py-2 text-center">주문메뉴 / 주문상태</th>
-                      <th className="px-3 py-2 text-center rounded-r-xl">{isAdmin ? '액션' : '빠른주문'}</th>
+                      <th className={`px-3 py-2 text-center ${isAdmin ? 'rounded-r-xl' : ''}`}>주문메뉴 / 주문상태</th>
+                      {!isAdmin && (
+                        <th className="px-3 py-2 text-center rounded-r-xl">빠른주문</th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -598,7 +681,7 @@ export default function OrdersHistoryPage() {
                             <div className="text-body text-xs mt-0.5">{new Date(order.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</div>
                           </td>
                           {/* 주문메뉴 (1행) / 주문상태 (2행) */}
-                          <td className={`px-3 py-2 align-middle ${rowBg}`}>
+                          <td className={`px-3 py-2 align-middle ${isAdmin ? 'rounded-r-xl' : ''} ${rowBg}`}>
                             {/* 1행: 메뉴 */}
                             <div className="mb-2">
                               <OrderItemBadges items={order.order_items} />
@@ -616,12 +699,16 @@ export default function OrdersHistoryPage() {
                             <div className="flex justify-center">
                               <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
                             </div>
+                            {isAdmin && (
+                              <>
+                                <div className="mb-2 mt-0.5" />
+                                <AdminActions order={order} />
+                              </>
+                            )}
                           </td>
                           {/* 액션 */}
+                          {!isAdmin && (
                           <td className={`px-3 py-3 text-center align-middle rounded-r-xl ${rowBg}`}>
-                            {isAdmin ? (
-                              <AdminActions order={order} />
-                            ) : (
                               <div className="flex flex-col items-center gap-1.5">
                                 {order.status === 'pending' && (
                                   cancelConfirmId === order.id ? (
@@ -650,6 +737,14 @@ export default function OrdersHistoryPage() {
                                     </button>
                                   )
                                 )}
+                                {order.status === 'pending' && (
+                                  <button
+                                    onClick={() => handleEditOrder(order)}
+                                    className="px-3 py-1.5 bg-blue-100 text-blue-800 rounded text-xs font-black hover:bg-blue-200"
+                                  >
+                                    수정
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => handleQuickOrder(order)}
                                   className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-bold hover:bg-red-200"
@@ -657,8 +752,8 @@ export default function OrdersHistoryPage() {
                                   빠른주문
                                 </button>
                               </div>
-                            )}
                           </td>
+                          )}
                         </tr>
                       );
                     })}
