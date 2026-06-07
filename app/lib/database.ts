@@ -128,10 +128,6 @@ export async function getOrders(status?: string, limit: number = 30) {
 
   if (status) {
     query = query.eq('status', status);
-    // 픽업완료 필터일 때 결제완료 제외
-    if (status === 'completed') {
-      query = query.neq('payment_status', 'confirmed');
-    }
   }
 
   const { data, error } = await query;
@@ -197,7 +193,7 @@ export async function getUserOrderHistory(userId: string): Promise<UserOrderHist
 
   const total_orders = orders.length;
   const total_spent = orders
-    .filter(order => order.payment_status === 'confirmed')
+    .filter(order => order.status !== 'cancelled')
     .reduce((sum, order) => sum + order.total_amount, 0);
 
   const recent_orders = orders.slice(0, 5); // 최근 5개 주문
@@ -433,43 +429,6 @@ export async function updateOrderStatus(id: string, status: string, cancellation
   return data as Order;
 }
 
-export async function updatePaymentStatus(id: string, payment_status: string) {
-  const client = getWriteClient();
-  const { data, error } = await client
-    .from('orders')
-    .update({
-      payment_status,
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', id)
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Update payment status error:', error);
-    throw error;
-  }
-
-  // 결제 상태 변경 알림 전송
-  try {
-    if (data.user_id && payment_status === 'confirmed') {
-      const orderNumber = getOrderNumberLabel(data);
-      await createNotification({
-        user_id: data.user_id,
-        order_id: id,
-        type: 'payment_confirmed',
-        message: `결제가 확인되었습니다. 감사합니다! (주문번호: ${orderNumber})`
-      });
-
-      console.log('📱 Payment confirmation notification sent');
-    }
-  } catch (notificationError) {
-    console.error('Failed to send payment notification:', notificationError);
-  }
-
-  return data as Order;
-}
-
 // Sales statistics
 export async function getSalesStatistics(period: 'today' | 'week' | 'month' = 'today') {
   const now = new Date();
@@ -505,7 +464,6 @@ export async function getSalesStatistics(period: 'today' | 'week' | 'month' = 't
     return {
       totalRevenue: 0,
       totalOrders: 0,
-      confirmedOrders: 0,
       pendingOrders: 0,
       cancelledOrders: 0,
       menuStats: [],
@@ -521,7 +479,6 @@ export async function getSalesStatistics(period: 'today' | 'week' | 'month' = 't
 
   let totalRevenue = 0;
   let totalOrders = orders?.length || 0;
-  let confirmedOrders = 0;
   let pendingOrders = 0;
   let cancelledOrders = 0;
   const menuStats = new Map();
@@ -537,12 +494,9 @@ export async function getSalesStatistics(period: 'today' | 'week' | 'month' = 't
     // 상태별 통계
     statusStats[order.status as keyof typeof statusStats]++;
 
-    // 결제 상태별 통계
-    if (order.payment_status === 'confirmed') {
+    if (order.status !== 'cancelled') {
       totalRevenue += order.total_amount;
-      confirmedOrders++;
-    } else if (order.payment_status === 'pending') {
-      pendingOrders++;
+      if (order.status !== 'completed') pendingOrders++;
     }
 
     if (order.status === 'cancelled') {
@@ -563,7 +517,6 @@ export async function getSalesStatistics(period: 'today' | 'week' | 'month' = 't
   return {
     totalRevenue,
     totalOrders,
-    confirmedOrders,
     pendingOrders,
     cancelledOrders,
     menuStats: Array.from(menuStats.entries()).map(([name, stats]) => ({
@@ -722,8 +675,7 @@ export async function getTodayOrderStatusStats() {
       preparing: 0,
       ready: 0,
       completed: 0,
-      cancelled: 0,
-      confirmedOrders: 0
+      cancelled: 0
     };
   }
 
@@ -734,22 +686,12 @@ export async function getTodayOrderStatusStats() {
     completed: 0,
     cancelled: 0,
   };
-  let confirmedOrders = 0;
-
   orders?.forEach((order: any) => {
     // 현재 상태별 통계
     statusStats[order.status as keyof typeof statusStats]++;
-
-    // 결제완료 주문 수
-    if (order.payment_status === 'confirmed') {
-      confirmedOrders++;
-    }
   });
 
-  return {
-    ...statusStats,
-    confirmedOrders
-  };
+  return statusStats;
 }
 
 // 최근 4주간 주간매출 조회
@@ -799,23 +741,20 @@ export async function getWeeklySalesForLast4Weeks() {
         weekNumber: week.weekNumber,
         label: week.label,
         orderCompletedRevenue: 0,
-        paymentConfirmedRevenue: 0
+        totalRevenue: 0
       });
       continue;
     }
 
     let orderCompletedRevenue = 0;
-    let paymentConfirmedRevenue = 0;
+    let totalRevenue = 0;
 
     orders?.forEach((order: any) => {
-      // 주문완료 상태인 주문의 매출
-      if (order.status === 'completed') {
-        orderCompletedRevenue += order.total_amount;
-      }
-
-      // 결제완료 상태인 주문의 매출
-      if (order.payment_status === 'confirmed') {
-        paymentConfirmedRevenue += order.total_amount;
+      if (order.status !== 'cancelled') {
+        totalRevenue += order.total_amount;
+        if (order.status === 'completed') {
+          orderCompletedRevenue += order.total_amount;
+        }
       }
     });
 
@@ -823,7 +762,7 @@ export async function getWeeklySalesForLast4Weeks() {
       weekNumber: week.weekNumber,
       label: week.label,
       orderCompletedRevenue,
-      paymentConfirmedRevenue
+      totalRevenue
     });
   }
 
@@ -868,20 +807,17 @@ export async function getDailySales(startDate?: string, endDate?: string) {
       dailyMap.set(dateKey, {
         date: dateKey,
         orderCompletedRevenue: 0,
-        paymentConfirmedRevenue: 0
+        totalRevenue: 0
       });
     }
 
     const daily = dailyMap.get(dateKey);
 
-    // 주문완료 상태인 주문의 매출
-    if (order.status === 'completed') {
-      daily.orderCompletedRevenue += order.total_amount;
-    }
-
-    // 결제완료 상태인 주문의 매출
-    if (order.payment_status === 'confirmed') {
-      daily.paymentConfirmedRevenue += order.total_amount;
+    if (order.status !== 'cancelled') {
+      daily.totalRevenue += order.total_amount;
+      if (order.status === 'completed') {
+        daily.orderCompletedRevenue += order.total_amount;
+      }
     }
   });
 

@@ -31,8 +31,7 @@ export const getStatusBgColor = (status: OrderStatus) => {
   return option?.bgColor || 'bg-secondary-bg';
 };
 
-export const getStatusLabel = (status: OrderStatus, paymentStatus?: string) => {
-  if (paymentStatus === 'confirmed') return '결제완료';
+export const getStatusLabel = (status: OrderStatus) => {
   const option = statusOptions.find(opt => opt.value === status);
   return option?.label || status;
 };

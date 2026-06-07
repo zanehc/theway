@@ -334,49 +334,5 @@ export async function action({ request }: ActionFunctionArgs) {
     return json({ success: true, order }, { headers: { "Cache-Control": "no-store" } });
   }
 
-  if (intent === "updatePayment") {
-    const paymentStatus = typeof payload.paymentStatus === "string" ? payload.paymentStatus : "";
-    if (!paymentStatus) {
-      return json({ error: "변경할 결제 상태가 없습니다." }, { status: 400 });
-    }
-
-    const { data: order, error } = await admin.supabase
-      .from("orders")
-      .update({
-        payment_status: paymentStatus,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", orderId)
-      .select()
-      .single();
-
-    if (error || !order) {
-      console.error("API admin payment update failed:", error);
-      return json({ error: "결제 상태 업데이트에 실패했습니다." }, { status: 500 });
-    }
-
-    if (paymentStatus === "confirmed") {
-      const orderNumber = getOrderNumberLabel(order);
-      const message = `결제가 확인되었습니다. 감사합니다! (주문번호: ${orderNumber})`;
-      await notifyOrderRecipients(
-        admin.supabase,
-        order,
-        {
-          order_id: orderId,
-          type: "payment_confirmed",
-          message,
-        },
-        {
-          title: "이음카페",
-          body: message,
-          orderId,
-          url: "/orders/history",
-        }
-      );
-    }
-
-    return json({ success: true, order }, { headers: { "Cache-Control": "no-store" } });
-  }
-
   return json({ error: "잘못된 요청입니다." }, { status: 400 });
 }

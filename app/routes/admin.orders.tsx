@@ -253,20 +253,6 @@ export default function AdminOrdersPage() {
     }
   };
 
-  const handlePaymentConfirm = async (order: any) => {
-    try {
-      await requestAdminOrderUpdate({
-        intent: 'updatePayment',
-        orderId: order.id,
-        paymentStatus: 'confirmed',
-      });
-      addToast('결제가 확인되었습니다.', 'success');
-      setOrders(await fetchAdminOrders());
-    } catch (err) {
-      addToast('결제 확인에 실패했습니다.', 'error');
-    }
-  };
-
   const handleStatusChangeWithNotification = async (order: any, newStatus: OrderStatus) => {
     try {
       await requestAdminOrderUpdate({
@@ -286,7 +272,7 @@ export default function AdminOrdersPage() {
       return ['pending', 'preparing', 'ready', 'completed'].includes(order.status);
     }
     if (selectedStatus === 'done') {
-      return order.payment_status === 'confirmed';
+      return order.status === 'completed';
     }
     return true;
   });
@@ -465,7 +451,7 @@ export default function AdminOrdersPage() {
                         />
                       )}
                       <div className="flex-1">
-                        <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
+                        <OrderStatusProgress status={order.status} />
                       </div>
                     </div>
                     <div className="flex items-center justify-between mb-2">
@@ -504,14 +490,6 @@ export default function AdminOrdersPage() {
                           className="px-3 py-1 bg-surface-card text-ink rounded text-xs font-bold hover:bg-secondary-bg"
                         >
                           픽업완료
-                        </button>
-                      )}
-                      {order.payment_status !== 'confirmed' && (
-                        <button
-                          onClick={() => handlePaymentConfirm(order)}
-                          className="px-3 py-1 bg-purple-100 text-purple-800 rounded text-xs font-bold hover:bg-purple-200"
-                        >
-                          결제확인
                         </button>
                       )}
                       {order.status !== 'cancelled' && (
@@ -583,7 +561,7 @@ export default function AdminOrdersPage() {
                           </div>
                         </td>
                         <td className="align-middle">
-                          <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
+                          <OrderStatusProgress status={order.status} />
                         </td>
                         <td className="align-middle">
                           <div className="flex flex-wrap gap-1 justify-center">
@@ -609,14 +587,6 @@ export default function AdminOrdersPage() {
                                 className="px-2 py-1 bg-surface-card text-ink rounded text-xs font-bold hover:bg-secondary-bg"
                               >
                                 픽업완료
-                              </button>
-                            )}
-                            {order.payment_status !== 'confirmed' && (
-                              <button
-                                onClick={() => handlePaymentConfirm(order)}
-                                className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-bold hover:bg-purple-200"
-                              >
-                                결제확인
                               </button>
                             )}
                             {order.status !== 'cancelled' && (

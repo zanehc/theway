@@ -23,7 +23,7 @@ export default function Header({ user, userRole, userProfile }: HeaderProps) {
   const [showMyPage, setShowMyPage] = useState(false);
   const [loginSuccess, setLoginSuccess] = useState(false);
   const [loginRequiredMessage, setLoginRequiredMessage] = useState(false);
-  const [orderStats, setOrderStats] = useState({ pending: 0, preparing: 0, ready: 0, completed: 0, cancelled: 0, confirmedOrders: 0 });
+  const [orderStats, setOrderStats] = useState({ pending: 0, preparing: 0, ready: 0, completed: 0, cancelled: 0 });
   const { initializeTTS } = useNotifications();
   const displayName = userProfile?.name?.trim()
     || user?.name
@@ -46,15 +46,14 @@ export default function Header({ user, userRole, userProfile }: HeaderProps) {
       if (!isSubscribed) return;
       
       try {
-        const { data: allOrders } = await supabase.from('orders').select('status, payment_status');
+        const { data: allOrders } = await supabase.from('orders').select('status');
         if (!isSubscribed) return;
         
-        const stats = { pending: 0, preparing: 0, ready: 0, completed: 0, cancelled: 0, confirmedOrders: 0 };
+        const stats = { pending: 0, preparing: 0, ready: 0, completed: 0, cancelled: 0 };
         allOrders?.forEach((order: any) => {
           if (!order) return;
           const status = String(order.status) as keyof typeof stats;
           if (status in stats) stats[status] = (stats[status] || 0) + 1;
-          if(order.payment_status === 'confirmed') stats.confirmedOrders += 1;
         });
         setOrderStats(stats);
       } catch (error) {

@@ -25,7 +25,7 @@ function toOrderHistory(orders: any[]): UserOrderHistory {
     orders,
     total_orders: orders.length,
     total_spent: orders
-      .filter((order) => order.payment_status === 'confirmed')
+      .filter((order) => order.status !== 'cancelled')
       .reduce((sum, order) => sum + Number(order.total_amount || 0), 0),
     recent_orders: orders.slice(0, 5),
   };
@@ -232,11 +232,7 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
     }
   };
 
-  const getStatusLabel = (status: string, paymentStatus?: string) => {
-    // 결제완료 상태가 우선순위가 높음
-    if (paymentStatus === 'confirmed') {
-      return '결제완료';
-    }
+  const getStatusLabel = (status: string) => {
     const statusMap: { [key: string]: string } = {
       'pending': '대기',
       'preparing': '제조중',
@@ -474,20 +470,14 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
           {activeTab === 'orders' && orderHistory && (
             <div className="space-y-4 sm:space-y-6">
               {/* 주문 통계 */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                 <div className="bg-surface-card rounded-2xl p-3 sm:p-4 text-center">
                   <div className="text-lg sm:text-2xl font-black text-ink">{orderHistory.total_orders}</div>
                   <div className="text-xs sm:text-sm text-mute font-medium">총 주문</div>
                 </div>
                 <div className="bg-surface-card rounded-2xl p-3 sm:p-4 text-center">
                   <div className="text-lg sm:text-2xl font-black text-ink">₩{orderHistory.total_spent.toLocaleString()}</div>
-                  <div className="text-xs sm:text-sm text-mute font-medium">총 결제액</div>
-                </div>
-                <div className="bg-surface-card rounded-2xl p-3 sm:p-4 text-center">
-                  <div className="text-lg sm:text-2xl font-black text-ink">
-                    {orderHistory.orders.filter(o => o.payment_status === 'confirmed').length}
-                  </div>
-                  <div className="text-xs sm:text-sm text-mute font-medium">결제완료</div>
+                  <div className="text-xs sm:text-sm text-mute font-medium">총 주문액</div>
                 </div>
               </div>
 
@@ -511,14 +501,7 @@ export function MyPageModal({ isOpen, onClose }: MyPageModalProps) {
                               })}
                             </span>
                             <span className={`px-2 sm:px-3 py-1 rounded-2xl text-xs sm:text-sm font-bold ${getStatusColor(order.status)}`}>
-                              {getStatusLabel(order.status, order.payment_status)}
-                            </span>
-                            <span className={`px-2 sm:px-3 py-1 rounded-2xl text-xs sm:text-sm font-bold ${
-                              order.payment_status === 'confirmed' 
-                                ? 'bg-green-100 text-green-800' 
-                                : 'bg-yellow-100 text-yellow-800'
-                            }`}>
-                              {order.payment_status === 'confirmed' ? '결제완료' : '결제대기'}
+                              {getStatusLabel(order.status)}
                             </span>
                           </div>
                           <span className="text-sm sm:text-lg font-black text-ink">

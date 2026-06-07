@@ -145,7 +145,7 @@ function toOrderHistory(orders: any[]): UserOrderHistory {
     orders,
     total_orders: orders.length,
     total_spent: orders
-      .filter((order) => order.payment_status === 'confirmed')
+      .filter((order) => order.status !== 'cancelled')
       .reduce((sum, order) => sum + Number(order.total_amount || 0), 0),
     recent_orders: orders.slice(0, 5),
   };
@@ -397,11 +397,7 @@ export default function MyPage() {
     }
   };
 
-  const getStatusLabel = (status: string, paymentStatus?: string) => {
-    // 결제완료 상태가 우선순위가 높음
-    if (paymentStatus === 'confirmed') {
-      return '결제완료';
-    }
+  const getStatusLabel = (status: string) => {
     const statusMap: { [key: string]: string } = {
       'pending': '대기',
       'preparing': '제조중',
@@ -563,7 +559,7 @@ export default function MyPage() {
                             </p>
                           </div>
                           <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(order.status)}`}>
-                            {getStatusLabel(order.status, order.payment_status)}
+                            {getStatusLabel(order.status)}
                           </span>
                         </div>
                         <div className="text-sm text-mute">

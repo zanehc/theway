@@ -165,16 +165,6 @@ export default function OrdersHistoryPage() {
     }
   };
 
-  const handlePaymentConfirm = async (order: any) => {
-    try {
-      await requestAdminOrderUpdate({ intent: 'updatePayment', orderId: order.id, paymentStatus: 'confirmed' });
-      addToast('결제가 확인되었습니다.', 'success');
-      await refreshOrders();
-    } catch {
-      addToast('결제 확인에 실패했습니다.', 'error');
-    }
-  };
-
   const handleCustomerCancel = async (orderId: string) => {
     setCancellingId(orderId);
     try {
@@ -357,7 +347,7 @@ export default function OrdersHistoryPage() {
 
   const AdminActions = ({ order }: { order: any }) => {
     const isEditing = Boolean(order.is_editing) || editingOrderIds.has(order.id);
-    const isDone = (order.status === 'completed' || order.status === 'cancelled') && order.payment_status === 'confirmed';
+    const isDone = order.status === 'completed' || order.status === 'cancelled';
     if (isDone) {
       return (
         <div className="grid grid-cols-5 gap-1.5">
@@ -410,14 +400,6 @@ export default function OrdersHistoryPage() {
             className={`${actionButtonClass} bg-surface-card text-ink hover:bg-secondary-bg sm:col-start-4`}
           >
             픽업완료
-          </button>
-        )}
-        {order.payment_status !== 'confirmed' && (
-          <button
-            onClick={() => handlePaymentConfirm(order)}
-            className={`${actionButtonClass} bg-purple-100 text-purple-800 hover:bg-purple-200 sm:col-start-5`}
-          >
-            결제확인
           </button>
         )}
       </div>
@@ -595,7 +577,7 @@ export default function OrdersHistoryPage() {
                       {/* 2행: 주문상태 + 액션 */}
                       <div className="space-y-2">
                         <div className="flex justify-center">
-                          <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
+                          <OrderStatusProgress status={order.status} />
                         </div>
                         {isAdmin ? (
                           <div className="rounded-xl border border-hairline bg-surface-soft px-2 py-2">
@@ -655,7 +637,14 @@ export default function OrdersHistoryPage() {
 
               {/* 데스크탑: 2행 테이블 */}
               <div className="hidden sm:block overflow-x-auto">
-                <table className="min-w-full border-separate border-spacing-y-1">
+                <table className="min-w-full table-fixed border-separate border-spacing-y-1">
+                  <colgroup>
+                    <col className="w-[15%]" />
+                    <col className="w-[15%]" />
+                    <col className="w-[15%]" />
+                    <col className={isAdmin ? 'w-[55%]' : 'w-[40%]'} />
+                    {!isAdmin && <col className="w-[15%]" />}
+                  </colgroup>
                   <thead>
                     <tr className="bg-surface-soft text-body text-xs">
                       <th className="px-3 py-2 text-center rounded-l-xl">번호</th>
@@ -714,12 +703,17 @@ export default function OrdersHistoryPage() {
                             <div className="border-t border-hairline mb-1.5" />
                             {/* 2행: 상태 */}
                             <div className="flex justify-center">
-                              <OrderStatusProgress status={order.status} paymentStatus={order.payment_status} />
+                              <OrderStatusProgress
+                                status={order.status}
+                                className="max-w-[520px]"
+                              />
                             </div>
                             {isAdmin && (
                               <>
                                 <div className="mb-2 mt-0.5" />
-                                <AdminActions order={order} />
+                                <div className="mx-auto max-w-[520px]">
+                                  <AdminActions order={order} />
+                                </div>
                               </>
                             )}
                           </td>

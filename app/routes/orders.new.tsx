@@ -933,7 +933,7 @@ export default function NewOrder() {
 
   return (
     // 모바일: pb는 고정 하단 패널(~172px) + 하단 내비(~80px) = 252px 확보
-    <div className="min-h-screen bg-surface-soft pb-[252px] lg:pb-20">
+    <div className="min-h-screen bg-surface-soft pb-[calc(252px+env(safe-area-inset-bottom,0px))] lg:pb-20">
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-8 sm:py-12 lg:px-12">
         <div className="mb-6 animate-fade-in sm:mb-8">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -1176,7 +1176,7 @@ export default function NewOrder() {
       </main>
 
       {/* ── 모바일 전용: 고정 하단 주문 패널 ── */}
-      <div className="fixed bottom-20 left-0 right-0 z-30 px-4 lg:hidden">
+      <div className="mobile-order-panel fixed left-0 right-0 px-4 lg:hidden">
         <div className="rounded-[24px] border border-hairline-soft bg-canvas p-4 shadow-[0_-4px_24px_rgba(0,0,0,0.10)]">
           {/* 고객 정보 칩 */}
           {(customerName || churchGroup) && (

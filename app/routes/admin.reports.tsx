@@ -44,7 +44,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
       period: 'today',
       totalRevenue: 0,
       totalOrders: 0,
-      confirmedOrders: 0,
       pendingOrders: 0,
       cancelledOrders: 0,
       menuStats: [],
@@ -70,7 +69,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 
 export default function Reports() {
-  const { period, totalRevenue, totalOrders, confirmedOrders, pendingOrders, cancelledOrders, menuStats, statusStats } = useLoaderData<typeof loader>();
+  const { period, totalRevenue, totalOrders, pendingOrders, cancelledOrders, menuStats, statusStats } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const [selectedPeriod, setSelectedPeriod] = useState(period);
   const { toasts } = useNotifications();
@@ -139,7 +138,7 @@ export default function Reports() {
         </div>
 
         {/* 주요 통계 */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
           <div className="bg-surface-card rounded-[32px]  p-8 border border-hairline-soft flex items-center transition-all duration-300 hover:-translate-y-2  animate-slide-up">
             <div className="p-4 bg-primary rounded-2xl ">
               <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -167,23 +166,11 @@ export default function Reports() {
           <div className="bg-surface-card rounded-[32px]  p-8 border border-hairline-soft flex items-center transition-all duration-300 hover:-translate-y-2  animate-slide-up" style={{animationDelay: '0.2s'}}>
             <div className="p-4 bg-secondary-bg rounded-2xl ">
               <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div className="ml-6">
-              <p className="text-lg font-bold text-mute mb-2">결제완료</p>
-              <p className="text-4xl font-black text-ink">{confirmedOrders}</p>
-            </div>
-          </div>
-
-          <div className="bg-surface-card rounded-[32px]  p-8 border border-hairline-soft flex items-center transition-all duration-300 hover:-translate-y-2  animate-slide-up" style={{animationDelay: '0.3s'}}>
-            <div className="p-4 bg-secondary-bg rounded-2xl ">
-              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
             <div className="ml-6">
-              <p className="text-lg font-bold text-mute mb-2">결제대기</p>
+              <p className="text-lg font-bold text-mute mb-2">진행중</p>
               <p className="text-4xl font-black text-ink">{pendingOrders}</p>
             </div>
           </div>

@@ -140,7 +140,7 @@ function mergeOrdersById(orderGroups: any[][], limit: number) {
 }
 
 async function addEditingFlags(
-  serviceClient: ReturnType<typeof createClient>,
+  serviceClient: any,
   orders: any[]
 ) {
   const pendingOrderIds = orders
@@ -161,10 +161,15 @@ async function addEditingFlags(
     return orders;
   }
 
-  const latestByOrder = new Map<string, any>();
-  for (const row of data || []) {
+  const latestByOrder = new Map<string, { order_id: string; type: string; created_at: string }>();
+  const rows = (data || []) as Array<{ order_id?: string | null; type?: string | null; created_at?: string | null }>;
+  for (const row of rows) {
     if (row.order_id && !latestByOrder.has(row.order_id)) {
-      latestByOrder.set(row.order_id, row);
+      latestByOrder.set(row.order_id, {
+        order_id: row.order_id,
+        type: row.type || '',
+        created_at: row.created_at || '',
+      });
     }
   }
 

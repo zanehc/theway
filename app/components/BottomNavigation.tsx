@@ -169,8 +169,8 @@ export default function BottomNavigation({ user }: BottomNavigationProps) {
         </div>
       )}
 
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-hairline-soft pb-safe">
-        <div className="flex justify-around">
+      <nav className="bottom-navigation border-t border-hairline-soft shadow-[0_-4px_18px_rgba(0,0,0,0.04)]">
+        <div className="bottom-navigation-inner flex justify-around">
           {filteredItems.map((item) => {
             const active = isActive(item.path);
             return (
@@ -180,7 +180,7 @@ export default function BottomNavigation({ user }: BottomNavigationProps) {
                 prefetch="intent"
                 onClick={(e) => handleNavClick(item, e)}
                 onMouseEnter={() => handleNavHover(item.path)}
-                className={`flex flex-col items-center py-2 px-3 min-w-0 flex-1 transition-colors duration-200 ${
+                className={`flex min-w-0 flex-1 flex-col items-center justify-center px-3 transition-colors duration-200 ${
                   active
                     ? "text-primary"
                     : "text-mute hover:text-body"

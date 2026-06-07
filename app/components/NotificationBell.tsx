@@ -140,8 +140,6 @@ export function NotificationBell({ userId, userRole }: NotificationBellProps) {
         return '🛒';
       case 'order_status':
         return '📋';
-      case 'payment_confirmed':
-        return '💳';
       default:
         return '📢';
     }

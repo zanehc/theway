@@ -219,7 +219,7 @@ export default function App() {
     <html lang="ko" className="h-full bg-surface-soft" suppressHydrationWarning>
       <head suppressHydrationWarning>
         <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <Meta />
         <Links />
         {/* 환경 변수를 가장 먼저 설정 (다른 스크립트보다 앞서 실행) */}

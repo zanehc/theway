@@ -165,7 +165,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
       customer_name,
       church_group,
       total_amount,
-      payment_status,
       status,
       created_at,
       order_items (
@@ -244,4 +243,3 @@ export async function loader({ request }: LoaderFunctionArgs) {
     { headers: { "Cache-Control": "no-store" } }
   );
 }
-

@@ -30,8 +30,6 @@ function getToastTypeForNotification(notificationType: string): ToastNotificatio
   switch (notificationType) {
     case 'order_cancelled':
       return 'warning';
-    case 'payment_confirmed':
-      return 'info';
     case 'order_status':
       return 'success';
     default:
