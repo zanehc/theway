@@ -437,7 +437,7 @@ export default function AdminOrdersPage() {
                       {new Date(order.created_at).toLocaleString('ko-KR')}
                     </div>
                     <div className="mb-3">
-                      <OrderItemBadges items={order.order_items} />
+                      <OrderItemBadges items={order.order_items} orderId={order.id} />
                     </div>
                     <div className="font-bold text-ink mb-3">₩{order.total_amount?.toLocaleString()}</div>
 
@@ -530,7 +530,7 @@ export default function AdminOrdersPage() {
                         </td>
                         <td className="align-middle">
                           <div className="flex flex-col items-center">
-                            <OrderItemBadges items={order.order_items} />
+                            <OrderItemBadges items={order.order_items} orderId={order.id} />
                             <span className="font-bold text-ink mt-1">₩{order.total_amount?.toLocaleString()}</span>
                           </div>
                         </td>

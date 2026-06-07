@@ -539,7 +539,7 @@ export default function OrdersHistoryPage() {
                       </div>
                       {/* 1행: 주문메뉴 */}
                       <div className="bg-surface-soft rounded-xl px-3 py-2 mb-2">
-                        <OrderItemBadges items={order.order_items} />
+                        <OrderItemBadges items={order.order_items} orderId={order.id} />
                         {getOrderNotes(order) && (
                           <div className="mt-2 rounded-lg border border-hairline bg-canvas px-2 py-1.5">
                             <span className="text-[11px] font-bold text-body">요청사항: </span>
@@ -664,7 +664,7 @@ export default function OrdersHistoryPage() {
                           <td className={`px-3 py-2 align-middle ${isAdmin ? 'rounded-r-xl' : ''} ${rowBg}`}>
                             {/* 1행: 메뉴 */}
                             <div className="mb-2">
-                              <OrderItemBadges items={order.order_items} />
+                              <OrderItemBadges items={order.order_items} orderId={order.id} />
                               <span className="mt-2 block text-center text-sm font-black text-ink">₩{order.total_amount?.toLocaleString()}</span>
                             </div>
                             {getOrderNotes(order) && (

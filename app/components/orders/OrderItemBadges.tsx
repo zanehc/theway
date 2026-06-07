@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type OrderItem = {
   id?: string | null;
@@ -49,9 +49,50 @@ function groupOrderItems(items: OrderItem[]) {
   return Array.from(grouped.values());
 }
 
-export default function OrderItemBadges({ items }: { items?: OrderItem[] }) {
+const STORAGE_KEY_PREFIX = "order-item-badge-selections";
+
+function getStorageKey(orderId?: string | null) {
+  return `${STORAGE_KEY_PREFIX}:${orderId || "shared"}`;
+}
+
+function readStoredKeys(storageKey: string) {
+  if (typeof window === "undefined") return new Set<string>();
+
+  try {
+    const rawValue = window.localStorage.getItem(storageKey);
+    const parsedValue = rawValue ? JSON.parse(rawValue) : [];
+    return new Set(Array.isArray(parsedValue) ? parsedValue.filter((value) => typeof value === "string") : []);
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function writeStoredKeys(storageKey: string, keys: Set<string>) {
+  if (typeof window === "undefined") return;
+
+  try {
+    const values = Array.from(keys);
+    if (values.length === 0) {
+      window.localStorage.removeItem(storageKey);
+      return;
+    }
+    window.localStorage.setItem(storageKey, JSON.stringify(values));
+  } catch {
+    // localStorage can be unavailable in private browsing or strict browser settings.
+  }
+}
+
+export default function OrderItemBadges({ items, orderId }: { items?: OrderItem[]; orderId?: string | null }) {
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const groupedItems = useMemo(() => groupOrderItems(items || []), [items]);
+  const storageKey = useMemo(() => getStorageKey(orderId), [orderId]);
+
+  useEffect(() => {
+    const validKeys = new Set(groupedItems.map((item) => item.key));
+    const storedKeys = readStoredKeys(storageKey);
+    const nextKeys = new Set(Array.from(storedKeys).filter((key) => validKeys.has(key)));
+    setSelectedKeys(nextKeys);
+  }, [groupedItems, storageKey]);
 
   if (groupedItems.length === 0) {
     return <span className="text-sm font-bold text-mute">메뉴 없음</span>;
@@ -65,6 +106,7 @@ export default function OrderItemBadges({ items }: { items?: OrderItem[] }) {
       } else {
         next.add(key);
       }
+      writeStoredKeys(storageKey, next);
       return next;
     });
   };
