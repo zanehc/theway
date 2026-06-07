@@ -11,7 +11,7 @@ interface ToastNotification {
 interface DbNotification {
   id: string;
   user_id: string;
-  order_id: string;
+  order_id: string | null;
   type: string;
   message: string;
   status: string;
@@ -297,6 +297,10 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
           const notification = payload.new as DbNotification;
           console.log('🔔 NotificationContext - 알림 이벤트 수신:', notification);
           window.dispatchEvent(new CustomEvent('theway:order-notification', { detail: notification }));
+          if (notification.type === 'announcement') {
+            addToast(notification.message, 'info');
+            return;
+          }
           if (userRole === 'admin' || userRole === 'staff') {
             if (notification.type === 'new_order') {
               if (shouldAnnounceOrder(notification.order_id)) {

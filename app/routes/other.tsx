@@ -23,6 +23,11 @@ export default function OtherPage() {
   const [forgotPasswordError, setForgotPasswordError] = useState<string | null>(null);
   const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [showAnnouncementForm, setShowAnnouncementForm] = useState(false);
+  const [announcementMessage, setAnnouncementMessage] = useState("");
+  const [announcementSending, setAnnouncementSending] = useState(false);
+  const [announcementResult, setAnnouncementResult] = useState<string | null>(null);
+  const [announcementError, setAnnouncementError] = useState<string | null>(null);
   const navigate = useNavigate();
   const displayName = userData?.name?.trim()
     || contextProfile?.name?.trim()
@@ -213,6 +218,51 @@ export default function OtherPage() {
     }
   };
 
+  const handleSendAnnouncement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const message = announcementMessage.trim();
+    if (!message) {
+      setAnnouncementError("공지 내용을 입력해주세요.");
+      return;
+    }
+
+    try {
+      setAnnouncementSending(true);
+      setAnnouncementError(null);
+      setAnnouncementResult(null);
+
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) {
+        setAnnouncementError("로그인 세션이 만료되었습니다. 다시 로그인해주세요.");
+        return;
+      }
+
+      const res = await fetch("/api/admin-announcements", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ message }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setAnnouncementError(data.error || "공지 알림 발송에 실패했습니다.");
+        return;
+      }
+
+      setAnnouncementResult(`회원 ${data.recipientCount || 0}명에게 공지 알림을 보냈습니다.`);
+      setAnnouncementMessage("");
+      setShowAnnouncementForm(false);
+    } catch (err) {
+      setAnnouncementError("공지 알림 발송 중 오류가 발생했습니다.");
+    } finally {
+      setAnnouncementSending(false);
+    }
+  };
+
   if (user) {
     return (
       <div className="min-h-screen bg-canvas pb-20">
@@ -253,6 +303,52 @@ export default function OtherPage() {
                   >
                     교회소식 관리
                   </button>
+                  <button
+                    onClick={() => {
+                      setShowAnnouncementForm((value) => !value);
+                      setAnnouncementError(null);
+                      setAnnouncementResult(null);
+                    }}
+                    className="w-full bg-ink text-white py-3 px-4 rounded-2xl font-bold hover:bg-body transition-colors"
+                  >
+                    공지알람 보내기
+                  </button>
+                  {showAnnouncementForm && (
+                    <form onSubmit={handleSendAnnouncement} className="rounded-2xl border border-hairline bg-surface-soft p-4 text-left">
+                      <label htmlFor="announcement-message" className="mb-2 block text-sm font-bold text-ink">
+                        공지 내용
+                      </label>
+                      <textarea
+                        id="announcement-message"
+                        value={announcementMessage}
+                        onChange={(event) => setAnnouncementMessage(event.target.value)}
+                        maxLength={500}
+                        rows={4}
+                        className="w-full resize-none rounded-2xl border border-hairline bg-white px-4 py-3 text-sm font-medium text-ink focus:outline-none focus:ring-2 focus:ring-focus-outer"
+                        placeholder="회원들에게 보낼 공지 내용을 입력하세요"
+                      />
+                      <div className="mt-2 flex items-center justify-between gap-3">
+                        <span className="text-xs font-bold text-mute">{announcementMessage.trim().length}/500</span>
+                        <button
+                          type="submit"
+                          disabled={announcementSending || !announcementMessage.trim()}
+                          className="rounded-2xl bg-primary px-4 py-2 text-sm font-black text-white hover:bg-primary-pressed disabled:cursor-not-allowed disabled:bg-surface-card disabled:text-ash"
+                        >
+                          {announcementSending ? "발송 중..." : "발송"}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                  {announcementError && (
+                    <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+                      {announcementError}
+                    </div>
+                  )}
+                  {announcementResult && (
+                    <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-bold text-green-700">
+                      {announcementResult}
+                    </div>
+                  )}
                 </>
               )}
               <button

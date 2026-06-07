@@ -86,7 +86,7 @@ export type NotificationStatus = 'unread' | 'read';
 export interface Notification {
   id: string;
   user_id: string;
-  order_id: string;
+  order_id: string | null;
   type: string;
   message: string;
   status: NotificationStatus;
