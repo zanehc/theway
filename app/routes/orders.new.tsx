@@ -1176,7 +1176,7 @@ export default function NewOrder() {
       </main>
 
       {/* ── 모바일 전용: 고정 하단 주문 패널 ── */}
-      <div className="mobile-order-panel fixed left-0 right-0 px-4 lg:hidden">
+      <div className={`mobile-order-panel fixed left-0 right-0 px-4 lg:hidden ${showReview ? 'hidden' : ''}`}>
         <div className="rounded-[24px] border border-hairline-soft bg-canvas p-4 shadow-[0_-4px_24px_rgba(0,0,0,0.10)]">
           {/* 고객 정보 칩 */}
           {(customerName || churchGroup) && (
