@@ -139,6 +139,48 @@ function mergeOrdersById(orderGroups: any[][], limit: number) {
   return sortOrdersByCreatedAtDesc(Array.from(merged.values())).slice(0, limit);
 }
 
+async function addEditingFlags(
+  serviceClient: ReturnType<typeof createClient>,
+  orders: any[]
+) {
+  const pendingOrderIds = orders
+    .filter((order) => order?.id && order.status === "pending")
+    .map((order) => order.id);
+
+  if (pendingOrderIds.length === 0) return orders;
+
+  const { data, error } = await serviceClient
+    .from("notifications")
+    .select("order_id, type, created_at")
+    .in("order_id", pendingOrderIds)
+    .in("type", ["order_editing_start", "order_editing_end"])
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("[orders/history] edit lock lookup failed:", error);
+    return orders;
+  }
+
+  const latestByOrder = new Map<string, any>();
+  for (const row of data || []) {
+    if (row.order_id && !latestByOrder.has(row.order_id)) {
+      latestByOrder.set(row.order_id, row);
+    }
+  }
+
+  const now = Date.now();
+  return orders.map((order) => {
+    const latest = latestByOrder.get(order.id);
+    const latestTime = latest?.created_at ? new Date(latest.created_at).getTime() : 0;
+    const isFreshStart =
+      latest?.type === "order_editing_start" &&
+      Number.isFinite(latestTime) &&
+      now - latestTime < 10 * 60 * 1000;
+
+    return { ...order, is_editing: isFreshStart };
+  });
+}
+
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const requestedLimit = Number(url.searchParams.get("limit") || 30);
@@ -193,7 +235,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
       return json({ error: "주문 내역을 불러오지 못했습니다.", orders: [] }, { status: 500 });
     }
 
-    return json({ orders: data || [], isAdmin: true }, { headers: { "Cache-Control": "no-store" } });
+    const orders = await addEditingFlags(serviceClient, data || []);
+    return json({ orders, isAdmin: true }, { headers: { "Cache-Control": "no-store" } });
   }
 
   const { data: ownOrders, error: ownOrdersError } = await serviceClient

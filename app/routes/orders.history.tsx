@@ -356,7 +356,7 @@ export default function OrdersHistoryPage() {
   };
 
   const AdminActions = ({ order }: { order: any }) => {
-    const isEditing = editingOrderIds.has(order.id);
+    const isEditing = Boolean(order.is_editing) || editingOrderIds.has(order.id);
     const isDone = (order.status === 'completed' || order.status === 'cancelled') && order.payment_status === 'confirmed';
     if (isDone) {
       return (

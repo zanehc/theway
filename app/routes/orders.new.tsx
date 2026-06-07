@@ -106,6 +106,94 @@ async function ensureOrderUserProfile(
   }
 }
 
+async function getAuthenticatedUser(accessToken: string) {
+  const serverSupabase = createServerSupabaseClient();
+  const { data, error } = accessToken
+    ? await serverSupabase.auth.getUser(accessToken)
+    : { data: { user: null }, error: null };
+
+  return { serverSupabase, user: data.user, error };
+}
+
+async function getUserProfileForOrder(
+  serverSupabase: ReturnType<typeof createServerSupabaseClient>,
+  userId: string
+) {
+  const { data: profile } = await serverSupabase
+    .from('users')
+    .select('name, church_group')
+    .eq('id', userId)
+    .maybeSingle();
+
+  return {
+    name: typeof profile?.name === 'string' ? profile.name.trim() : '',
+    churchGroup: typeof profile?.church_group === 'string' ? profile.church_group.trim() : '',
+  };
+}
+
+async function getEditableOrder(
+  serverSupabase: ReturnType<typeof createServerSupabaseClient>,
+  orderId: string,
+  userId: string
+) {
+  const profile = await getUserProfileForOrder(serverSupabase, userId);
+  const { data: existingOrder, error } = await serverSupabase
+    .from('orders')
+    .select('id, user_id, customer_name, church_group, status, order_number')
+    .eq('id', orderId)
+    .maybeSingle();
+
+  if (error || !existingOrder) {
+    return { error: '수정할 주문을 찾지 못했습니다.', status: 404, order: null };
+  }
+
+  if (existingOrder.status !== 'pending') {
+    return { error: '제조가 시작된 주문은 수정할 수 없습니다.', status: 400, order: null };
+  }
+
+  const matchesOwner = existingOrder.user_id === userId;
+  const matchesProfile = Boolean(
+    profile.name &&
+    profile.churchGroup &&
+    existingOrder.customer_name === profile.name &&
+    existingOrder.church_group === profile.churchGroup
+  );
+
+  if (!matchesOwner && !matchesProfile) {
+    return { error: '본인 주문만 수정할 수 있습니다.', status: 403, order: null };
+  }
+
+  return { error: null, status: 200, order: existingOrder };
+}
+
+async function notifyAdminsOfEditing(
+  serverSupabase: ReturnType<typeof createServerSupabaseClient>,
+  order: any,
+  state: 'start' | 'end'
+) {
+  const { data: admins } = await serverSupabase
+    .from('users')
+    .select('id')
+    .in('role', ['admin', 'staff']);
+
+  if (!admins?.length) return;
+
+  const type = state === 'start' ? 'order_editing_start' : 'order_editing_end';
+  const orderNumber = order.order_number ? `#${order.order_number}` : `#${order.id?.slice(-8) || ''}`;
+  const message = state === 'start'
+    ? `${order.customer_name}님이 주문 ${orderNumber}을 수정 중입니다.`
+    : `${order.customer_name}님의 주문 ${orderNumber} 수정이 종료되었습니다.`;
+
+  await serverSupabase.from('notifications').insert(
+    admins.map((admin) => ({
+      user_id: admin.id,
+      order_id: order.id,
+      type,
+      message,
+    }))
+  );
+}
+
 export async function loader({ request }: LoaderFunctionArgs) {
   try {
     // 캐시된 메뉴 데이터가 유효한지 확인
@@ -129,6 +217,32 @@ export async function loader({ request }: LoaderFunctionArgs) {
 export async function action({ request }: ActionFunctionArgs) {
   const formData = await request.formData();
   const intent = formData.get('intent') as string;
+
+  if (intent === 'startOrderEdit' || intent === 'endOrderEdit') {
+    const orderId = formData.get('orderId') as string;
+    const accessToken = formData.get('accessToken') as string;
+    if (!orderId) {
+      return json({ error: '주문 ID가 없습니다.' }, { status: 400 });
+    }
+
+    const { serverSupabase, user, error } = await getAuthenticatedUser(accessToken);
+    if (error || !user?.id) {
+      return json({ error: '로그인 정보가 확인되지 않습니다.' }, { status: 401 });
+    }
+
+    const editable = await getEditableOrder(serverSupabase, orderId, user.id);
+    if (!editable.order) {
+      return json({ error: editable.error }, { status: editable.status });
+    }
+
+    await notifyAdminsOfEditing(
+      serverSupabase,
+      editable.order,
+      intent === 'startOrderEdit' ? 'start' : 'end'
+    );
+
+    return json({ success: true });
+  }
 
   if (intent === 'createOrder') {
     try {
@@ -414,6 +528,7 @@ export default function NewOrder() {
   const [showReview, setShowReview] = useState(false);
   const [editingOrder, setEditingOrder] = useState<{ id: string; orderNumber?: string } | null>(null);
   const editBroadcastRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const accessTokenRef = useRef<string | null>(null);
 
   // 주문 제출 상태 확인
   const isSubmitting = fetcher.state === 'submitting';
@@ -430,6 +545,29 @@ export default function NewOrder() {
         at: Date.now(),
       },
     });
+  };
+
+  const sendEditStateToServer = async (state: 'start' | 'end', options?: { keepalive?: boolean }) => {
+    if (!editingOrder?.id) return;
+
+    let accessToken = accessTokenRef.current;
+    if (!accessToken) {
+      const { data: { session } } = await supabase.auth.getSession();
+      accessToken = session?.access_token || null;
+      accessTokenRef.current = accessToken;
+    }
+    if (!accessToken) return;
+
+    const formData = new FormData();
+    formData.append('intent', state === 'start' ? 'startOrderEdit' : 'endOrderEdit');
+    formData.append('orderId', editingOrder.id);
+    formData.append('accessToken', accessToken);
+
+    await fetch('/orders/new', {
+      method: 'POST',
+      body: formData,
+      keepalive: options?.keepalive,
+    }).catch(() => {});
   };
 
   // context에서 프로필 가져오기
@@ -508,6 +646,10 @@ export default function NewOrder() {
   useEffect(() => {
     if (!editingOrder?.id) return;
 
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      accessTokenRef.current = session?.access_token || null;
+    }).catch(() => {});
+
     const channel = supabase.channel('order-editing', {
       config: { presence: { key: editingOrder.id } },
     });
@@ -521,6 +663,7 @@ export default function NewOrder() {
           at: Date.now(),
         });
         broadcastEditState('start');
+        sendEditStateToServer('start');
       }
     });
 
@@ -534,6 +677,7 @@ export default function NewOrder() {
           at: Date.now(),
         },
       });
+      sendEditStateToServer('end', { keepalive: true });
     };
 
     window.addEventListener('beforeunload', endEditing);
@@ -555,6 +699,7 @@ export default function NewOrder() {
       console.log('✅ Order created successfully, redirecting to home...');
       if (actionData.updated) {
         broadcastEditState('end');
+        sendEditStateToServer('end', { keepalive: true });
         alert('주문이 수정되었습니다!');
         window.location.href = '/orders/history';
         return;
