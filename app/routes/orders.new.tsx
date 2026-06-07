@@ -269,7 +269,7 @@ export async function action({ request }: ActionFunctionArgs) {
         return json({ error: '로그인 정보가 확인되지 않아 주문을 생성할 수 없습니다. 다시 로그인 해주세요.' }, { status: 400 });
       }
 
-      const writeClient = serverSupabase;
+      const writeClient = createServerSupabaseClient(accessToken);
       const { data: profile } = await writeClient
         .from('users')
         .select('name, church_group')
