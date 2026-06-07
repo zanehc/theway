@@ -280,8 +280,25 @@ export default function OrdersHistoryPage() {
   useEffect(() => {
     if (!mounted || !isAdmin) return;
 
+    const syncPresenceState = (channel: ReturnType<typeof supabase.channel>) => {
+      const state = channel.presenceState();
+      const nextIds = new Set<string>();
+
+      Object.values(state).forEach((metas) => {
+        (metas as any[]).forEach((meta) => {
+          const orderId = typeof meta?.orderId === 'string' ? meta.orderId : '';
+          if (orderId) nextIds.add(orderId);
+        });
+      });
+
+      setEditingOrderIds(nextIds);
+    };
+
     const channel = supabase
-      .channel('order-editing-admin-watch')
+      .channel('order-editing')
+      .on('presence', { event: 'sync' }, () => {
+        syncPresenceState(channel);
+      })
       .on('broadcast', { event: 'order-editing' }, ({ payload }) => {
         const orderId = typeof payload?.orderId === 'string' ? payload.orderId : '';
         const state = payload?.state;

@@ -508,11 +508,18 @@ export default function NewOrder() {
   useEffect(() => {
     if (!editingOrder?.id) return;
 
-    const channel = supabase.channel('order-editing');
+    const channel = supabase.channel('order-editing', {
+      config: { presence: { key: editingOrder.id } },
+    });
     editBroadcastRef.current = channel;
 
     channel.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
+        channel.track({
+          orderId: editingOrder.id,
+          state: 'editing',
+          at: Date.now(),
+        });
         broadcastEditState('start');
       }
     });
@@ -534,6 +541,7 @@ export default function NewOrder() {
     return () => {
       window.removeEventListener('beforeunload', endEditing);
       endEditing();
+      channel.untrack();
       supabase.removeChannel(channel);
       editBroadcastRef.current = null;
     };
