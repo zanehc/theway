@@ -6,6 +6,7 @@ import { supabase } from "~/lib/supabase";
 import { useNotifications } from "~/contexts/NotificationContext";
 import { OrderListSkeleton } from "~/components/LoadingSkeleton";
 import OrderStatusProgress from "~/components/orders/OrderStatusProgress";
+import OrderItemBadges from "~/components/orders/OrderItemBadges";
 import OrderCancellationModal from "~/components/OrderCancellationModal";
 import OrderDashboard from "~/components/dashboard/OrderDashboard";
 import type { OrderStatus } from "~/types";
@@ -19,33 +20,6 @@ function getOrderNumber(order: any) {
 
 function getOrderNotes(order: any) {
   return typeof order.notes === 'string' ? order.notes.trim() : '';
-}
-
-function OrderItemBadges({ items }: { items?: any[] }) {
-  if (!items || items.length === 0) {
-    return <span className="text-sm font-bold text-mute">메뉴 없음</span>;
-  }
-
-  return (
-    <div className="flex flex-wrap justify-start gap-2 sm:justify-center">
-      {items.map((item: any, index: number) => (
-        <span
-          key={item.id || `${item.menu?.name || 'menu'}-${index}`}
-          className="inline-flex max-w-full flex-col rounded-2xl border border-primary/20 bg-primary/10 px-3 py-1.5 text-sm font-black leading-tight text-ink shadow-sm sm:text-[15px]"
-        >
-          <span className="inline-flex max-w-full items-center gap-1.5">
-            <span className="truncate">{item.menu?.name || '메뉴명 없음'}</span>
-            <span className="shrink-0 text-primary">× {item.quantity}</span>
-          </span>
-          {item.notes && (
-            <span className="mt-0.5 max-w-full truncate text-[11px] font-bold text-mute">
-              {item.notes}
-            </span>
-          )}
-        </span>
-      ))}
-    </div>
-  );
 }
 
 export async function loader({ request }: LoaderFunctionArgs) {

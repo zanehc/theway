@@ -11,6 +11,12 @@ import ModalPortal from "~/components/ModalPortal";
 import { HomeSkeleton } from "~/components/LoadingSkeleton";
 
 // 교회소식 기본값 (2026.05.17 주보 기준)
+const YOUTH_SUMMER_RETREAT_EVENT = {
+  title: "청소년부 여름수련회",
+  date: "7/30(목) ~ 8/1(토)",
+  desc: "호서대학교 천안캠퍼스",
+};
+
 const DEFAULT_NEWS = {
   registerNotice: "",
   events: [
@@ -19,6 +25,7 @@ const DEFAULT_NEWS = {
     { title: "중보기도팀 모임", date: "6/07(주일) 오후 3시", desc: "" },
     { title: "새 생명의 길", date: "6/14(주일) 오후 2시 40분", desc: "" },
     { title: "유초등부 여름성경학교", date: "7/24(금)-25(토)", desc: "길을여는교회" },
+    YOUTH_SUMMER_RETREAT_EVENT,
     { title: "전교인 수련회", date: "8/28(금) ~ 8/30(주일)", desc: "국립나주숲체원" },
   ],
   birthdays: [],
@@ -42,6 +49,26 @@ type CalendarDateRange = {
   end: Date;
   allDay: boolean;
 };
+
+function withRequiredHomeEvents(news: typeof DEFAULT_NEWS) {
+  const events = Array.isArray(news.events) ? news.events : [];
+  const hasYouthRetreat = events.some((event) => event?.title === YOUTH_SUMMER_RETREAT_EVENT.title);
+
+  if (hasYouthRetreat) {
+    return { ...news, events };
+  }
+
+  const insertAt = events.findIndex((event) => event?.title === "전교인 수련회");
+  const nextEvents = [...events];
+
+  if (insertAt >= 0) {
+    nextEvents.splice(insertAt, 0, YOUTH_SUMMER_RETREAT_EVENT);
+  } else {
+    nextEvents.push(YOUTH_SUMMER_RETREAT_EVENT);
+  }
+
+  return { ...news, events: nextEvents };
+}
 
 const padCalendarNumber = (value: number) => String(value).padStart(2, '0');
 
@@ -256,6 +283,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   if (newsResult.status === 'fulfilled' && !newsResult.value.error && newsResult.value.data?.length > 0) {
     news = newsResult.value.data[0].news as typeof DEFAULT_NEWS;
   }
+  news = withRequiredHomeEvents(news);
 
   return json({
     error,

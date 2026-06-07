@@ -5,6 +5,12 @@ import { createServerClient } from "@supabase/ssr";
 import { supabase as clientSupabase } from "~/lib/supabase";
 
 // 교회소식 기본 예시 구조 (2026.01.11 주보 기준)
+const YOUTH_SUMMER_RETREAT_EVENT = {
+  title: "청소년부 여름수련회",
+  date: "7/30(목) ~ 8/1(토)",
+  desc: "호서대학교 천안캠퍼스",
+};
+
 const DEFAULT_NEWS = {
   registerNotice: "예수 그리스도 안에서 교회 등록을 원하시는 분은 예배 후 담임목사에게 말씀해 주세요.",
   events: [
@@ -12,6 +18,7 @@ const DEFAULT_NEWS = {
     { title: "공동의회(사무처리회)", date: "1/18(주일) 2부 예배 직후", desc: "예배당" },
     { title: "목장 방학", date: "1/11(주일)~1/31(토)", desc: "3주간 / 2월 1일 개강" },
     { title: "'길 학교' 개강", date: "1/11, 18, 25일", desc: "주일 중식 직후 1:30~3:00 / 전교인 대상" },
+    YOUTH_SUMMER_RETREAT_EVENT,
     { title: "결혼 - 김주은 ♥ 권가람", date: "1/17(토) 오전 11시", desc: "더화이트베이W홀 4층(서울 서초) / 김희환 장로-김연태 권사의 딸" },
     { title: "결혼 - 오승현 ♥ 나윤희", date: "1/17(토) 오전 11시", desc: "남악 스카이웨딩컨벤션(남악) / 바나바 목장" }
   ],
