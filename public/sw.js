@@ -18,7 +18,24 @@ self.addEventListener('push', (event) => {
     data: { url: payload.url || '/orders/history' },
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  // 앱이 열려서 포커스(visible)된 클라이언트가 있으면 OS 알림을 띄우지 않고
+  // 인앱 토스트만 보이도록 클라이언트에 전달한다. (OS 푸시 + 인앱 토스트 중복 방지)
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      const hasVisibleClient = windowClients.some(
+        (client) => client.visibilityState === 'visible'
+      );
+
+      if (hasVisibleClient) {
+        windowClients.forEach((client) => {
+          client.postMessage({ type: 'push', payload });
+        });
+        return;
+      }
+
+      return self.registration.showNotification(title, options);
+    })
+  );
 });
 
 self.addEventListener('notificationclick', (event) => {

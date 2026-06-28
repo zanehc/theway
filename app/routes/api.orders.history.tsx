@@ -256,15 +256,14 @@ export async function loader({ request }: LoaderFunctionArgs) {
     return json({ error: "주문 내역을 불러오지 못했습니다.", orders: [] }, { status: 500 });
   }
 
-  const customerName = normalizeProfileValue(profile?.name);
   const churchGroup = normalizeProfileValue(profile?.church_group);
   let matchedOrders: any[] = [];
 
-  if (customerName && churchGroup) {
+  // 같은 목장 소속이면 누가 주문했든 그 목장의 모든 주문을 함께 조회한다.
+  if (churchGroup) {
     const { data, error } = await serviceClient
       .from("orders")
       .select(ORDER_SELECT)
-      .eq("customer_name", customerName)
       .eq("church_group", churchGroup)
       .order("created_at", { ascending: false })
       .limit(limit);
@@ -281,7 +280,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     {
       orders: mergeOrdersById([ownOrders || [], matchedOrders], limit),
       isAdmin: false,
-      matchByProfile: Boolean(customerName && churchGroup),
+      matchByProfile: Boolean(churchGroup),
     },
     { headers: { "Cache-Control": "no-store" } }
   );

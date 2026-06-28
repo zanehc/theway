@@ -304,6 +304,12 @@ export default function OtherPage() {
                     교회소식 관리
                   </button>
                   <button
+                    onClick={() => navigate("/admin/coupons")}
+                    className="w-full bg-amber-500 text-white py-3 px-4 rounded-2xl font-bold hover:bg-amber-600 transition-colors"
+                  >
+                    쿠폰 발급
+                  </button>
+                  <button
                     onClick={() => {
                       setShowAnnouncementForm((value) => !value);
                       setAnnouncementError(null);

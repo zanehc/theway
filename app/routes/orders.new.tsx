@@ -2,9 +2,9 @@ import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher, useOutletContext, useNavigation } from "@remix-run/react";
 import { useState, useEffect, useRef } from "react";
-import { getMenus, createOrder, OrderCreationError } from "~/lib/database";
+import { getMenus, createOrder, OrderCreationError, getCouponById, redeemCoupon } from "~/lib/database";
 
-import type { Menu } from "~/types";
+import type { Menu, Coupon } from "~/types";
 import { createServerSupabaseClient, supabase } from "~/lib/supabase";
 import { MenuListSkeleton } from "~/components/LoadingSkeleton";
 import OrderReviewSheet, { type ItemOptions, type ReviewCartItem } from "~/components/OrderReviewSheet";
@@ -252,12 +252,13 @@ export async function action({ request }: ActionFunctionArgs) {
       const notes = formData.get('notes') as string;
       const items = JSON.parse(formData.get('items') as string);
       const accessToken = formData.get('accessToken') as string;
+      const couponId = (formData.get('couponId') as string)?.trim() || '';
 
       if (!items || items.length === 0) {
         return json({ error: '고객명과 주문 항목을 입력해주세요.' }, { status: 400 });
       }
 
-      const totalAmount = items.reduce((sum: number, item: any) => sum + item.total_price, 0);
+      const subtotal = items.reduce((sum: number, item: any) => sum + item.total_price, 0);
 
       const serverSupabase = createServerSupabaseClient();
       const { data: authData, error: authError } = accessToken
@@ -286,11 +287,35 @@ export async function action({ request }: ActionFunctionArgs) {
       if (!customerName || !churchGroup) {
         return json({ error: '이름과 소속 목장을 먼저 입력해주세요.' }, { status: 400 });
       }
-      
+
+      // 쿠폰 검증 및 할인 적용
+      let discountAmount = 0;
+      let appliedCouponId: string | undefined;
+      if (couponId) {
+        const coupon = await getCouponById(couponId, serverSupabase);
+        const matchesUser = coupon?.target_type === 'user' && coupon.target_user_id === finalUserId;
+        const matchesGroup =
+          coupon?.target_type === 'group' && coupon.target_church_group === churchGroup;
+
+        if (!coupon || !coupon.is_active || (!matchesUser && !matchesGroup)) {
+          return json({ error: '사용할 수 없는 쿠폰입니다. 다시 확인해주세요.' }, { status: 400 });
+        }
+
+        discountAmount = Math.min(
+          subtotal,
+          Math.round((subtotal * coupon.discount_percent) / 100)
+        );
+        appliedCouponId = coupon.id;
+      }
+
+      const finalAmount = subtotal - discountAmount;
+
       console.log('🔍 Creating order with user info:', {
         finalUserId,
         customerName,
-        userExists: !!finalUserId
+        userExists: !!finalUserId,
+        couponApplied: Boolean(appliedCouponId),
+        discountAmount,
       });
 
       // Use service role client for profile ensure so RLS doesn't block
@@ -309,11 +334,21 @@ export async function action({ request }: ActionFunctionArgs) {
           church_group: churchGroup || undefined,
           payment_method: paymentMethod,
           notes: notes || undefined,
-          total_amount: totalAmount,
+          total_amount: finalAmount,
+          coupon_id: appliedCouponId,
+          discount_amount: discountAmount,
           items: items,
         },
         writeClient
       );
+
+      // 1회용 쿠폰 소진 (주문 생성 후)
+      if (appliedCouponId) {
+        const redeemed = await redeemCoupon(appliedCouponId, finalUserId, result.id, serverSupabase);
+        if (!redeemed) {
+          console.warn('⚠️ Coupon already used at redemption time:', appliedCouponId);
+        }
+      }
 
       console.log('📝 Order created successfully:', result);
       console.log('📝 Order user_id check:', { orderUserId: result.user_id, finalUserId });
@@ -527,6 +562,8 @@ export default function NewOrder() {
   const [notes, setNotes] = useState('');
   const [showReview, setShowReview] = useState(false);
   const [editingOrder, setEditingOrder] = useState<{ id: string; orderNumber?: string } | null>(null);
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [selectedCouponId, setSelectedCouponId] = useState('');
   const editBroadcastRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const accessTokenRef = useRef<string | null>(null);
 
@@ -578,6 +615,30 @@ export default function NewOrder() {
       setChurchGroup(profile.church_group || '');
     }
   }, [outletContext?.userProfile]);
+
+  // 사용 가능한 쿠폰 조회 (RLS로 본인/본인 목장 활성 쿠폰만 반환)
+  useEffect(() => {
+    if (!outletContext?.user || editingOrder) {
+      setCoupons([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('coupons')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+      if (cancelled) return;
+      if (error) {
+        console.warn('쿠폰 조회 실패:', error.message);
+        setCoupons([]);
+        return;
+      }
+      setCoupons((data || []) as Coupon[]);
+    })();
+    return () => { cancelled = true; };
+  }, [outletContext?.user, editingOrder]);
 
   useEffect(() => {
     // 재주문 정보가 있으면 자동 채우기
@@ -843,6 +904,9 @@ export default function NewOrder() {
     formData.append('paymentMethod', 'transfer');
     formData.append('notes', notes);
     formData.append('accessToken', accessToken);
+    if (!editingOrder && selectedCouponId) {
+      formData.append('couponId', selectedCouponId);
+    }
     const orderItems = cart.flatMap(item =>
       normalizeItemOptions(item.options, item.quantity).map((options) => ({
         menu_id: item.menu.id,
@@ -1225,6 +1289,9 @@ export default function NewOrder() {
         onSubmit={submitOrder}
         submitLabel={`₩${totalAmount.toLocaleString()} ${editingOrder ? '수정 저장' : '주문하기'}`}
         submittingLabel={editingOrder ? '수정 중...' : '주문 처리 중...'}
+        coupons={editingOrder ? [] : coupons}
+        selectedCouponId={selectedCouponId}
+        onSelectCoupon={editingOrder ? undefined : setSelectedCouponId}
       />
     </div>
   );

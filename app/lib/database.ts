@@ -1,6 +1,6 @@
 import { createServerSupabaseClient, supabase } from './supabase';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Menu, Order, OrderItem, User, OrderWithItems, UserOrderHistory, OrderStatusUpdate } from '~/types';
+import type { Menu, Order, OrderItem, User, OrderWithItems, UserOrderHistory, OrderStatusUpdate, Coupon } from '~/types';
 
 type OrderCreationStep = 'orders_insert' | 'order_items_insert';
 
@@ -35,7 +35,7 @@ function getOrderNumberLabel(order: { id?: string | null; order_number?: string 
 async function sendWebPush(
   client: ReturnType<typeof createServerSupabaseClient>,
   userId: string,
-  payload: { title: string; body: string; orderId: string; url: string }
+  payload: { title: string; body: string; orderId: string; url: string; tag?: string }
 ) {
   if (typeof window !== 'undefined') return;
   if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) return;
@@ -233,6 +233,8 @@ export async function createOrder(orderData: {
   total_amount: number;
   payment_method: 'cash' | 'transfer';
   notes?: string;
+  coupon_id?: string;
+  discount_amount?: number;
   items: Array<{
     menu_id: string;
     quantity: number;
@@ -252,6 +254,8 @@ export async function createOrder(orderData: {
         total_amount: orderData.total_amount,
         payment_method: orderData.payment_method,
         notes: orderData.notes,
+        coupon_id: orderData.coupon_id ?? null,
+        discount_amount: orderData.discount_amount ?? 0,
         status: 'pending', // 기본 상태
         payment_status: 'pending', // 기본 결제 상태
       })
@@ -329,11 +333,49 @@ export async function createOrder(orderData: {
                 body: orderMessage,
                 orderId: order.id,
                 url: '/orders/history',
+                tag: `${order.id}:new_order`,
               }),
             ])
           )
         );
         console.log('📱 New order notifications sent to', adminUsers.length, 'admins/staff');
+      }
+
+      // 3. 같은 목장 목원에게 새 주문 알림 (주문자 본인/관리자 제외)
+      if (orderData.church_group) {
+        const adminIds = new Set((adminUsers || []).map((a: any) => a.id));
+        const memberIds = await getChurchGroupMemberIds(
+          notificationClient,
+          orderData.church_group
+        );
+        const groupMessage = `${orderData.customer_name}님이 ${menuNames}를 주문했습니다. (주문번호: ${orderNumber})`;
+
+        const recipients = memberIds.filter(
+          (id) => id !== orderData.user_id && !adminIds.has(id)
+        );
+
+        if (recipients.length > 0) {
+          await Promise.all(
+            recipients.map((memberId) =>
+              Promise.all([
+                createNotification({
+                  user_id: memberId,
+                  order_id: order.id,
+                  type: 'group_order',
+                  message: groupMessage,
+                }),
+                sendWebPush(notificationClient, memberId, {
+                  title: '우리 목장 새 주문',
+                  body: groupMessage,
+                  orderId: order.id,
+                  url: '/orders/history',
+                  tag: `${order.id}:group_order`,
+                }),
+              ])
+            )
+          );
+          console.log('📱 Group order notifications sent to', recipients.length, 'members');
+        }
       }
 
     } catch (notificationError) {
@@ -348,86 +390,8 @@ export async function createOrder(orderData: {
   }
 }
 
-export async function updateOrderStatus(id: string, status: string, cancellationReason?: string) {
-  console.log('🔄 updateOrderStatus called:', { id, status, cancellationReason });
-  const client = getWriteClient();
-
-  const updatePayload: Record<string, string> = {
-    status,
-    updated_at: new Date().toISOString()
-  };
-
-  if (status === 'cancelled' && cancellationReason) {
-    updatePayload.cancellation_reason = cancellationReason;
-  }
-
-  let { data, error } = await client
-    .from('orders')
-    .update(updatePayload)
-    .eq('id', id)
-    .select()
-    .single();
-
-  if (error && updatePayload.cancellation_reason) {
-    console.warn('Cancellation reason update failed, retrying status only:', error);
-    const retryResult = await client
-      .from('orders')
-      .update({
-        status,
-        updated_at: updatePayload.updated_at
-      })
-      .eq('id', id)
-      .select()
-      .single();
-
-    data = retryResult.data;
-    error = retryResult.error;
-  }
-
-  if (error) {
-    console.error('Update order status error:', error);
-    throw error;
-  }
-
-  console.log('✅ Order status updated successfully:', data);
-
-    // 주문 상태 변경 알림 전송
-  try {
-    if (data?.user_id) {
-      const orderNumber = getOrderNumberLabel(data);
-      let message = '';
-      switch (status) {
-        case 'preparing':
-          message = `주문이 제조 중입니다. (주문번호: ${orderNumber})`;
-          break;
-        case 'ready':
-          message = `주문이 완료되었습니다! 픽업해주세요. (주문번호: ${orderNumber})`;
-          break;
-        case 'completed':
-          message = `주문이 픽업 완료되었습니다. 감사합니다! (주문번호: ${orderNumber})`;
-          break;
-        case 'cancelled':
-          message = `주문이 취소되었습니다. (주문번호: ${orderNumber})`;
-          break;
-        default:
-          message = `주문 상태가 변경되었습니다: ${status} (주문번호: ${orderNumber})`;
-      }
-
-      await createNotification({
-        user_id: data.user_id,
-        order_id: id,
-        type: 'order_status',
-        message: message
-      });
-
-      console.log('📱 Order status notification sent:', status);
-    }
-  } catch (notificationError) {
-    console.error('Failed to send order status notification:', notificationError);
-  }
-
-  return data as Order;
-}
+// NOTE: 주문 상태 변경 + 알림의 단일 소스는 app/routes/api.admin-orders.tsx 입니다.
+// (이전의 미사용 updateOrderStatus 함수는 중복 알림 방지를 위해 제거됨)
 
 // Sales statistics
 export async function getSalesStatistics(period: 'today' | 'week' | 'month' = 'today') {
@@ -838,4 +802,156 @@ export async function createNotification({ user_id, order_id, type, message }: {
     console.error('알림 저장 실패:', error);
     return { success: false, error };
   }
-} 
+}
+
+// 같은 목장 소속 회원 id 목록 조회
+async function getChurchGroupMemberIds(
+  client: SupabaseClient,
+  churchGroup: string
+): Promise<string[]> {
+  if (!churchGroup) return [];
+  const { data, error } = await client
+    .from('users')
+    .select('id')
+    .eq('church_group', churchGroup);
+
+  if (error) {
+    console.error('목장 회원 조회 실패:', error);
+    return [];
+  }
+  return (data || [])
+    .map((u: any) => u.id)
+    .filter((id: unknown): id is string => typeof id === 'string');
+}
+
+// ============================================================
+// Coupons
+// ============================================================
+
+// 관리자 쿠폰 발급
+export async function createCoupon(
+  payload: {
+    discount_percent: number;
+    target_type: 'user' | 'group';
+    target_user_id?: string | null;
+    target_church_group?: string | null;
+    description?: string | null;
+    created_by?: string | null;
+  },
+  writeClient?: SupabaseClient
+): Promise<Coupon> {
+  const client = writeClient || getWriteClient();
+  const insertData = {
+    discount_percent: payload.discount_percent,
+    target_type: payload.target_type,
+    target_user_id: payload.target_type === 'user' ? payload.target_user_id ?? null : null,
+    target_church_group: payload.target_type === 'group' ? payload.target_church_group ?? null : null,
+    description: payload.description ?? null,
+    created_by: payload.created_by ?? null,
+  };
+
+  const { data, error } = await client
+    .from('coupons')
+    .insert(insertData)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('쿠폰 발급 실패:', error);
+    throw error;
+  }
+  return data as Coupon;
+}
+
+// 관리자 쿠폰 전체 목록 (대상 사용자명 포함)
+export async function getAllCoupons(client?: SupabaseClient) {
+  const c = client || getWriteClient();
+  const { data, error } = await c
+    .from('coupons')
+    .select(`
+      *,
+      target_user:users!coupons_target_user_id_fkey (id, name, email),
+      used_by_user:users!coupons_used_by_user_id_fkey (id, name)
+    `)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('쿠폰 목록 조회 실패:', error);
+    return [];
+  }
+  return data || [];
+}
+
+// 주문 화면용: 사용자가 사용할 수 있는 활성 쿠폰
+export async function getCouponsForUser(
+  userId: string,
+  churchGroup: string | null,
+  client?: SupabaseClient
+): Promise<Coupon[]> {
+  const c = client || getWriteClient();
+  const group = churchGroup ?? '';
+  // target_user_id == userId OR (group 쿠폰 && target_church_group == group)
+  const orFilter = group
+    ? `target_user_id.eq.${userId},and(target_type.eq.group,target_church_group.eq.${group})`
+    : `target_user_id.eq.${userId}`;
+
+  const { data, error } = await c
+    .from('coupons')
+    .select('*')
+    .eq('is_active', true)
+    .or(orFilter)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('사용 가능 쿠폰 조회 실패:', error);
+    return [];
+  }
+  return (data || []) as Coupon[];
+}
+
+// 쿠폰 단건 조회 (검증용)
+export async function getCouponById(
+  couponId: string,
+  client?: SupabaseClient
+): Promise<Coupon | null> {
+  const c = client || getWriteClient();
+  const { data, error } = await c
+    .from('coupons')
+    .select('*')
+    .eq('id', couponId)
+    .maybeSingle();
+  if (error) {
+    console.error('쿠폰 조회 실패:', error);
+    return null;
+  }
+  return (data as Coupon) || null;
+}
+
+// 1회용 쿠폰 소진 (동시성 안전: is_active=true 인 행만 업데이트)
+export async function redeemCoupon(
+  couponId: string,
+  userId: string | null,
+  orderId: string,
+  writeClient?: SupabaseClient
+): Promise<boolean> {
+  const client = writeClient || getWriteClient();
+  const { data, error } = await client
+    .from('coupons')
+    .update({
+      is_active: false,
+      used_at: new Date().toISOString(),
+      used_by_user_id: userId,
+      used_by_order_id: orderId,
+    })
+    .eq('id', couponId)
+    .eq('is_active', true)
+    .select('id');
+
+  if (error) {
+    console.error('쿠폰 소진 실패:', error);
+    return false;
+  }
+  // 업데이트된 행이 없으면 이미 사용된 쿠폰
+  return Array.isArray(data) && data.length > 0;
+}
+

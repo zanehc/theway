@@ -18,14 +18,6 @@ interface DbNotification {
   created_at: string;
 }
 
-interface DbOrderInsert {
-  id: string;
-  order_number?: string | null;
-  customer_name?: string | null;
-  church_group?: string | null;
-  total_amount?: number | null;
-}
-
 function getToastTypeForNotification(notificationType: string): ToastNotification['type'] {
   switch (notificationType) {
     case 'order_cancelled':
@@ -297,55 +289,33 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
           const notification = payload.new as DbNotification;
           console.log('🔔 NotificationContext - 알림 이벤트 수신:', notification);
           window.dispatchEvent(new CustomEvent('theway:order-notification', { detail: notification }));
+
           if (notification.type === 'announcement') {
             addToast(notification.message, 'info');
             return;
           }
-          if (userRole === 'admin' || userRole === 'staff') {
-            if (notification.type === 'new_order') {
-              if (shouldAnnounceOrder(notification.order_id)) {
-                playNewOrderAlert();
-                addToast(notification.message, getToastTypeForNotification(notification.type), { speak: false });
-              }
-            } else {
-              addToast(notification.message, getToastTypeForNotification(notification.type));
+
+          // 새 주문은 관리자/스태프에게만 소리 + 토스트 (중복 방지 가드)
+          if (notification.type === 'new_order') {
+            if ((userRole === 'admin' || userRole === 'staff') && shouldAnnounceOrder(notification.order_id)) {
+              playNewOrderAlert();
+              addToast(notification.message, getToastTypeForNotification(notification.type), { speak: false });
             }
+            return;
           }
+
+          // 그 외(order_status, order_confirmation, order_cancelled, group_order 등)는
+          // 알림 수신자(고객·목원·관리자) 본인에게 인앱 토스트로 표시한다.
+          addToast(notification.message, getToastTypeForNotification(notification.type));
         }
       )
       .subscribe();
 
-    const ordersChannel = (userRole === 'admin' || userRole === 'staff')
-      ? supabase
-          .channel(`orders-insert-audio-${userId}`)
-          .on(
-            'postgres_changes',
-            {
-              event: 'INSERT',
-              schema: 'public',
-              table: 'orders',
-            },
-            (payload) => {
-              const order = payload.new as DbOrderInsert;
-              if (!shouldAnnounceOrder(order.id)) return;
-
-              const group = order.church_group ? ` · ${order.church_group}` : '';
-              const orderNumber = order.order_number ? `#${order.order_number}` : order.id?.slice(-8) || '';
-              const amount = typeof order.total_amount === 'number'
-                ? `, 총 ${order.total_amount.toLocaleString()}원`
-                : '';
-              const message = `${order.customer_name || '고객'}${group}님이 새 주문을 넣었습니다.${orderNumber ? ` (주문번호: ${orderNumber}${amount})` : ''}`;
-
-              playNewOrderAlert();
-              addToast(message, 'info', { speak: false });
-            }
-          )
-          .subscribe()
-      : null;
+    // 새 주문 소리/토스트는 notifications 채널의 new_order 분기 단일 소스로 처리한다.
+    // (이전의 orders-insert-audio 채널은 중복 알림 방지를 위해 제거)
 
     return () => {
       supabase.removeChannel(notificationsChannel);
-      if (ordersChannel) supabase.removeChannel(ordersChannel);
     };
   }, [userId, userRole, addToast, shouldAnnounceOrder]);
 

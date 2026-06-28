@@ -1,4 +1,4 @@
-import type { Menu } from "~/types";
+import type { Menu, Coupon } from "~/types";
 import type { ReactNode } from "react";
 
 export type ItemOptions = {
@@ -28,6 +28,9 @@ type Props = {
   onSubmit: () => void;
   submitLabel?: string;
   submittingLabel?: string;
+  coupons?: Coupon[];
+  selectedCouponId?: string;
+  onSelectCoupon?: (couponId: string) => void;
 };
 
 const isCoffee = (category: string) => category === "ice coffee" || category === "hot coffee";
@@ -86,10 +89,23 @@ export default function OrderReviewSheet({
   onSubmit,
   submitLabel,
   submittingLabel,
+  coupons = [],
+  selectedCouponId = "",
+  onSelectCoupon,
 }: Props) {
   if (!isOpen) return null;
 
   const totalAmount = cart.reduce((sum, item) => sum + item.total_price, 0);
+
+  const couponLabel = (c: Coupon) =>
+    `${c.discount_percent}% 할인${c.description ? ` · ${c.description}` : c.target_type === "group" ? " · 목장 쿠폰" : ""}`;
+
+  const selectedCoupon = coupons.find((c) => c.id === selectedCouponId) || null;
+  const discountAmount = selectedCoupon
+    ? Math.min(totalAmount, Math.round((totalAmount * selectedCoupon.discount_percent) / 100))
+    : 0;
+  const finalAmount = totalAmount - discountAmount;
+  const hasDiscount = discountAmount > 0;
 
   const getCupOptions = (item: ReviewCartItem, index: number) => item.options?.[index] || {};
 
@@ -128,10 +144,52 @@ export default function OrderReviewSheet({
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6">
           <div className="mb-4 rounded-2xl bg-surface-soft p-4">
+            {/* 쿠폰 선택 */}
+            {onSelectCoupon && coupons.length > 0 && (
+              <div className="mb-3">
+                <label className="mb-1.5 block text-sm font-black text-body">쿠폰</label>
+                <select
+                  value={selectedCouponId}
+                  onChange={(event) => onSelectCoupon(event.target.value)}
+                  className="w-full rounded-xl border border-hairline bg-white px-4 py-2.5 text-sm font-bold text-ink focus:outline-none focus:ring-2 focus:ring-focus-outer"
+                >
+                  <option value="">쿠폰 미사용</option>
+                  {coupons.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {couponLabel(c)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div className="flex items-center justify-between">
               <span className="text-sm font-black text-body">총 결제금액</span>
-              <span className="text-lg font-black text-ink">₩{totalAmount.toLocaleString()}</span>
+              {hasDiscount ? (
+                <div className="text-right">
+                  <span className="block text-sm font-bold text-red-600 line-through">
+                    ₩{totalAmount.toLocaleString()}
+                  </span>
+                  <span className="block text-lg font-black text-ink">
+                    ₩{finalAmount.toLocaleString()}
+                  </span>
+                </div>
+              ) : (
+                <span className="text-lg font-black text-ink">₩{totalAmount.toLocaleString()}</span>
+              )}
             </div>
+
+            {hasDiscount && selectedCoupon && (
+              <div className="mt-2 flex items-center justify-between rounded-xl bg-primary/10 px-3 py-2">
+                <span className="text-xs font-black text-primary">
+                  쿠폰 {selectedCoupon.discount_percent}% 적용
+                </span>
+                <span className="text-xs font-black text-primary">
+                  -₩{discountAmount.toLocaleString()} 할인
+                </span>
+              </div>
+            )}
+
             <div className="mt-3 rounded-2xl border border-primary/20 bg-canvas px-4 py-3">
               <div className="text-xs font-black text-primary">입금 계좌</div>
               <div className="mt-1 text-sm font-black text-ink">카카오뱅크 3333-29-6621229</div>
@@ -230,7 +288,11 @@ export default function OrderReviewSheet({
             disabled={cart.length === 0 || isSubmitting}
             className="h-14 w-full rounded-2xl bg-primary text-base font-black text-white transition-colors hover:bg-primary-pressed disabled:cursor-not-allowed disabled:bg-surface-card disabled:text-ash"
           >
-            {isSubmitting ? (submittingLabel || "주문 처리 중...") : (submitLabel || `₩${totalAmount.toLocaleString()} 주문하기`)}
+            {isSubmitting
+              ? (submittingLabel || "주문 처리 중...")
+              : hasDiscount
+              ? `₩${finalAmount.toLocaleString()} 주문하기`
+              : (submitLabel || `₩${totalAmount.toLocaleString()} 주문하기`)}
           </button>
         </div>
       </div>

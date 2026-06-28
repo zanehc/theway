@@ -92,7 +92,7 @@ async function createNotification(
 async function sendWebPush(
   supabase: ReturnType<typeof createServerSupabaseClient>,
   userId: string,
-  payload: { title: string; body: string; orderId: string; url: string }
+  payload: { title: string; body: string; orderId: string; url: string; tag?: string }
 ) {
   if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) return;
 
@@ -132,14 +132,13 @@ async function getNotificationRecipientIds(
   const recipientIds = new Set<string>();
   if (order.user_id) recipientIds.add(order.user_id);
 
-  const customerName = normalizeProfileValue(order.customer_name);
   const churchGroup = normalizeProfileValue(order.church_group);
 
-  if (customerName && churchGroup) {
+  // 같은 목장 소속이면 그 목장 전 목원에게 알림이 가도록 목장만 일치 조회
+  if (churchGroup) {
     const { data, error } = await supabase
       .from("users")
       .select("id")
-      .eq("name", customerName)
       .eq("church_group", churchGroup);
 
     if (error) {
@@ -158,7 +157,7 @@ async function notifyOrderRecipients(
   supabase: ReturnType<typeof createServerSupabaseClient>,
   order: { user_id?: string | null; customer_name?: string | null; church_group?: string | null },
   notification: { order_id: string; type: string; message: string },
-  pushPayload: { title: string; body: string; orderId: string; url: string }
+  pushPayload: { title: string; body: string; orderId: string; url: string; tag?: string }
 ) {
   const recipientIds = await getNotificationRecipientIds(supabase, order);
 
@@ -328,6 +327,7 @@ export async function action({ request }: ActionFunctionArgs) {
         body: message,
         orderId,
         url: "/orders/history",
+        tag: `${orderId}:${status === "cancelled" ? "order_cancelled" : "order_status"}`,
       }
     );
 
