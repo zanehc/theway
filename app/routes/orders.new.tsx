@@ -616,7 +616,7 @@ export default function NewOrder() {
     }
   }, [outletContext?.userProfile]);
 
-  // 사용 가능한 쿠폰 조회 (RLS로 본인/본인 목장 활성 쿠폰만 반환)
+  // 사용 가능한 쿠폰 조회 (서버 service role + 명시적 필터로 본인/본인 목장 활성 쿠폰 반환)
   useEffect(() => {
     if (!outletContext?.user || editingOrder) {
       setCoupons([]);
@@ -624,18 +624,28 @@ export default function NewOrder() {
     }
     let cancelled = false;
     (async () => {
-      const { data, error } = await supabase
-        .from('coupons')
-        .select('*')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
-      if (cancelled) return;
-      if (error) {
-        console.warn('쿠폰 조회 실패:', error.message);
-        setCoupons([]);
-        return;
+      let accessToken = accessTokenRef.current;
+      if (!accessToken) {
+        const { data: { session } } = await supabase.auth.getSession();
+        accessToken = session?.access_token || null;
+        accessTokenRef.current = accessToken;
       }
-      setCoupons((data || []) as Coupon[]);
+      if (!accessToken) return;
+      try {
+        const res = await fetch('/api/my-coupons', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!res.ok) {
+          console.warn('쿠폰 조회 실패:', data?.error);
+          setCoupons([]);
+          return;
+        }
+        setCoupons((data.coupons || []) as Coupon[]);
+      } catch (e) {
+        if (!cancelled) setCoupons([]);
+      }
     })();
     return () => { cancelled = true; };
   }, [outletContext?.user, editingOrder]);

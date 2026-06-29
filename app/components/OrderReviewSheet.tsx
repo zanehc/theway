@@ -144,22 +144,28 @@ export default function OrderReviewSheet({
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6">
           <div className="mb-4 rounded-2xl bg-surface-soft p-4">
-            {/* 쿠폰 선택 */}
-            {onSelectCoupon && coupons.length > 0 && (
+            {/* 쿠폰 선택 (사용 가능한 쿠폰이 없어도 영역은 항상 노출) */}
+            {onSelectCoupon && (
               <div className="mb-3">
                 <label className="mb-1.5 block text-sm font-black text-body">쿠폰</label>
-                <select
-                  value={selectedCouponId}
-                  onChange={(event) => onSelectCoupon(event.target.value)}
-                  className="w-full rounded-xl border border-hairline bg-white px-4 py-2.5 text-sm font-bold text-ink focus:outline-none focus:ring-2 focus:ring-focus-outer"
-                >
-                  <option value="">쿠폰 미사용</option>
-                  {coupons.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {couponLabel(c)}
-                    </option>
-                  ))}
-                </select>
+                {coupons.length > 0 ? (
+                  <select
+                    value={selectedCouponId}
+                    onChange={(event) => onSelectCoupon(event.target.value)}
+                    className="w-full rounded-xl border border-hairline bg-white px-4 py-2.5 text-sm font-bold text-ink focus:outline-none focus:ring-2 focus:ring-focus-outer"
+                  >
+                    <option value="">쿠폰 미사용</option>
+                    {coupons.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {couponLabel(c)}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="w-full rounded-xl border border-hairline bg-surface-soft px-4 py-2.5 text-sm font-bold text-mute">
+                    사용 가능한 쿠폰이 없습니다
+                  </div>
+                )}
               </div>
             )}
 
