@@ -60,7 +60,7 @@ export default function OrderCancellationModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 p-4">
       <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
         {/* 헤더 */}
         <div className="flex shrink-0 items-center justify-between border-b border-hairline px-5 py-4 sm:px-6">

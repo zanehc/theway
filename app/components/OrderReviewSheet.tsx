@@ -5,6 +5,7 @@ export type ItemOptions = {
   strength?: "light";
   water?: "more" | "less";
   ice?: "more" | "less";
+  temperature?: "hot" | "ice";
 };
 
 export type ReviewCartItem = {
@@ -34,6 +35,7 @@ type Props = {
 };
 
 const isCoffee = (category: string) => category === "ice coffee" || category === "hot coffee";
+const isTea = (category: string) => category === "tea";
 
 function OptionButton({
   active,
@@ -119,6 +121,10 @@ export default function OrderReviewSheet({
 
   const setIce = (item: ReviewCartItem, index: number, value?: "more" | "less") => {
     onUpdateOptions(item.menu.id, index, { ...getCupOptions(item, index), ice: value });
+  };
+
+  const setTemperature = (item: ReviewCartItem, index: number, value: "hot" | "ice") => {
+    onUpdateOptions(item.menu.id, index, { ...getCupOptions(item, index), temperature: value });
   };
 
   return (
@@ -233,6 +239,35 @@ export default function OrderReviewSheet({
                     </button>
                   </div>
                 </div>
+
+                {isTea(item.menu.category) && (
+                  <div className="mt-4 space-y-3">
+                    {Array.from({ length: item.quantity }, (_, index) => {
+                      const cupOptions = getCupOptions(item, index);
+                      return (
+                        <div key={`${item.menu.id}-${index}`} className="space-y-3 rounded-2xl bg-surface-soft p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-sm font-black text-ink">{index + 1}번 옵션</span>
+                            <div className="grid grid-cols-2 gap-2">
+                              <OptionButton
+                                active={cupOptions.temperature !== "ice"}
+                                onClick={() => setTemperature(item, index, "hot")}
+                              >
+                                🔥 핫
+                              </OptionButton>
+                              <OptionButton
+                                active={cupOptions.temperature === "ice"}
+                                onClick={() => setTemperature(item, index, "ice")}
+                              >
+                                🧊 아이스
+                              </OptionButton>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {isCoffee(item.menu.category) && (
                   <div className="mt-4 space-y-3">

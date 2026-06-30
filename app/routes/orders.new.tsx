@@ -491,9 +491,13 @@ export async function action({ request }: ActionFunctionArgs) {
 
 type CartItem = ReviewCartItem;
 
-function buildItemNotes(opts?: ItemOptions): string | undefined {
-  if (!opts) return undefined;
+function buildItemNotes(opts?: ItemOptions, category?: string): string | undefined {
   const parts: string[] = [];
+  // 차: 핫/아이스 구분을 항상 기록 (선택이 없으면 기본 핫)
+  if (category === 'tea') {
+    parts.push(opts?.temperature === 'ice' ? '아이스' : '핫');
+  }
+  if (!opts) return parts.length ? parts.join(', ') : undefined;
   if (opts.strength === 'light') parts.push('연하게');
   if (opts.water === 'more') parts.push('물 많게');
   if (opts.water === 'less') parts.push('물 적게');
@@ -515,6 +519,8 @@ function parseItemNotes(notes?: string | null): ItemOptions {
   if (parts.includes('물 적게')) options.water = 'less';
   if (parts.includes('얼음 많게')) options.ice = 'more';
   if (parts.includes('얼음 적게')) options.ice = 'less';
+  if (parts.includes('아이스')) options.temperature = 'ice';
+  else if (parts.includes('핫')) options.temperature = 'hot';
   return options;
 }
 
@@ -923,7 +929,7 @@ export default function NewOrder() {
         quantity: 1,
         unit_price: item.menu.price,
         total_price: item.menu.price,
-        notes: buildItemNotes(options),
+        notes: buildItemNotes(options, item.menu.category),
       }))
     );
 
