@@ -97,6 +97,9 @@ WHERE name = '유자차';
 UPDATE menus SET image_url = '/menu-images/generated/hot-ginger-tea.png'
 WHERE name = '생강차';
 
+UPDATE menus SET image_url = '/menu-images/generated/teabag-tea.png'
+WHERE name IN ('티백차', '티백 차');
+
 UPDATE menus SET image_url = '/menu-images/generated/pororo-juice.png'
 WHERE name = '뽀로로 주스';
 
