@@ -848,6 +848,8 @@ export async function createCoupon(
     target_church_group: payload.target_type === 'group' ? payload.target_church_group ?? null : null,
     description: payload.description ?? null,
     created_by: payload.created_by ?? null,
+    // 발급 즉시 사용 가능하도록 명시적으로 활성화한다.
+    is_active: true,
   };
 
   const { data, error } = await client

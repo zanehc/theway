@@ -295,6 +295,12 @@ export function NotificationProvider({ children, userId, userRole }: Notificatio
             return;
           }
 
+          // 쿠폰 발급 알림은 수신자에게 성공 토스트로 표시
+          if (notification.type === 'coupon') {
+            addToast(notification.message, 'success');
+            return;
+          }
+
           // 새 주문은 관리자/스태프에게만 소리 + 토스트 (중복 방지 가드)
           if (notification.type === 'new_order') {
             if ((userRole === 'admin' || userRole === 'staff') && shouldAnnounceOrder(notification.order_id)) {

@@ -107,7 +107,13 @@ export default function AdminCouponsPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "쿠폰 발급에 실패했습니다.");
 
-      addToast("쿠폰을 발급했습니다.", "success");
+      const notified = Number(data.notifiedCount) || 0;
+      addToast(
+        notified > 0
+          ? `쿠폰을 발급하고 ${notified}명에게 알림을 보냈습니다.`
+          : "쿠폰을 발급했습니다.",
+        "success"
+      );
       setDescription("");
       setTargetUserId("");
       setTargetChurchGroup("");
