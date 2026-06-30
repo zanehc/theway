@@ -418,7 +418,7 @@ export default function Index() {
         {/* 브랜드 및 사용자 정보 헤더 - 여백 최소화 */}
         <div className="mb-3 sm:mb-4">
           <div className="flex justify-between items-center">
-            <div className="flex min-w-0 items-center gap-3">
+            <div className="flex min-w-0 items-center gap-1.5">
               <img
                 src="/church-logo-gil.png"
                 alt="길을여는교회 로고"
@@ -457,13 +457,13 @@ export default function Index() {
                   <Link
                     to="/mypage"
                     prefetch="intent"
-                    className="flex items-center gap-1 whitespace-nowrap rounded-2xl px-2 py-1 transition-colors hover:bg-surface-soft focus:outline-none focus:ring-2 focus:ring-focus-outer"
+                    className="flex flex-col items-end whitespace-nowrap rounded-2xl px-2 py-1 transition-colors hover:bg-surface-soft focus:outline-none focus:ring-2 focus:ring-focus-outer"
                     aria-label="마이페이지로 이동"
                   >
-                    <span className="text-body font-bold text-sm">
+                    <span className="text-body font-bold text-sm leading-tight">
                       {displayName}님
                     </span>
-                    <span className="text-mute text-xs">
+                    <span className="text-mute text-xs leading-tight">
                       안녕하세요
                     </span>
                   </Link>
