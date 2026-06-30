@@ -422,7 +422,7 @@ export default function Index() {
               <img
                 src="/church-logo-gil.png"
                 alt="길을여는교회 로고"
-                className="h-12 max-w-[48vw] shrink-0 object-contain sm:h-14 sm:max-w-[270px]"
+                className="h-8 max-w-[40vw] shrink-0 object-contain sm:h-10 sm:max-w-[190px]"
                 width={455}
                 height={116}
               />
@@ -451,21 +451,21 @@ export default function Index() {
             </div>
 
             {/* 사용자 정보 및 로그인 버튼 */}
-            <div className="flex items-center space-x-3">
+            <div className="flex shrink-0 items-center gap-2">
               {user ? (
-                <div className="flex items-center space-x-3">
+                <>
                   <Link
                     to="/mypage"
                     prefetch="intent"
-                    className="text-right rounded-2xl px-2 py-1 transition-colors hover:bg-surface-soft focus:outline-none focus:ring-2 focus:ring-focus-outer"
+                    className="flex items-center gap-1 whitespace-nowrap rounded-2xl px-2 py-1 transition-colors hover:bg-surface-soft focus:outline-none focus:ring-2 focus:ring-focus-outer"
                     aria-label="마이페이지로 이동"
                   >
-                    <div className="text-body font-bold text-sm">
+                    <span className="text-body font-bold text-sm">
                       {displayName}님
-                    </div>
-                    <div className="text-mute text-xs">
+                    </span>
+                    <span className="text-mute text-xs">
                       안녕하세요
-                    </div>
+                    </span>
                   </Link>
                   <button
                     onClick={async () => {
@@ -475,11 +475,11 @@ export default function Index() {
                         window.location.replace('/');
                       }
                     }}
-                    className="bg-surface-soft hover:bg-surface-card text-body border border-stone px-3 py-1 rounded-2xl font-medium transition-all text-xs"
+                    className="shrink-0 whitespace-nowrap bg-surface-soft hover:bg-surface-card text-body border border-stone px-3 py-1 rounded-2xl font-medium transition-all text-xs"
                   >
                     로그아웃
                   </button>
-                </div>
+                </>
               ) : (
                 <button
                   onClick={() => {
